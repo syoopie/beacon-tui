@@ -27,6 +27,7 @@ const (
 	OpImport
 	OpPatchScript
 	OpWriteConfig
+	OpConsole
 )
 
 var opNames = [...]string{
@@ -36,6 +37,7 @@ var opNames = [...]string{
 	OpImport:      "import",
 	OpPatchScript: "patch-script",
 	OpWriteConfig: "write-config",
+	OpConsole:     "console",
 }
 
 func (k OpKind) String() string {

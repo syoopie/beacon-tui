@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/filepicker"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -68,6 +69,9 @@ type model struct {
 	update *updateNotice
 	// pick is non-nil while the operator is browsing for a server folder.
 	pick *filepicker.Model
+	// console is non-nil while the operator is typing a command for the
+	// selected server. Key input goes to it, not the key handler.
+	console *textinput.Model
 }
 
 type updateNotice struct {
@@ -95,14 +99,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		bodyHeight := msg.Height - 2
 		if !m.ready {
-			m.vp = viewport.New(msg.Width-listWidth-1, bodyHeight)
+			m.vp = viewport.New(msg.Width-listWidth-1, msg.Height-2)
 			m.ready = true
-		} else {
-			m.vp.Width = msg.Width - listWidth - 1
-			m.vp.Height = bodyHeight
 		}
+		m.layout()
 		return m, nil
 
 	case tickMsg:
@@ -175,10 +176,34 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case consoleSentMsg:
+		m.status = msg.label
+		return m, nil
+
 	case tea.KeyMsg:
 		return m.onKey(msg)
 	}
+	// Cursor-blink and other component ticks reach the focused console here.
+	if m.console != nil {
+		ti, cmd := m.console.Update(msg)
+		m.console = &ti
+		return m, cmd
+	}
 	return m, nil
+}
+
+// layout sizes the log viewport for the current chrome. The console bar, when
+// open, takes one row from the log.
+func (m *model) layout() {
+	if !m.ready {
+		return
+	}
+	h := m.height - 2
+	if m.console != nil {
+		h--
+	}
+	m.vp.Width = max(m.width-listWidth-1, 1)
+	m.vp.Height = max(h, 1)
 }
 
 // openPicker starts the folder browser at the operator's home directory.
@@ -194,6 +219,49 @@ func (m *model) openPicker() tea.Cmd {
 	m.pick = &fp
 	m.status = "→ open folder · ← up · enter choose this folder · esc cancel"
 	return fp.Init()
+}
+
+// openConsole focuses a one-line input that sends commands to the selected
+// server's console. It stays open after a send so the operator can type again.
+func (m *model) openConsole(spec server.Spec) tea.Cmd {
+	ti := textinput.New()
+	ti.Prompt = string(spec.ID) + " › "
+	ti.Placeholder = "server command, e.g. list"
+	ti.CharLimit = 512
+	ti.Width = max(m.width-listWidth-len(ti.Prompt)-4, 20)
+	ti.Focus()
+	m.console = &ti
+	m.status = "console · enter send · esc close"
+	m.layout()
+	return textinput.Blink
+}
+
+func (m *model) closeConsole(reason string) (tea.Model, tea.Cmd) {
+	m.console = nil
+	m.status = reason
+	m.layout()
+	return m, nil
+}
+
+func (m *model) updateConsole(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "ctrl+c":
+		return m.closeConsole("console closed")
+	case "enter":
+		line := strings.TrimSpace(m.console.Value())
+		if line == "" {
+			return m, nil
+		}
+		spec, ok := m.selected()
+		if !ok {
+			return m.closeConsole("console closed (no server selected)")
+		}
+		m.console.SetValue("")
+		return m, m.consoleCmd(spec, line)
+	}
+	ti, cmd := m.console.Update(msg)
+	m.console = &ti
+	return m, cmd
 }
 
 func (m *model) updatePicker(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -224,6 +292,9 @@ func (m *model) updatePicker(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.console != nil {
+		return m.updateConsole(msg)
+	}
 	if m.pat != nil {
 		switch msg.String() {
 		case "y":
@@ -298,6 +369,12 @@ func (m *model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.markStoppedCmd(spec)
 	case "p":
 		return m, m.planPatchCmd(spec)
+	case "c":
+		if m.reports[spec.ID].Derived != server.StatusRunning {
+			m.status = "console works only while the server is running"
+			return m, nil
+		}
+		return m, m.openConsole(spec)
 	}
 	return m, nil
 }
@@ -378,7 +455,7 @@ func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 		m.point(m.specs[0].ID)
 	}
 	if m.status == "loading…" || m.status == "scanning…" {
-		m.status = "j/k move · s start · x stop · K force-kill · m mark-stopped · a add-folder · i import · p patch · q quit"
+		m.status = "j/k move · s start · x stop · c console · K force-kill · m mark-stopped · a add-folder · i import · p patch · q quit"
 	}
 	return m.reconcileCmd()
 }
@@ -428,6 +505,18 @@ type updateMsg struct {
 type rootAddedMsg struct {
 	cfg config.Config
 	err error
+}
+
+type consoleSentMsg struct{ label string }
+
+func (m *model) consoleCmd(spec server.Spec, line string) tea.Cmd {
+	mgr := m.app.Mgr
+	return func() tea.Msg {
+		if err := mgr.SendConsole(context.Background(), spec, line); err != nil {
+			return consoleSentMsg{label: "console: " + err.Error()}
+		}
+		return consoleSentMsg{label: string(spec.ID) + " ‹ " + line}
+	}
 }
 
 func (m *model) addRootCmd(dir string) tea.Cmd {
@@ -540,13 +629,14 @@ func (m *model) markStoppedCmd(spec server.Spec) tea.Cmd {
 // --- view ---
 
 var (
-	titleStyle  = lipgloss.NewStyle().Bold(true).Padding(0, 1)
-	updateStyle = lipgloss.NewStyle().Bold(true)
-	listStyle   = lipgloss.NewStyle().Width(listWidth).Border(lipgloss.NormalBorder(), false, true, false, false)
-	selStyle    = lipgloss.NewStyle().Bold(true).Reverse(true)
-	statusStyle = lipgloss.NewStyle().Padding(0, 1)
-	warnStyle   = lipgloss.NewStyle().Bold(true)
-	dialogStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+	titleStyle   = lipgloss.NewStyle().Bold(true).Padding(0, 1)
+	updateStyle  = lipgloss.NewStyle().Bold(true)
+	listStyle    = lipgloss.NewStyle().Width(listWidth).Border(lipgloss.NormalBorder(), false, true, false, false)
+	selStyle     = lipgloss.NewStyle().Bold(true).Reverse(true)
+	statusStyle  = lipgloss.NewStyle().Padding(0, 1)
+	consoleStyle = lipgloss.NewStyle().Padding(0, 1)
+	warnStyle    = lipgloss.NewStyle().Bold(true)
+	dialogStyle  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 )
 
 func (m *model) View() string {
@@ -569,7 +659,13 @@ func (m *model) View() string {
 	} else {
 		body = lipgloss.JoinHorizontal(lipgloss.Top, listStyle.Render(m.listView()), m.vp.View())
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, title, body, statusStyle.Render(m.statusLine()))
+
+	rows := []string{title, body}
+	if m.console != nil {
+		rows = append(rows, consoleStyle.Render(m.console.View()))
+	}
+	rows = append(rows, statusStyle.Render(m.statusLine()))
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
 func (m *model) listView() string {
@@ -589,7 +685,7 @@ func (m *model) listView() string {
 }
 
 func (m *model) statusLine() string {
-	if m.pick != nil {
+	if m.pick != nil || m.console != nil {
 		return m.status
 	}
 	spec, ok := m.selected()

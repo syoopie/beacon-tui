@@ -60,6 +60,7 @@ beacon
    folders, so you do not need to type a path.
 2. Your server shows up in the list. Move the highlight with `j` and `k`.
 3. Press `s` to start it, `x` to stop it. The log fills the panel on the right.
+4. Press `c` to open a console and type commands straight to the server.
 
 Have several servers, each in its own folder? Add each one with `a`. Or point
 beacon at a folder that contains all of them and it picks up every server inside.
@@ -71,6 +72,7 @@ beacon at a folder that contains all of them and it picks up every server inside
 | `j` `k` | move the highlight                                            |
 | `s`     | start the highlighted server                                  |
 | `x`     | stop it, waiting for a clean shutdown                         |
+| `c`     | open a console to type a command straight to the server       |
 | `K`     | force-kill (only offered after a stop has hung)               |
 | `m`     | mark a server stopped once you have checked it really is down |
 | `a`     | add a server (pick its folder)                                |

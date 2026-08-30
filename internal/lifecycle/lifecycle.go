@@ -180,6 +180,30 @@ func (m *Manager) ForceKill(ctx context.Context, spec server.Spec) (server.Spec,
 	return m.writeState(spec, server.StatusStopped)
 }
 
+// SendConsole delivers one line to a running server's console. It runs under
+// the host lock, like every other mutating op, so a console line cannot
+// interleave with a start or a stop. It refuses when the session is not up:
+// there is nothing to type at.
+func (m *Manager) SendConsole(ctx context.Context, spec server.Spec, line string) error {
+	release, err := m.hold(m.lockDir(), oplock.OpConsole)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	exists, err := m.sup.Exists(ctx, spec.Session)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("%s is not running; there is no console to send to", spec.ID)
+	}
+	if err := m.sup.SendKeys(ctx, spec.Session, line); err != nil {
+		return fmt.Errorf("%s: sending console line: %w", spec.ID, err)
+	}
+	return nil
+}
+
 // MarkStopped records Stopped for a server the operator has confirmed is down
 // after it reconciled to Unknown. This is the only way out of Unknown.
 func (m *Manager) MarkStopped(spec server.Spec) (server.Spec, error) {

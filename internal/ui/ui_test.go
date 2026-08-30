@@ -13,6 +13,7 @@ import (
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/reconcile"
 	"github.com/syoopie/beacon-tui/internal/selfupdate"
 	"github.com/syoopie/beacon-tui/internal/server"
 	"github.com/syoopie/beacon-tui/internal/supervisor"
@@ -21,6 +22,7 @@ import (
 type stubSupervisor struct {
 	mu      sync.Mutex
 	present map[server.Session]bool
+	sent    []string
 }
 
 func newStub() *stubSupervisor {
@@ -40,7 +42,18 @@ func (s *stubSupervisor) Exists(_ context.Context, sess server.Session) (bool, e
 	return s.present[sess], nil
 }
 
-func (s *stubSupervisor) SendKeys(context.Context, server.Session, string) error { return nil }
+func (s *stubSupervisor) SendKeys(_ context.Context, _ server.Session, line string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sent = append(s.sent, line)
+	return nil
+}
+
+func (s *stubSupervisor) sentLines() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.sent...)
+}
 
 func (s *stubSupervisor) Kill(_ context.Context, sess server.Session) error {
 	s.mu.Lock()
@@ -256,6 +269,55 @@ func TestPickedFolderIsAddedAndScanned(t *testing.T) {
 	}
 	if len(specs) != 1 || specs[0].ID != "survival" {
 		t.Fatalf("import after add wrote %+v, want one spec 'survival'", specs)
+	}
+}
+
+func TestConsoleSendsTypedLineToRunningServer(t *testing.T) {
+	m, tm, sup, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+
+	sup.present[spec.Session] = true
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
+
+	tm, _ = pressRune(t, m, tm, "c")
+	if m.console == nil {
+		t.Fatal("pressing c did not open the console")
+	}
+
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("say hi")})
+	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	for _, msg := range msgs {
+		tm, _ = drive(t, tm, msg)
+	}
+
+	if got := sup.sentLines(); len(got) != 1 || got[0] != "say hi" {
+		t.Fatalf("sent lines = %v, want [say hi]", got)
+	}
+	if m.console == nil {
+		t.Fatal("console closed itself after a send; it should stay open")
+	}
+	if m.console.Value() != "" {
+		t.Fatalf("console still holds %q after send, want it cleared", m.console.Value())
+	}
+
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyEsc})
+	if m.console != nil {
+		t.Fatal("esc did not close the console")
+	}
+}
+
+func TestConsoleRefusedUnlessServerIsRunning(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+
+	pressRune(t, m, tm, "c")
+	if m.console != nil {
+		t.Fatal("console opened for a server that is not running")
+	}
+	if !strings.Contains(m.status, "running") {
+		t.Fatalf("status = %q, want the running-only explanation", m.status)
 	}
 }
 

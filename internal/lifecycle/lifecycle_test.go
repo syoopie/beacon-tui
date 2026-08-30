@@ -231,6 +231,34 @@ func TestForceKillClearsSessionAndRecordsStopped(t *testing.T) {
 	}
 }
 
+func TestSendConsoleDeliversLineWhenUp(t *testing.T) {
+	dirs := testDirs(t)
+	sup := &fakeSup{exists: true}
+	m := newManager(sup, dirs)
+
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusRunning)
+	if err := m.SendConsole(context.Background(), spec, "say hello"); err != nil {
+		t.Fatalf("SendConsole: %v", err)
+	}
+	if len(sup.sentKeys) != 1 || sup.sentKeys[0] != "say hello" {
+		t.Fatalf("sent keys = %v, want [say hello]", sup.sentKeys)
+	}
+}
+
+func TestSendConsoleRefusedWhenSessionIsDown(t *testing.T) {
+	dirs := testDirs(t)
+	sup := &fakeSup{exists: false}
+	m := newManager(sup, dirs)
+
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
+	if err := m.SendConsole(context.Background(), spec, "list"); err == nil {
+		t.Fatal("SendConsole to a server with no session should be refused")
+	}
+	if len(sup.sentKeys) != 0 {
+		t.Fatalf("sent keys = %v, want none", sup.sentKeys)
+	}
+}
+
 func TestSecondOperationInSameProcessIsBusy(t *testing.T) {
 	dirs := testDirs(t)
 	sup := &fakeSup{exists: true}
