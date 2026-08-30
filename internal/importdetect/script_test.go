@@ -234,3 +234,15 @@ func TestApplyKeepsExistingBackup(t *testing.T) {
 		t.Fatalf("InspectScript after Apply = %+v, want ExecOK", check)
 	}
 }
+
+func TestPlanPatchNonJavaCommand(t *testing.T) {
+	path := writeScript(t, "#!/bin/sh\nexec ./launch.sh\n")
+
+	_, ok, err := PlanPatch(path)
+	if ok || err == nil {
+		t.Fatalf("PlanPatch = ok %v, err %v; want a refusal for a non-java last command", ok, err)
+	}
+	if !strings.Contains(err.Error(), "java invocation") {
+		t.Fatalf("error %q should explain the last command is not java", err)
+	}
+}

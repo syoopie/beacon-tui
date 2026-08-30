@@ -15,6 +15,7 @@ type keymap struct {
 	Kill        key.Binding
 	MarkStopped key.Binding
 	Patch       key.Binding
+	Launch      key.Binding
 	Add         key.Binding
 	Rescan      key.Binding
 	Update      key.Binding
@@ -33,6 +34,7 @@ func newKeymap() keymap {
 		Kill:        key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "force-kill")),
 		MarkStopped: key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "mark stopped")),
 		Patch:       key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "fix script")),
+		Launch:      key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "launch settings")),
 		Add:         key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add server")),
 		Rescan:      key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "rescan folders")),
 		Update:      key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update")),

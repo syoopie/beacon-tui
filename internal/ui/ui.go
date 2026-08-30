@@ -66,6 +66,7 @@ type model struct {
 	console *textinput.Model
 	pick    *filepicker.Model
 	pat     *patchPrompt
+	launch  *launchPrompt
 	update  *updateNotice
 
 	ready         bool
@@ -222,6 +223,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.console = &ti
 		return m, cmd
 	}
+	if m.launch != nil {
+		ti, cmd := m.launch.args.Update(msg)
+		m.launch.args = ti
+		return m, cmd
+	}
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
 	return m, cmd
@@ -238,6 +244,8 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updatePicker(msg)
 	case m.pat != nil:
 		return m.updatePatch(msg)
+	case m.launch != nil:
+		return m.updateLaunch(msg)
 	}
 	if m.list.FilterState() == list.Filtering {
 		var cmd tea.Cmd
@@ -289,7 +297,7 @@ func (m *model) command(msg tea.KeyMsg) (tea.Cmd, bool) {
 	}
 
 	if m.busy {
-		if key.Matches(msg, m.keys.Start, m.keys.Stop, m.keys.Console, m.keys.Kill, m.keys.MarkStopped, m.keys.Patch) {
+		if key.Matches(msg, m.keys.Start, m.keys.Stop, m.keys.Console, m.keys.Kill, m.keys.MarkStopped, m.keys.Patch, m.keys.Launch) {
 			m.status = busyStatus
 			return nil, true
 		}
@@ -333,6 +341,8 @@ func (m *model) command(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return m.markStoppedCmd(spec), true
 	case key.Matches(msg, m.keys.Patch):
 		return m.planPatchCmd(spec), true
+	case key.Matches(msg, m.keys.Launch):
+		return m.openLaunch(spec), true
 	}
 	return nil, false
 }

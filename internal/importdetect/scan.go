@@ -96,54 +96,86 @@ func inspectDir(dir string) (Candidate, bool) {
 	if err != nil {
 		return Candidate{}, false
 	}
-	c := Candidate{Dir: dir, Base: base, Port: readPort(dir)}
+	opts := LaunchOptions(dir)
+	if len(opts) == 0 {
+		return Candidate{}, false
+	}
+	// Import takes the first option, the same priority order the operator sees
+	// in the launch-settings modal, where they can switch to another.
+	o := opts[0]
+	c := Candidate{Dir: dir, Base: base, Port: readPort(dir), Script: o.Script, Exec: o.Exec}
+	if o.Script == "" {
+		c.Start = o.Command("nogui")
+	} else {
+		c.Start = o.Command("")
+	}
+	return c, true
+}
 
+// LaunchOption is one way to start the server in a directory: a start script or
+// a runnable jar. A pack often ships both run.sh and start.sh, so a directory
+// can offer several.
+type LaunchOption struct {
+	Label  string           // "run.sh", "start.sh", or the jar's filename
+	Script string           // script name relative to the directory; empty for a jar
+	Base   string           // command without trailing arguments: "./run.sh" or "java -jar server.jar"
+	Exec   server.ExecState // script: the inspected state; jar: always ExecOK
+}
+
+// Command joins the option's base command with the given extra arguments.
+func (o LaunchOption) Command(args string) string {
+	args = strings.TrimSpace(args)
+	if args == "" {
+		return o.Base
+	}
+	return o.Base + " " + args
+}
+
+// LaunchOptions lists every launch method in dir, scripts before jars, in the
+// order import uses. An unreadable script is reported as ExecMissing rather than
+// dropped, so refusing to launch it is a later, visible decision.
+func LaunchOptions(dir string) []LaunchOption {
+	var opts []LaunchOption
 	for _, name := range scriptNames {
 		path := filepath.Join(dir, name)
 		info, err := os.Stat(path)
 		if err != nil || info.IsDir() {
 			continue
 		}
-		c.Script = name
-		c.Start = "./" + name
-		// An unreadable script cannot be proven to exec, and refusing to launch
-		// one directory beats aborting the operator's whole import.
-		check, err := InspectScript(path)
-		if err != nil {
-			c.Exec = server.ExecMissing
-		} else {
-			c.Exec = check.State
+		exec := server.ExecMissing
+		if check, err := InspectScript(path); err == nil {
+			exec = check.State
 		}
-		return c, true
+		opts = append(opts, LaunchOption{Label: name, Script: name, Base: "./" + name, Exec: exec})
 	}
-
-	if jar, ok := findJar(dir); ok {
-		c.Start = "java -jar " + jar + " nogui"
+	for _, jar := range jarsIn(dir) {
 		// beacon generates this command itself, so it always execs.
-		c.Exec = server.ExecOK
-		return c, true
+		opts = append(opts, LaunchOption{Label: jar, Base: "java -jar " + jar, Exec: server.ExecOK})
 	}
-	return Candidate{}, false
+	return opts
 }
 
-// findJar matches against entry names rather than globbing the directory path,
-// so a root containing a glob metacharacter still matches.
-func findJar(dir string) (string, bool) {
+// jarsIn matches against entry names rather than globbing the directory path, so
+// a root containing a glob metacharacter still matches.
+func jarsIn(dir string) []string {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return "", false
+		return nil
 	}
+	var jars []string
+	seen := map[string]bool{}
 	for _, pattern := range jarPatterns {
 		for _, e := range entries {
-			if e.IsDir() {
+			if e.IsDir() || seen[e.Name()] {
 				continue
 			}
 			if ok, _ := filepath.Match(pattern, e.Name()); ok {
-				return e.Name(), true
+				jars = append(jars, e.Name())
+				seen[e.Name()] = true
 			}
 		}
 	}
-	return "", false
+	return jars
 }
 
 // readPort is deliberately not a properties parser: phase 9's internal/mcprops

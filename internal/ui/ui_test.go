@@ -440,3 +440,51 @@ func writeRunScript(t *testing.T, dir string) error {
 	}
 	return os.WriteFile(filepath.Join(dir, "run.sh"), []byte("#!/bin/sh\nexec java -jar server.jar nogui\n"), 0o755)
 }
+
+func TestLaunchSettingsSwitchesTheStartScript(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	for name, body := range map[string]string{
+		"run.sh":   "#!/bin/sh\nexec java -jar server.jar \"$@\"\n",
+		"start.sh": "#!/bin/sh\njava -jar server.jar nogui\n",
+	} {
+		if err := os.WriteFile(filepath.Join(spec.Dir, name), []byte(body), 0o755); err != nil {
+			t.Fatalf("WriteFile %s: %v", name, err)
+		}
+	}
+	tm = loadRegistry(t, m, tm)
+
+	tm, _ = pressRune(t, m, tm, "l")
+	if m.launch == nil {
+		t.Fatal("pressing l did not open launch settings")
+	}
+	if !strings.Contains(tm.View(), "How should beacon start survival") {
+		t.Fatalf("launch dialog not shown:\n%s", tm.View())
+	}
+
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyDown}) // run.sh -> start.sh
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("nogui")})
+	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	for _, msg := range msgs {
+		tm, _ = drive(t, tm, msg)
+	}
+
+	reloaded, err := config.LoadSpec(dirs.ServerFile(spec.ID))
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.Script != "start.sh" {
+		t.Fatalf("Script = %q, want start.sh", reloaded.Script)
+	}
+	if reloaded.Start != "./start.sh nogui" {
+		t.Fatalf("Start = %q, want ./start.sh nogui", reloaded.Start)
+	}
+	if reloaded.Exec != server.ExecMissing {
+		t.Fatalf("Exec = %v, want missing: start.sh has a bare java line", reloaded.Exec)
+	}
+
+	tm = loadRegistry(t, m, tm)
+	if !strings.Contains(tm.View(), "via start.sh") {
+		t.Fatalf("detail pane should show the new launch script:\n%s", tm.View())
+	}
+}

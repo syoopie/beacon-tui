@@ -149,13 +149,15 @@ func (m *model) commandBar() helpSet {
 		}}
 	case m.pat != nil:
 		return helpSet{short: []key.Binding{hint("y", "apply fix"), hint("esc", "leave unchanged")}}
+	case m.launch != nil:
+		return helpSet{short: []key.Binding{hint("↑↓", "choose"), hint("enter", "save"), hint("esc", "cancel")}}
 	case m.list.FilterState() == list.Filtering:
 		return helpSet{short: []key.Binding{hint("enter", "apply filter"), hint("esc", "clear")}}
 	}
 
 	full := [][]key.Binding{
 		{m.keys.Up, m.keys.Down, hint("/", "filter")},
-		{m.keys.Start, m.keys.Stop, m.keys.Console, m.keys.Kill, m.keys.MarkStopped, m.keys.Patch},
+		{m.keys.Start, m.keys.Stop, m.keys.Console, m.keys.Kill, m.keys.MarkStopped, m.keys.Patch, m.keys.Launch},
 		{m.keys.Add, m.keys.Rescan, m.keys.Refresh, m.keys.Update},
 		{m.keys.Help, m.keys.Quit},
 	}
@@ -184,6 +186,7 @@ func (m *model) contextBindings() []key.Binding {
 		if !spec.Exec.Launchable() {
 			b = append(b, m.keys.Patch)
 		}
+		b = append(b, m.keys.Launch)
 	}
 	b = append(b, m.keys.Add)
 	if m.update != nil {
@@ -235,7 +238,7 @@ func (m *model) statusView() string {
 // noticeText is the banner for the selected server when something needs the
 // operator's attention. Empty when all is well.
 func (m *model) noticeText() string {
-	if m.pat != nil || m.pick != nil {
+	if m.pat != nil || m.pick != nil || m.launch != nil {
 		return ""
 	}
 	spec, ok := m.selected()
@@ -247,7 +250,7 @@ func (m *model) noticeText() string {
 	case r.Derived == server.StatusUnknown && r.Warning != "":
 		return "⚠  " + r.Warning + "  Once you have checked, press m to mark it stopped."
 	case !spec.Exec.Launchable():
-		return "⚠  " + string(spec.ID) + " has a start script beacon can't stop cleanly yet. Press p to review and apply the fix."
+		return "⚠  " + string(spec.ID) + "'s start script does not hand off to Java with exec, so beacon can't start it. Press p to see if beacon can fix the script, or l to point it at another one."
 	}
 	return ""
 }
@@ -265,6 +268,8 @@ func (m *model) bodyView() string {
 	switch {
 	case m.pat != nil:
 		content = m.patchDialogView()
+	case m.launch != nil:
+		content = m.launchDialogView()
 	case m.pick != nil:
 		content = m.pickerView()
 	case m.loaded && len(m.specs) == 0:
@@ -299,7 +304,22 @@ func (m *model) logHeaderView() string {
 		sectionStyle.Render(string(spec.ID)),
 		lipgloss.NewStyle().Foreground(statusColor(r.Derived)).Render(r.Derived.String()),
 		mutedStyle.Render(fmt.Sprintf("port %d", spec.Port)),
+		mutedStyle.Render("via " + launchSummary(spec)),
 	}, mutedStyle.Render("   ·   "))
+}
+
+// launchSummary names what starts the server: the start script, or the jar
+// pulled from its launch command.
+func launchSummary(s server.Spec) string {
+	if s.Script != "" {
+		return s.Script
+	}
+	for _, f := range strings.Fields(s.Start) {
+		if strings.HasSuffix(f, ".jar") {
+			return f
+		}
+	}
+	return s.Start
 }
 
 func (m *model) landingView() string {
@@ -348,5 +368,37 @@ func (m *model) patchDialogView() string {
 		"",
 		mutedStyle.Render("y  apply the fix        esc  leave it unchanged"),
 	)
+	return lipgloss.Place(m.bodyW, m.bodyH, lipgloss.Center, lipgloss.Center, dialogStyle.Render(inner))
+}
+
+func (m *model) launchDialogView() string {
+	lp := m.launch
+	width := clampInt(m.bodyW-12, 40, 72)
+
+	rows := []string{
+		sectionStyle.Render("How should beacon start " + string(lp.id) + "?"),
+		mutedStyle.Render("Every launch method beacon found in its folder:"),
+		"",
+	}
+	for i, o := range lp.opts {
+		marker := "  "
+		label := o.Label
+		if i == lp.cursor {
+			marker = "▸ "
+			label = selectedRow.Render(label)
+		}
+		note := o.Base
+		if o.Script != "" && !o.Exec.Launchable() {
+			note += "   (not exec java; press p after saving to try to fix it)"
+		}
+		rows = append(rows, marker+label, mutedStyle.Render("    "+note))
+	}
+	rows = append(rows,
+		"",
+		lp.args.View(),
+		"",
+		mutedStyle.Render("↑↓  choose        enter  save        esc  cancel"),
+	)
+	inner := lipgloss.NewStyle().Width(width).Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
 	return lipgloss.Place(m.bodyW, m.bodyH, lipgloss.Center, lipgloss.Center, dialogStyle.Render(inner))
 }

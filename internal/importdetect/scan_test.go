@@ -226,3 +226,37 @@ func TestScanJarPrecedence(t *testing.T) {
 		})
 	}
 }
+
+func TestLaunchOptionsListsEveryMethodScriptsFirst(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o755); err != nil {
+			t.Fatalf("WriteFile %s: %v", name, err)
+		}
+	}
+	write("run.sh", "#!/bin/sh\nexec java -jar server.jar \"$@\"\n")
+	write("start.sh", "#!/bin/sh\njava -jar server.jar nogui\n")
+	write("server.jar", "")
+
+	got := LaunchOptions(dir)
+	want := []LaunchOption{
+		{Label: "run.sh", Script: "run.sh", Base: "./run.sh", Exec: server.ExecOK},
+		{Label: "start.sh", Script: "start.sh", Base: "./start.sh", Exec: server.ExecMissing},
+		{Label: "server.jar", Base: "java -jar server.jar", Exec: server.ExecOK},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("LaunchOptions = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("option %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+
+	if cmd := got[0].Command(""); cmd != "./run.sh" {
+		t.Errorf("Command(\"\") = %q, want ./run.sh", cmd)
+	}
+	if cmd := got[2].Command("nogui"); cmd != "java -jar server.jar nogui" {
+		t.Errorf("Command(\"nogui\") = %q, want java -jar server.jar nogui", cmd)
+	}
+}

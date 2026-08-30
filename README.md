@@ -70,6 +70,11 @@ The first run opens on a welcome screen because you have no servers yet.
 Have several servers, each in its own folder? Add each one with `a`. Or point
 beacon at a folder that contains all of them and it picks up every server inside.
 
+The right-hand panel's header shows which script or jar beacon starts each
+server with (`via run.sh`). A pack that ships more than one launcher, such as a
+`run.sh` and a `start.sh`, defaults to `run.sh`; press `l` to switch it or to
+set the arguments passed to it.
+
 ### Keys
 
 | Key     | What it does                                                  |
@@ -84,6 +89,7 @@ beacon at a folder that contains all of them and it picks up every server inside
 | `a`     | add a server (pick its folder)                                |
 | `i`     | re-scan your folders for new servers                          |
 | `p`     | fix a start script beacon cannot control (it shows you first) |
+| `l`     | launch settings: which script or jar starts it, and its args  |
 | `u`     | show the command to update beacon                             |
 | `r`     | refresh now                                                   |
 | `?`     | show every key                                                |

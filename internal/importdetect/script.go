@@ -82,6 +82,9 @@ func PlanPatch(path string) (p Patch, ok bool, err error) {
 	if check.Line == 0 {
 		return Patch{}, false, fmt.Errorf("patching %s: no command to patch", path)
 	}
+	if !strings.Contains(strings.ToLower(check.Text), "java") {
+		return Patch{}, false, fmt.Errorf("patching %s: its last command is not a java invocation, so this script starts the server some other way and beacon cannot patch it", path)
+	}
 
 	indent := check.Text[:len(check.Text)-len(strings.TrimLeft(check.Text, " \t"))]
 	return Patch{
