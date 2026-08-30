@@ -66,7 +66,7 @@ func (m *Manager) hold(dir string, op oplock.OpKind) (func(), error) {
 		return nil, err
 	}
 	return func() {
-		h.Release()
+		_ = h.Release()
 		m.busy.Unlock()
 	}, nil
 }

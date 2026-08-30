@@ -1,0 +1,17 @@
+version: "2"
+
+linters:
+  exclusions:
+    rules:
+      # Tests use best-effort cleanup (Close, Kill, Release in defer/Cleanup)
+      # where a checked error would add noise without catching a real bug.
+      - path: _test\.go
+        linters:
+          - errcheck
+  settings:
+    errcheck:
+      # Best-effort calls whose error genuinely does not change control flow.
+      exclude-functions:
+        - (*os.File).Close
+        - (net.Conn).Close
+        - os.Remove

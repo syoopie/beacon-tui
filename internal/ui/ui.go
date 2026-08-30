@@ -418,13 +418,12 @@ func (m *model) markStoppedCmd(spec server.Spec) tea.Cmd {
 // --- view ---
 
 var (
-	titleStyle    = lipgloss.NewStyle().Bold(true).Padding(0, 1)
-	listStyle     = lipgloss.NewStyle().Width(listWidth).Border(lipgloss.NormalBorder(), false, true, false, false)
-	selStyle      = lipgloss.NewStyle().Bold(true).Reverse(true)
-	statusStyle   = lipgloss.NewStyle().Padding(0, 1)
-	warnStyle     = lipgloss.NewStyle().Bold(true)
-	dialogStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
-	statusGlyphOK = "●"
+	titleStyle  = lipgloss.NewStyle().Bold(true).Padding(0, 1)
+	listStyle   = lipgloss.NewStyle().Width(listWidth).Border(lipgloss.NormalBorder(), false, true, false, false)
+	selStyle    = lipgloss.NewStyle().Bold(true).Reverse(true)
+	statusStyle = lipgloss.NewStyle().Padding(0, 1)
+	warnStyle   = lipgloss.NewStyle().Bold(true)
+	dialogStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 )
 
 func (m *model) View() string {
