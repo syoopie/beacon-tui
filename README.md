@@ -82,19 +82,19 @@ beacon
 
 ### Keys
 
-| Key     | Action                                                              |
-| ------- | ------------------------------------------------------------------- |
-| `j` `k` | move the selection                                                 |
-| `s`     | start the selected server                                          |
-| `x`     | stop it, waiting up to the stop timeout                            |
-| `K`     | force-kill (offered only after a stop times out)                   |
-| `m`     | mark an `unknown` server stopped, once you confirm it is down      |
-| `a`     | add a folder to scan                                               |
-| `i`     | re-scan the configured folders                                     |
-| `p`     | patch a start script that does not `exec` its command              |
-| `u`     | show the update command when a new release is available            |
-| `r`     | refresh now                                                        |
-| `q`     | quit (servers keep running)                                        |
+| Key     | Action                                                        |
+| ------- | ------------------------------------------------------------- |
+| `j` `k` | move the selection                                            |
+| `s`     | start the selected server                                     |
+| `x`     | stop it, waiting up to the stop timeout                       |
+| `K`     | force-kill (offered only after a stop times out)              |
+| `m`     | mark an `unknown` server stopped, once you confirm it is down |
+| `a`     | add a folder to scan                                          |
+| `i`     | re-scan the configured folders                                |
+| `p`     | patch a start script that does not `exec` its command         |
+| `u`     | show the update command when a new release is available       |
+| `r`     | refresh now                                                   |
+| `q`     | quit (servers keep running)                                   |
 
 ## How it works
 
@@ -151,7 +151,7 @@ does.
 
 Package layout:
 
-| Package                 | Responsibility                                     |
+| Package                 | Responsibility                                    |
 | ----------------------- | ------------------------------------------------- |
 | `internal/config`       | dirs, TOML parse and atomic write                 |
 | `internal/server`       | IDs, spec, the status state machine               |
