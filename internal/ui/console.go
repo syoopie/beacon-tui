@@ -10,6 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/dustin/go-humanize"
+
+	"github.com/syoopie/beacon-tui/internal/procstat"
 	"github.com/syoopie/beacon-tui/internal/rcon"
 	"github.com/syoopie/beacon-tui/internal/server"
 )
@@ -21,6 +24,9 @@ func (m *model) openConsoleScreen() {
 	m.rconSnap = rcon.Snapshot{}
 	m.rconErr = ""
 	m.rconAt = time.Time{}
+	m.proc = procstat.Stat{}
+	m.procErr = ""
+	m.procAt = time.Time{}
 	m.relayout()
 }
 
@@ -217,11 +223,13 @@ func (m *model) railView() string {
 	if !ok {
 		return ""
 	}
+	running := m.reports[spec.ID].Derived == server.StatusRunning
+
 	rows := []string{sectionStyle.Render("Players")}
 	switch {
 	case !spec.RCON.Enabled || spec.RCON.Port == 0:
 		rows = append(rows, mutedStyle.Render("RCON is off. Turn on enable-rcon in server.properties."))
-	case m.reports[spec.ID].Derived != server.StatusRunning:
+	case !running:
 		rows = append(rows, mutedStyle.Render("server not running"))
 	case m.rconErr != "":
 		rows = append(rows, mutedStyle.Render(m.rconErr))
@@ -234,6 +242,20 @@ func (m *model) railView() string {
 			rows = append(rows, "• "+p)
 		}
 	}
+
+	rows = append(rows, "", sectionStyle.Render("Resources"))
+	switch {
+	case !running:
+		rows = append(rows, mutedStyle.Render("—"))
+	case m.procErr != "":
+		rows = append(rows, mutedStyle.Render(m.procErr))
+	default:
+		rows = append(rows,
+			mutedStyle.Render("mem  "+humanize.IBytes(uint64(m.proc.RSS))),
+			mutedStyle.Render(fmt.Sprintf("cpu  %.0f%%", m.proc.CPUPercent)),
+		)
+	}
+
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 

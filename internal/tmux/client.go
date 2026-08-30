@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/syoopie/beacon-tui/internal/server"
@@ -146,4 +147,19 @@ func (c *Client) Kill(ctx context.Context, s server.Session) error {
 		return nil
 	}
 	return err
+}
+
+func (c *Client) PID(ctx context.Context, s server.Session) (int, error) {
+	out, err := c.run(ctx, "display-message", "-p", "-t", paneTarget(s), "#{pane_pid}")
+	if e, ok := asExitError(err); ok && e.code == 1 {
+		return 0, nil // no such session
+	}
+	if err != nil {
+		return 0, err
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return 0, fmt.Errorf("tmux display-message: pane_pid %q: %w", strings.TrimSpace(out), err)
+	}
+	return pid, nil
 }

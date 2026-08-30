@@ -23,6 +23,7 @@ import (
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/importdetect"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/procstat"
 	"github.com/syoopie/beacon-tui/internal/rcon"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
 	"github.com/syoopie/beacon-tui/internal/selfupdate"
@@ -48,7 +49,7 @@ func Run(app App) error {
 
 const (
 	refreshEvery  = time.Second
-	rconEvery     = 3 * time.Second
+	pollEvery     = 3 * time.Second
 	maxLogLines   = 5000
 	initialStatus = "loading…"
 	busyStatus    = "an operation is already running"
@@ -86,6 +87,11 @@ type model struct {
 	rconErr      string
 	rconAt       time.Time
 	rconInFlight bool
+
+	proc         procstat.Stat
+	procErr      string
+	procAt       time.Time
+	procInFlight bool
 
 	ready         bool
 	loaded        bool
@@ -152,6 +158,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if c := m.rconPollCmd(); c != nil {
 			cmds = append(cmds, c)
 		}
+		if c := m.procPollCmd(); c != nil {
+			cmds = append(cmds, c)
+		}
 		return m, tea.Batch(cmds...)
 
 	case rconMsg:
@@ -163,6 +172,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rconErr = "can't reach RCON"
 		} else {
 			m.rconSnap, m.rconErr = msg.snap, ""
+		}
+		return m, nil
+
+	case procMsg:
+		m.procInFlight = false
+		if msg.id != m.selID {
+			return m, nil
+		}
+		if msg.err != nil {
+			m.procErr = "unavailable"
+		} else {
+			m.proc, m.procErr = msg.stat, ""
 		}
 		return m, nil
 
@@ -480,6 +501,9 @@ func (m *model) syncSelection() {
 	m.rconSnap = rcon.Snapshot{}
 	m.rconErr = ""
 	m.rconAt = time.Time{}
+	m.proc = procstat.Stat{}
+	m.procErr = ""
+	m.procAt = time.Time{}
 	m.vp.SetContent("")
 	m.vp.GotoTop()
 	m.relayout() // the notice banner depends on which server is selected
@@ -752,7 +776,7 @@ type rconMsg struct {
 // rconPollCmd asks the selected server who is online, but only while its console
 // is open, it is running, RCON is configured, and the last poll has aged out.
 func (m *model) rconPollCmd() tea.Cmd {
-	if m.screen != screenConsole || m.rconInFlight || time.Since(m.rconAt) < rconEvery {
+	if m.screen != screenConsole || m.rconInFlight || time.Since(m.rconAt) < pollEvery {
 		return nil
 	}
 	spec, ok := m.selected()
@@ -769,6 +793,37 @@ func (m *model) rconPollCmd() tea.Cmd {
 	return func() tea.Msg {
 		snap, err := rcon.Poll(addr, pw)
 		return rconMsg{id: id, snap: snap, err: err}
+	}
+}
+
+type procMsg struct {
+	id   server.ID
+	stat procstat.Stat
+	err  error
+}
+
+// procPollCmd samples the selected server's process for memory and CPU, on the
+// same terms as the player poll: console open, server running, poll aged out.
+func (m *model) procPollCmd() tea.Cmd {
+	if m.screen != screenConsole || m.procInFlight || time.Since(m.procAt) < pollEvery {
+		return nil
+	}
+	spec, ok := m.selected()
+	if !ok || m.reports[spec.ID].Derived != server.StatusRunning {
+		return nil
+	}
+	m.procInFlight = true
+	m.procAt = time.Now()
+	sup, sess, id := m.app.Sup, spec.Session, spec.ID
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), pollEvery)
+		defer cancel()
+		pid, err := sup.PID(ctx, sess)
+		if err != nil || pid == 0 {
+			return procMsg{id: id, err: fmt.Errorf("%s: no process id", id)}
+		}
+		stat, err := procstat.Sample(ctx, pid)
+		return procMsg{id: id, stat: stat, err: err}
 	}
 }
 

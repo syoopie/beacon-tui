@@ -113,6 +113,11 @@ drops routine noise and the full log, where the noise is dimmed and the lines
 worth reading stand out. `/` searches the current view, narrowing it to matching
 lines until you clear it with `esc`.
 
+On wide terminals a rail on the right shows who is online and the server
+process's memory and CPU. The player list needs RCON: set `enable-rcon=true` and
+an `rcon.password` in `server.properties`. The memory and CPU figures come from
+`ps` and need nothing configured.
+
 ## Questions
 
 **Where does Beacon keep things?** Settings live in `config.toml` under your
@@ -183,6 +188,8 @@ The full design write-up is [`beacon-tui-plan.md`](beacon-tui-plan.md).
 | `internal/reconcile`    | derive status from tmux, port collision check     |
 | `internal/oplock`       | the host operation lock                           |
 | `internal/lifecycle`    | start, stop, force-kill under the lock            |
+| `internal/rcon`         | poll a running server for its player list         |
+| `internal/procstat`     | read a process's memory and CPU from `ps`         |
 | `internal/selfupdate`   | the startup release check                         |
 | `internal/ui`           | the Bubble Tea front end                          |
 

@@ -20,6 +20,7 @@ func (f fakeSup) Exists(_ context.Context, s server.Session) (bool, error) {
 }
 func (f fakeSup) SendKeys(context.Context, server.Session, string) error { return nil }
 func (f fakeSup) Kill(context.Context, server.Session) error             { return nil }
+func (f fakeSup) PID(context.Context, server.Session) (int, error)       { return 0, nil }
 
 func spec(t *testing.T, id string, last server.Status) server.Spec {
 	t.Helper()

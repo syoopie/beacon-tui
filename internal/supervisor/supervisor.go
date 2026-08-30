@@ -30,6 +30,10 @@ type Supervisor interface {
 	SendKeys(ctx context.Context, s server.Session, line string) error
 	// Kill returns nil when the session is already gone.
 	Kill(ctx context.Context, s server.Session) error
+	// PID is the session's foreground process. Because beacon execs the server
+	// as the session's own process, this is the server's PID. It returns 0 with
+	// no error when the session is gone.
+	PID(ctx context.Context, s server.Session) (int, error)
 }
 
 // Validate is the boundary check on a Launch built from a Spec.

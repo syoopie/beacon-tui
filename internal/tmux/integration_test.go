@@ -135,6 +135,14 @@ func TestClientEndToEnd(t *testing.T) {
 		t.Fatalf("pane process = %q, want %q: the launch script did not exec the command", name, "sleep")
 	}
 
+	gotPID, err := c.PID(ctx, s)
+	if err != nil {
+		t.Fatalf("PID: %v", err)
+	}
+	if gotPID != pid {
+		t.Fatalf("PID = %d, want the pane pid %d", gotPID, pid)
+	}
+
 	if err := c.Start(ctx, l); err != nil {
 		t.Fatalf("second Start: %v", err)
 	}
@@ -182,6 +190,14 @@ func TestExistsUnknownSession(t *testing.T) {
 	}
 	if exists {
 		t.Fatalf("Exists(%s) = true for a session that was never created", s)
+	}
+
+	pid, err := c.PID(context.Background(), s)
+	if err != nil {
+		t.Fatalf("PID of an absent session: %v", err)
+	}
+	if pid != 0 {
+		t.Fatalf("PID(%s) = %d for a session that was never created, want 0", s, pid)
 	}
 }
 

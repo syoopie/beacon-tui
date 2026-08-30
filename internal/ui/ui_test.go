@@ -15,6 +15,7 @@ import (
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/procstat"
 	"github.com/syoopie/beacon-tui/internal/rcon"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
 	"github.com/syoopie/beacon-tui/internal/selfupdate"
@@ -26,6 +27,7 @@ type stubSupervisor struct {
 	mu      sync.Mutex
 	present map[server.Session]bool
 	sent    []string
+	pid     int
 }
 
 func newStub() *stubSupervisor {
@@ -63,6 +65,18 @@ func (s *stubSupervisor) Kill(_ context.Context, sess server.Session) error {
 	defer s.mu.Unlock()
 	delete(s.present, sess)
 	return nil
+}
+
+func (s *stubSupervisor) PID(_ context.Context, sess server.Session) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.present[sess] {
+		return 0, nil
+	}
+	if s.pid != 0 {
+		return s.pid, nil
+	}
+	return os.Getpid(), nil
 }
 
 func (s *stubSupervisor) isUp(sess server.Session) bool {
@@ -552,6 +566,12 @@ func TestConsolePlayerRail(t *testing.T) {
 	tm, _ = drive(t, tm, rconMsg{id: spec.ID, err: errors.New("boom")})
 	if !strings.Contains(tm.View(), "can't reach RCON") {
 		t.Fatalf("a poll error should show in the rail:\n%s", tm.View())
+	}
+
+	tm, _ = drive(t, tm, procMsg{id: spec.ID, stat: procstat.Stat{RSS: 2 * 1024 * 1024 * 1024, CPUPercent: 31}})
+	view = tm.View()
+	if !strings.Contains(view, "Resources") || !strings.Contains(view, "2.0 GiB") || !strings.Contains(view, "cpu  31%") {
+		t.Fatalf("rail should show the sampled memory and CPU:\n%s", view)
 	}
 }
 

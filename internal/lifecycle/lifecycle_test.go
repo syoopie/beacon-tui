@@ -56,6 +56,15 @@ func (f *fakeSup) Kill(context.Context, server.Session) error {
 	return nil
 }
 
+func (f *fakeSup) PID(context.Context, server.Session) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.exists {
+		return 0, nil
+	}
+	return 4242, nil
+}
+
 func (f *fakeSup) setExists(v bool) {
 	f.mu.Lock()
 	f.exists = v
