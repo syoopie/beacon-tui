@@ -207,6 +207,44 @@ func TestImportKeyWritesSpecsForScannedDirs(t *testing.T) {
 	}
 }
 
+func TestAddFolderKeyWritesConfigAndScans(t *testing.T) {
+	m, tm, _, dirs, root := bootModel(t)
+	// Start with no scan roots, the true first-run state.
+	m.app.Cfg = config.Config{StopTimeout: config.Duration(time.Minute)}
+	tm = loadRegistry(t, m, tm)
+
+	servers := filepath.Join(root, "servers")
+	if err := writeRunScript(t, filepath.Join(servers, "vanilla")); err != nil {
+		t.Fatal(err)
+	}
+
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	if m.addRoot == nil {
+		t.Fatal("pressing a did not open the folder input")
+	}
+	m.addRoot.SetValue(servers)
+
+	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	for _, msg := range msgs {
+		tm, _ = drive(t, tm, msg)
+	}
+
+	cfg, err := config.Load(dirs)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.ScanRoots) != 1 || cfg.ScanRoots[0] != servers {
+		t.Fatalf("config scan roots = %v, want [%s]", cfg.ScanRoots, servers)
+	}
+	specs, err := config.LoadSpecs(dirs)
+	if err != nil {
+		t.Fatalf("LoadSpecs: %v", err)
+	}
+	if len(specs) != 1 || specs[0].ID != "vanilla" {
+		t.Fatalf("import after add-folder wrote %+v, want one spec 'vanilla'", specs)
+	}
+}
+
 func TestUpdateNoticeShowsCommandAndDismisses(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	m.app.Repo = "syoopie/beacon-tui"

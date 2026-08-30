@@ -7,8 +7,10 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -63,6 +65,8 @@ type model struct {
 	status string
 	pat    *patchPrompt
 	update *updateNotice
+	// addRoot is non-nil while the operator is typing a folder to scan.
+	addRoot *textinput.Model
 }
 
 type updateNotice struct {
@@ -147,6 +151,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pat = &patchPrompt{id: msg.id, patch: msg.patch}
 		return m, nil
 
+	case rootAddedMsg:
+		m.busy = false
+		if msg.err != nil {
+			m.status = "add folder: " + msg.err.Error()
+			return m, nil
+		}
+		m.app.Cfg = msg.cfg
+		m.busy = true
+		m.status = "scanning…"
+		return m, m.importCmd()
+
 	case updateMsg:
 		if msg.err == nil && msg.res.Available {
 			m.update = &updateNotice{latest: msg.res.Latest, command: selfupdate.UpdateCommand(m.app.Repo)}
@@ -163,6 +178,28 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.addRoot != nil {
+		switch msg.String() {
+		case "enter":
+			dir := strings.TrimSpace(m.addRoot.Value())
+			m.addRoot = nil
+			if dir == "" {
+				m.status = "add cancelled"
+				return m, nil
+			}
+			m.busy = true
+			m.status = "adding " + dir + "…"
+			return m, m.addRootCmd(dir)
+		case "esc", "ctrl+c":
+			m.addRoot = nil
+			m.status = "add cancelled"
+			return m, nil
+		}
+		ti, cmd := m.addRoot.Update(msg)
+		m.addRoot = &ti
+		return m, cmd
+	}
+
 	if m.pat != nil {
 		switch msg.String() {
 		case "y":
@@ -192,6 +229,14 @@ func (m *model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.busy = true
 		m.status = "scanning…"
 		return m, m.importCmd()
+	case "a":
+		ti := textinput.New()
+		ti.Placeholder = "/absolute/path/to/your/servers"
+		ti.Prompt = "scan folder: "
+		ti.Focus()
+		m.addRoot = &ti
+		m.status = "type a folder to scan, enter to confirm, esc to cancel"
+		return m, textinput.Blink
 	case "u":
 		if m.update != nil {
 			m.status = "update: " + m.update.command
@@ -302,14 +347,20 @@ func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 	if len(m.specs) == 0 {
 		m.selID = ""
 		m.tail = nil
-		m.status = "no servers imported yet — press i to scan " + fmt.Sprint(m.app.Cfg.ScanRoots)
+		if m.status == "loading…" || m.status == "scanning…" {
+			if len(m.app.Cfg.ScanRoots) == 0 {
+				m.status = "no servers yet — press a to add the folder your servers live in"
+			} else {
+				m.status = "no servers found under " + fmt.Sprint(m.app.Cfg.ScanRoots) + " — press a to add another folder, i to re-scan"
+			}
+		}
 		return nil
 	}
 	if _, ok := m.selected(); !ok {
 		m.point(m.specs[0].ID)
 	}
-	if m.status == "loading…" {
-		m.status = "j/k move · s start · x stop · K force-kill · m mark-stopped · i import · p patch · q quit"
+	if m.status == "loading…" || m.status == "scanning…" {
+		m.status = "j/k move · s start · x stop · K force-kill · m mark-stopped · a add-folder · i import · p patch · q quit"
 	}
 	return m.reconcileCmd()
 }
@@ -354,6 +405,19 @@ type patchPlannedMsg struct {
 type updateMsg struct {
 	res selfupdate.Result
 	err error
+}
+
+type rootAddedMsg struct {
+	cfg config.Config
+	err error
+}
+
+func (m *model) addRootCmd(dir string) tea.Cmd {
+	dirs := m.app.Dirs
+	return func() tea.Msg {
+		cfg, err := config.AddScanRoot(dirs, dir)
+		return rootAddedMsg{cfg: cfg, err: err}
+	}
 }
 
 func (m *model) updateCheckCmd() tea.Cmd {
@@ -481,8 +545,12 @@ func (m *model) View() string {
 	}
 	title := titleStyle.Render(name)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, listStyle.Render(m.listView()), m.vp.View())
-	status := statusStyle.Render(m.statusLine())
-	return lipgloss.JoinVertical(lipgloss.Left, title, body, status)
+
+	bottom := m.statusLine()
+	if m.addRoot != nil {
+		bottom = m.addRoot.View() + "\n" + m.status
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, title, body, statusStyle.Render(bottom))
 }
 
 func (m *model) listView() string {

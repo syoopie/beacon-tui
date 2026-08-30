@@ -54,11 +54,18 @@ func run(configDir, stateDir string) error {
 	}
 
 	cfg, err := config.Load(dirs)
-	if err != nil {
-		if errors.Is(err, config.ErrNoConfig) {
-			return fmt.Errorf("no config at %s: create it with scan_roots = [\"/absolute/path/to/your/servers\"]", dirs.ConfigFile())
-		}
+	if err != nil && !errors.Is(err, config.ErrNoConfig) {
 		return err
+	}
+
+	// `beacon /path/to/servers` seeds a scan root without touching config.toml
+	// by hand. Without an argument beacon starts empty and the operator adds a
+	// folder from inside the TUI.
+	if root := flag.Arg(0); root != "" {
+		cfg, err = config.AddScanRoot(dirs, root)
+		if err != nil {
+			return err
+		}
 	}
 
 	sup := &tmux.Client{}

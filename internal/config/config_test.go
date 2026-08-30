@@ -42,8 +42,58 @@ func TestLoadMissingFile(t *testing.T) {
 	}
 }
 
+func TestLoadAllowsEmptyScanRoots(t *testing.T) {
+	c, err := Load(fixture("no-scan-roots"))
+	if err != nil {
+		t.Fatalf("Load rejected a config with no scan roots: %v", err)
+	}
+	if len(c.ScanRoots) != 0 {
+		t.Fatalf("ScanRoots = %v, want empty", c.ScanRoots)
+	}
+}
+
+func TestAddScanRoot(t *testing.T) {
+	dirs := Dirs{Config: t.TempDir()}
+	target := t.TempDir()
+
+	c, err := AddScanRoot(dirs, target)
+	if err != nil {
+		t.Fatalf("AddScanRoot: %v", err)
+	}
+	if len(c.ScanRoots) != 1 || c.ScanRoots[0] != target {
+		t.Fatalf("ScanRoots = %v, want [%s]", c.ScanRoots, target)
+	}
+
+	again, err := AddScanRoot(dirs, target)
+	if err != nil {
+		t.Fatalf("AddScanRoot (repeat): %v", err)
+	}
+	if len(again.ScanRoots) != 1 {
+		t.Fatalf("adding the same root twice produced %v", again.ScanRoots)
+	}
+
+	reloaded, err := Load(dirs)
+	if err != nil {
+		t.Fatalf("Load after AddScanRoot: %v", err)
+	}
+	if len(reloaded.ScanRoots) != 1 || reloaded.ScanRoots[0] != target {
+		t.Fatalf("persisted ScanRoots = %v", reloaded.ScanRoots)
+	}
+}
+
+func TestAddScanRootRejectsNonDirectory(t *testing.T) {
+	dirs := Dirs{Config: t.TempDir()}
+	file := filepath.Join(t.TempDir(), "afile")
+	if err := os.WriteFile(file, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := AddScanRoot(dirs, file); err == nil {
+		t.Fatal("AddScanRoot accepted a path that is not a directory")
+	}
+}
+
 func TestLoadRejectsFixtures(t *testing.T) {
-	for _, name := range []string{"unknown-key", "no-scan-roots"} {
+	for _, name := range []string{"unknown-key"} {
 		t.Run(name, func(t *testing.T) {
 			dirs := fixture(name)
 			_, err := Load(dirs)
@@ -63,7 +113,6 @@ func TestLoadInlineRejects(t *testing.T) {
 		body string
 	}{
 		{"relative scan root", "scan_roots = [\"minecraft\"]\n"},
-		{"missing scan roots key", "stop_timeout = \"60s\"\n"},
 		{"zero stop timeout", "scan_roots = [\"/srv\"]\nstop_timeout = \"0s\"\n"},
 		{"negative stop timeout", "scan_roots = [\"/srv\"]\nstop_timeout = \"-5s\"\n"},
 		{"unparseable stop timeout", "scan_roots = [\"/srv\"]\nstop_timeout = \"soon\"\n"},
