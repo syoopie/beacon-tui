@@ -165,8 +165,8 @@ func (m *model) commandBar() helpSet {
 	case screenConsole:
 		return helpSet{
 			short: []key.Binding{
-				hint("↑↓", "scroll"), m.keys.LogTab, m.keys.LogFilter,
-				m.keys.LogSearch, m.keys.Console, m.keys.Back, m.keys.Help,
+				hint("↑↓", "scroll"), hint("tab", "tabs"), hint("f", "filter"),
+				hint("/", "search"), hint("esc", "back"), m.keys.Help,
 			},
 			full: [][]key.Binding{
 				{hint("↑↓", "scroll"), m.keys.LogTab, m.keys.LogFilter},

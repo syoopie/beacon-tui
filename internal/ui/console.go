@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/dustin/go-humanize"
 
@@ -39,6 +40,10 @@ const (
 	tabServer consoleTab = iota
 	tabChat
 )
+
+// logScrollStep is how many lines one press of up or down moves the log. The
+// viewport's own default of one line at a time is too slow for a busy log.
+const logScrollStep = 3
 
 var (
 	tabActiveStyle   = lipgloss.NewStyle().Bold(true).Foreground(accentColor)
@@ -76,6 +81,12 @@ func (m *model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(msg, m.keys.LogSearch):
 		return m, m.openLogSearch()
+	case key.Matches(msg, m.keys.Up):
+		m.vp.ScrollUp(logScrollStep)
+		return m, nil
+	case key.Matches(msg, m.keys.Down):
+		m.vp.ScrollDown(logScrollStep)
+		return m, nil
 	case key.Matches(msg, m.keys.Console):
 		spec, ok := m.selected()
 		if !ok {
@@ -128,11 +139,15 @@ func (m *model) updateLogSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // logBody is the console viewport's content: the buffered lines kept by the
-// active tab and filter, styled by tier, joined for the viewport to wrap.
+// active tab and filter, hard-wrapped to the column width and styled by tier.
+// Wrapping here rather than leaving it to the viewport is what keeps an
+// over-long unbreakable token (a stack-trace class name, a path) from widening
+// the column and shoving the rail sideways.
 func (m *model) logBody() string {
 	if m.tail == nil {
 		return ""
 	}
+	w := max(m.vp.Width, 1)
 	q := strings.ToLower(strings.TrimSpace(m.logQuery))
 	var b strings.Builder
 	first := true
@@ -140,11 +155,13 @@ func (m *model) logBody() string {
 		if !m.lineVisible(e, q) {
 			continue
 		}
-		if !first {
-			b.WriteByte('\n')
+		for _, seg := range strings.Split(ansi.Wrap(e.raw, w, ""), "\n") {
+			if !first {
+				b.WriteByte('\n')
+			}
+			first = false
+			b.WriteString(styleLogSegment(seg, e.kind, m.logTab))
 		}
-		first = false
-		b.WriteString(styleLogLine(e, m.logTab))
 	}
 	return b.String()
 }
@@ -166,33 +183,37 @@ func (m *model) lineVisible(e logEntry, lowerQuery string) bool {
 	return true
 }
 
-func styleLogLine(e logEntry, tab consoleTab) string {
+func styleLogSegment(seg string, kind logKind, tab consoleTab) string {
 	if tab != tabServer {
-		return e.raw
+		return seg
 	}
-	switch e.kind {
+	switch kind {
 	case kindNoise:
-		return noiseLineStyle.Render(e.raw)
+		return noiseLineStyle.Render(seg)
 	case kindNotable:
-		return notableLineStyle.Render(e.raw)
+		return notableLineStyle.Render(seg)
 	default:
-		return e.raw
+		return seg
 	}
 }
 
 func (m *model) consoleView() string {
 	w := max(m.vp.Width, 1)
-	logCol := lipgloss.JoinVertical(lipgloss.Left,
-		m.logHeaderView(w),
-		m.tabBarView(w),
-		mutedStyle.Render(strings.Repeat("─", w)),
-		m.vp.View(),
-	)
+	// Pin the log column to exactly w and bodyH. Without this a single visible
+	// line wider than w (a long unbroken token, an over-long header) would widen
+	// the whole column and shove the rail sideways as it scrolled in and out.
+	logCol := lipgloss.NewStyle().Width(w).MaxWidth(w).Height(m.bodyH).MaxHeight(m.bodyH).
+		Render(lipgloss.JoinVertical(lipgloss.Left,
+			m.logHeaderView(w),
+			m.tabBarView(w),
+			mutedStyle.Render(strings.Repeat("─", w)),
+			m.vp.View(),
+		))
 	if m.railW == 0 {
 		return logCol
 	}
 	rail := lipgloss.NewStyle().
-		Width(m.railW).Height(m.bodyH).
+		Width(m.railW).Height(m.bodyH).MaxHeight(m.bodyH).
 		BorderStyle(lipgloss.NormalBorder()).BorderLeft(true).BorderForeground(mutedColor).
 		MarginLeft(1).PaddingLeft(1).
 		Render(m.railView())
