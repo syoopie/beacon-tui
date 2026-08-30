@@ -106,8 +106,12 @@ In the action panel: `↑` `↓` move, `enter` runs the row, `←` or `esc` goes
 to the list. The rows depend on status: start, stop, open console, mark stopped,
 force-kill (only after a stop hangs), fix start script, launch settings.
 
-In the console screen: `↑` `↓` scroll, `c` types a command to the server, `esc`
-goes back.
+In the console screen: `↑` `↓` scroll, `c` types a command to the server, `←` or
+`esc` goes back. `tab` switches between the server log and a Chat view that shows
+only player activity. On the server log, `f` toggles between a filtered view that
+drops routine noise and the full log, where the noise is dimmed and the lines
+worth reading stand out. `/` searches the current view, narrowing it to matching
+lines until you clear it with `esc`.
 
 ## Questions
 

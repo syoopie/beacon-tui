@@ -454,6 +454,74 @@ func TestConsoleSendsTypedLineToRunningServer(t *testing.T) {
 	}
 }
 
+func openConsole(t *testing.T, m *model, tm tea.Model) tea.Model {
+	t.Helper()
+	tm = openMenu(t, m, tm)
+	tm, _ = chooseMenu(t, m, tm, "Open console")
+	if m.screen != screenConsole {
+		t.Fatalf("not on the console screen, screen = %d", m.screen)
+	}
+	return tm
+}
+
+func TestConsoleLogTabsFilterAndSearch(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+	tm = openConsole(t, m, tm)
+
+	m.appendLogs([]string{
+		"[12:00:00] [Server thread/INFO]: Starting minecraft server version 1.20.1",
+		"[12:00:01] [Server thread/INFO]: Preparing spawn area: 42%",
+		"[12:00:02] [Server thread/INFO]: <Steve> anyone on?",
+		"[12:00:03] [Server thread/INFO]: Alex joined the game",
+		"[12:00:04] [Server thread/WARN]: Can't keep up! Running 2050ms behind",
+		"[12:00:05] [Server thread/INFO]: Saving chunks for level 'world'",
+	})
+	m.renderLog()
+
+	body := m.logBody()
+	if strings.Contains(body, "Preparing spawn area") || strings.Contains(body, "Can't keep up") {
+		t.Fatalf("the default Server tab should hide noise:\n%s", body)
+	}
+	if !strings.Contains(body, "Starting minecraft server") || !strings.Contains(body, "<Steve>") {
+		t.Fatalf("the default Server tab should keep signal and chat:\n%s", body)
+	}
+
+	pressRune(t, m, tm, "f")
+	if !strings.Contains(m.logBody(), "Preparing spawn area") {
+		t.Fatalf("f should reveal noise in the full log:\n%s", m.logBody())
+	}
+
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyTab})
+	chat := m.logBody()
+	if strings.Contains(chat, "Starting minecraft server") || strings.Contains(chat, "Saving chunks") {
+		t.Fatalf("the Chat tab should drop plain log lines:\n%s", chat)
+	}
+	if !strings.Contains(chat, "<Steve>") || !strings.Contains(chat, "Alex joined the game") {
+		t.Fatalf("the Chat tab should keep chat and join lines:\n%s", chat)
+	}
+
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyTab}) // back to Server log
+	pressRune(t, m, tm, "/")
+	if m.logSearch == nil {
+		t.Fatal("/ did not open the log search")
+	}
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("chunk")})
+	found := m.logBody()
+	if !strings.Contains(found, "Saving chunks") || strings.Contains(found, "Starting minecraft server") {
+		t.Fatalf("search should narrow to matching lines:\n%s", found)
+	}
+
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyEsc})
+	if m.logSearch != nil || m.logQuery != "" {
+		t.Fatal("esc should clear the search")
+	}
+	if !strings.Contains(m.logBody(), "Starting minecraft server") {
+		t.Fatal("clearing the search should restore the full tab")
+	}
+}
+
 func TestConsoleRefusedUnlessServerIsRunning(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	writeSpec(t, dirs, "survival")

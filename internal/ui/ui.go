@@ -73,6 +73,11 @@ type model struct {
 	menuCursor int
 	listW      int
 
+	logTab    consoleTab
+	logFull   bool
+	logQuery  string
+	logSearch *textinput.Model
+
 	ready         bool
 	loaded        bool
 	width, height int
@@ -244,6 +249,8 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case m.console != nil:
 		return m.updateConsole(msg)
+	case m.logSearch != nil:
+		return m.updateLogSearch(msg)
 	case m.pick != nil:
 		return m.updatePicker(msg)
 	case m.pat != nil:
@@ -311,28 +318,6 @@ func (m *model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
 	m.syncSelection()
-	return m, cmd
-}
-
-func (m *model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch {
-	case key.Matches(msg, m.keys.Back):
-		m.screen = screenMenu
-		m.relayout()
-		return m, nil
-	case key.Matches(msg, m.keys.Console):
-		spec, ok := m.selected()
-		if !ok {
-			return m, nil
-		}
-		if m.reports[spec.ID].Derived != server.StatusRunning {
-			m.status = "typing a command works only while the server is running"
-			return m, nil
-		}
-		return m, m.openConsole(spec)
-	}
-	var cmd tea.Cmd
-	m.vp, cmd = m.vp.Update(msg)
 	return m, cmd
 }
 
@@ -465,6 +450,8 @@ func (m *model) syncSelection() {
 	}
 	m.selID = it.spec.ID
 	m.tail = newFollower(it.spec.LogFile)
+	m.logQuery = ""
+	m.logSearch = nil
 	m.vp.SetContent("")
 	m.vp.GotoTop()
 	m.relayout() // the notice banner depends on which server is selected
@@ -489,13 +476,14 @@ func (m *model) appendLogs(lines []string) {
 }
 
 // renderLog word-wraps the buffered log to the current pane width so no line is
-// cut off. It re-runs on resize.
+// cut off. It re-runs on resize, on a tab or filter change, and as lines arrive.
 func (m *model) renderLog() {
 	if m.tail == nil {
+		m.vp.SetContent("")
 		return
 	}
 	w := max(m.vp.Width, 1)
-	m.vp.SetContent(lipgloss.NewStyle().Width(w).Render(strings.Join(m.tail.lines, "\n")))
+	m.vp.SetContent(lipgloss.NewStyle().Width(w).Render(m.logBody()))
 }
 
 // relayout sizes every pane from the current terminal size and mode. It runs on
@@ -516,7 +504,7 @@ func (m *model) relayout() {
 	}
 	// rows: header(1) + help(helpH) + spacer(1) + [notice + spacer] + body + spacer(1) + status(1)
 	bodyH := innerH - helpH - noticeH - 4
-	if m.console != nil {
+	if m.console != nil || m.logSearch != nil {
 		bodyH -= 2 // spacer + input bar
 	}
 	bodyH = max(bodyH, 3)
@@ -528,7 +516,7 @@ func (m *model) relayout() {
 	m.listW = clampInt(innerW*2/5, 24, 34)
 	m.list.SetSize(m.listW, bodyH)
 	m.vp.Width = innerW
-	m.vp.Height = max(bodyH-2, 1) // log header + rule
+	m.vp.Height = max(bodyH-3, 1) // log header + tab bar + rule
 	m.renderLog()
 
 	if m.pick != nil {
@@ -536,6 +524,9 @@ func (m *model) relayout() {
 	}
 	if m.console != nil {
 		m.console.Width = max(innerW-lipgloss.Width(m.console.Prompt)-2, 20)
+	}
+	if m.logSearch != nil {
+		m.logSearch.Width = max(innerW-lipgloss.Width(m.logSearch.Prompt)-2, 20)
 	}
 }
 

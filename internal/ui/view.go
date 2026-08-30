@@ -142,6 +142,8 @@ func (m *model) commandBar() helpSet {
 	switch {
 	case m.console != nil:
 		return helpSet{short: []key.Binding{hint("enter", "send"), hint("esc", "close console")}}
+	case m.logSearch != nil:
+		return helpSet{short: []key.Binding{hint("enter", "keep filter"), hint("esc", "clear search")}}
 	case m.pick != nil:
 		return helpSet{short: []key.Binding{
 			hint("→", "open folder"), hint("←", "up a level"),
@@ -161,9 +163,17 @@ func (m *model) commandBar() helpSet {
 			hint("↑↓", "move"), hint("enter", "run"), m.keys.Back, m.keys.Quit,
 		}}
 	case screenConsole:
-		return helpSet{short: []key.Binding{
-			hint("↑↓", "scroll"), m.keys.Console, m.keys.Back, m.keys.Quit,
-		}}
+		return helpSet{
+			short: []key.Binding{
+				hint("↑↓", "scroll"), m.keys.LogTab, m.keys.LogFilter,
+				m.keys.LogSearch, m.keys.Console, m.keys.Back, m.keys.Help,
+			},
+			full: [][]key.Binding{
+				{hint("↑↓", "scroll"), m.keys.LogTab, m.keys.LogFilter},
+				{m.keys.LogSearch, m.keys.Console, m.keys.Back},
+				{m.keys.Help, m.keys.Quit},
+			},
+		}
 	}
 
 	// screenList
@@ -198,8 +208,11 @@ func (m *model) View() string {
 		rows = append(rows, n, "")
 	}
 	rows = append(rows, m.bodyView())
-	if m.console != nil {
+	switch {
+	case m.console != nil:
 		rows = append(rows, "", consoleBarStyle.Render(m.console.View()))
+	case m.logSearch != nil:
+		rows = append(rows, "", consoleBarStyle.Render(m.logSearch.View()))
 	}
 	rows = append(rows, "", m.statusView())
 	return frameStyle.Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
@@ -284,31 +297,6 @@ func (m *model) splitView() string {
 		Width(max(m.bodyW-m.listW-5, 20)).
 		Render(m.detailView())
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
-}
-
-func (m *model) consoleView() string {
-	w := max(m.bodyW, 1)
-	return lipgloss.JoinVertical(lipgloss.Left,
-		m.logHeaderView(),
-		mutedStyle.Render(strings.Repeat("─", w)),
-		m.vp.View(),
-	)
-}
-
-// logHeaderView is one line: name, status, port. Anything that needs more room
-// (warnings, script problems) goes to the notice banner instead.
-func (m *model) logHeaderView() string {
-	spec, ok := m.selected()
-	if !ok {
-		return sectionStyle.Render("Log")
-	}
-	r := m.reports[spec.ID]
-	return strings.Join([]string{
-		sectionStyle.Render(string(spec.ID)),
-		lipgloss.NewStyle().Foreground(statusColor(r.Derived)).Render(r.Derived.String()),
-		mutedStyle.Render(fmt.Sprintf("port %d", spec.Port)),
-		mutedStyle.Render("via " + launchSummary(spec)),
-	}, mutedStyle.Render("   ·   "))
 }
 
 // launchSummary names what starts the server: the start script, or the jar
