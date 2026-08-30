@@ -1,10 +1,13 @@
 VERSION ?= dev
 LDFLAGS := -X main.version=$(VERSION)
 
-.PHONY: build test test-unix fmt vet check
+.PHONY: build run test test-unix fmt vet lint check
 
 build:
 	go build -ldflags '$(LDFLAGS)' -o beacon ./cmd/beacon
+
+run:
+	go run ./cmd/beacon
 
 test:
 	go test ./...
@@ -17,6 +20,9 @@ fmt:
 
 vet:
 	go vet ./...
+
+lint:
+	golangci-lint run ./...
 
 check:
 	@unformatted=$$(gofmt -l .); \
