@@ -57,6 +57,13 @@ out), `m` mark a server stopped once you have confirmed an Unknown server is rea
 down, `i` import, `p` patch a start script that does not `exec` its command, `r`
 refresh, `q` quit.
 
+## Updating
+
+On startup beacon asks GitHub whether a newer release is out. If there is one, the
+header shows it and `u` prints the install command. Re-running the install one-liner
+replaces the binary in place. The check is best-effort and silent on any network
+failure.
+
 ## Building from source
 
 ```sh
