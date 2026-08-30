@@ -6,16 +6,18 @@ package ui
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/filepicker"
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"os"
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/importdetect"
@@ -43,35 +45,36 @@ func Run(app App) error {
 }
 
 const (
-	refreshEvery = time.Second
-	maxLogLines  = 5000
-	listWidth    = 26
+	refreshEvery  = time.Second
+	maxLogLines   = 5000
+	initialStatus = "loading…"
+	busyStatus    = "an operation is already running"
 )
 
 type model struct {
-	app     App
-	specs   []server.Spec
-	reports map[server.ID]reconcile.Report
-	// timedOut holds servers whose last Stop hit the timeout, so the UI can
-	// offer force-kill without the status machine gaining a state for it.
+	app      App
+	specs    []server.Spec
+	reports  map[server.ID]reconcile.Report
 	timedOut map[server.ID]bool
 
-	selID server.ID
-	tail  *logFollower
+	list    list.Model
+	help    help.Model
+	keys    keymap
+	vp      viewport.Model
+	tail    *logFollower
+	selID   server.ID
+	console *textinput.Model
+	pick    *filepicker.Model
+	pat     *patchPrompt
+	update  *updateNotice
 
-	vp            viewport.Model
 	ready         bool
+	loaded        bool
 	width, height int
+	bodyW, bodyH  int
 
 	busy   bool
 	status string
-	pat    *patchPrompt
-	update *updateNotice
-	// pick is non-nil while the operator is browsing for a server folder.
-	pick *filepicker.Model
-	// console is non-nil while the operator is typing a command for the
-	// selected server. Key input goes to it, not the key handler.
-	console *textinput.Model
 }
 
 type updateNotice struct {
@@ -80,11 +83,25 @@ type updateNotice struct {
 }
 
 func newModel(app App) *model {
+	l := list.New(nil, serverDelegate{}, 0, 0)
+	l.Title = "Servers"
+	l.SetShowHelp(false)
+	l.SetShowStatusBar(false)
+	l.SetStatusBarItemName("server", "servers")
+	l.KeyMap.Quit.SetEnabled(false)
+	l.KeyMap.ForceQuit.SetEnabled(false)
+	l.Styles.Title = lipgloss.NewStyle().Bold(true)
+	l.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 1, 0)
+	l.Styles.NoItems = mutedStyle
+
 	return &model{
 		app:      app,
 		reports:  map[server.ID]reconcile.Report{},
 		timedOut: map[server.ID]bool{},
-		status:   "loading…",
+		status:   initialStatus,
+		list:     l,
+		help:     help.New(),
+		keys:     newKeymap(),
 	}
 }
 
@@ -93,17 +110,14 @@ func (m *model) Init() tea.Cmd {
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.pick != nil {
-		return m.updatePicker(msg)
-	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		if !m.ready {
-			m.vp = viewport.New(msg.Width-listWidth-1, msg.Height-2)
+			m.vp = viewport.New(1, 1)
 			m.ready = true
 		}
-		m.layout()
+		m.relayout()
 		return m, nil
 
 	case tickMsg:
@@ -118,6 +132,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.reports = msg.reports
+		m.refreshItems()
 		return m, nil
 
 	case logMsg:
@@ -139,7 +154,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.timedOut {
 			m.timedOut[msg.id] = true
-		} else {
+		} else if msg.id != "" {
 			delete(m.timedOut, msg.id)
 		}
 		return m, m.reloadCmd()
@@ -150,10 +165,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if !msg.needed {
-			m.status = string(msg.id) + ": start script already execs"
+			m.status = string(msg.id) + ": start script already runs with exec"
 			return m, nil
 		}
 		m.pat = &patchPrompt{id: msg.id, patch: msg.patch}
+		m.relayout()
 		return m, nil
 
 	case rootAddedMsg:
@@ -164,7 +180,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.app.Cfg = msg.cfg
 		m.busy = true
-		m.status = "scanning…"
+		m.status = "scanning the folder you added…"
 		return m, m.importCmd()
 
 	case updateMsg:
@@ -173,6 +189,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.busy {
 				m.status = "beacon " + msg.res.Latest + " is out — run: " + m.update.command
 			}
+			m.relayout()
 		}
 		return m, nil
 
@@ -181,45 +198,134 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		return m.onKey(msg)
+		return m.handleKey(msg)
 	}
-	// Cursor-blink and other component ticks reach the focused console here.
+
+	// Components' own async messages: filepicker directory reads, filter
+	// recomputes, cursor blink. Route to whichever owns the screen.
+	if m.pick != nil {
+		fp, cmd := m.pick.Update(msg)
+		m.pick = &fp
+		return m, cmd
+	}
 	if m.console != nil {
 		ti, cmd := m.console.Update(msg)
 		m.console = &ti
 		return m, cmd
 	}
-	return m, nil
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
+	return m, cmd
 }
 
-// layout sizes the log viewport for the current chrome. The console bar, when
-// open, takes one row from the log.
-func (m *model) layout() {
-	if !m.ready {
-		return
+func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case m.console != nil:
+		return m.updateConsole(msg)
+	case m.pick != nil:
+		return m.updatePicker(msg)
+	case m.pat != nil:
+		return m.updatePatch(msg)
 	}
-	h := m.height - 2
-	if m.console != nil {
-		h--
+	if m.list.FilterState() == list.Filtering {
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		m.syncSelection()
+		return m, cmd
 	}
-	m.vp.Width = max(m.width-listWidth-1, 1)
-	m.vp.Height = max(h, 1)
+	if cmd, handled := m.command(msg); handled {
+		return m, cmd
+	}
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
+	m.syncSelection()
+	return m, cmd
 }
 
-// openPicker starts the folder browser at the operator's home directory.
-func (m *model) openPicker() tea.Cmd {
-	fp := filepicker.New()
-	fp.DirAllowed = true
-	fp.FileAllowed = false
-	if home, err := os.UserHomeDir(); err == nil {
-		fp.CurrentDirectory = home
+// command runs the screen-level and server-level key bindings. handled is false
+// when the key belongs to the list (navigation, filtering), so the caller can
+// pass it on.
+func (m *model) command(msg tea.KeyMsg) (tea.Cmd, bool) {
+	switch {
+	case key.Matches(msg, m.keys.Quit):
+		return tea.Quit, true
+	case key.Matches(msg, m.keys.Help):
+		m.help.ShowAll = !m.help.ShowAll
+		m.relayout()
+		return nil, true
+	case key.Matches(msg, m.keys.Add):
+		return m.openPicker(), true
+	case key.Matches(msg, m.keys.Refresh):
+		m.status = "refreshing"
+		return m.reloadCmd(), true
+	case key.Matches(msg, m.keys.Update):
+		if m.update == nil {
+			return nil, false
+		}
+		m.status = "update: " + m.update.command
+		m.update = nil
+		m.relayout()
+		return nil, true
+	case key.Matches(msg, m.keys.Rescan):
+		if m.busy {
+			m.status = busyStatus
+			return nil, true
+		}
+		m.busy = true
+		m.status = "scanning your folders…"
+		return m.importCmd(), true
 	}
-	fp.AutoHeight = false
-	fp.SetHeight(max(m.height-4, 5))
-	m.pick = &fp
-	m.status = "→ open folder · ← up · enter choose this folder · esc cancel"
-	return fp.Init()
+
+	if m.busy {
+		if key.Matches(msg, m.keys.Start, m.keys.Stop, m.keys.Console, m.keys.Kill, m.keys.MarkStopped, m.keys.Patch) {
+			m.status = busyStatus
+			return nil, true
+		}
+		return nil, false
+	}
+
+	spec, ok := m.selected()
+	if !ok {
+		return nil, false
+	}
+	switch {
+	case key.Matches(msg, m.keys.Start):
+		m.busy = true
+		m.status = "starting " + string(spec.ID) + "…"
+		return m.startCmd(spec), true
+	case key.Matches(msg, m.keys.Stop):
+		m.busy = true
+		m.status = "stopping " + string(spec.ID) + "… (up to " + m.app.Cfg.StopTimeout.Std().String() + ")"
+		return m.stopCmd(spec), true
+	case key.Matches(msg, m.keys.Console):
+		if m.reports[spec.ID].Derived != server.StatusRunning {
+			m.status = "console works only while the server is running"
+			return nil, true
+		}
+		return m.openConsole(spec), true
+	case key.Matches(msg, m.keys.Kill):
+		if !m.timedOut[spec.ID] {
+			m.status = "force-kill is offered only after a stop times out"
+			return nil, true
+		}
+		m.busy = true
+		m.status = "force-killing " + string(spec.ID) + "…"
+		return m.forceKillCmd(spec), true
+	case key.Matches(msg, m.keys.MarkStopped):
+		if m.reports[spec.ID].Derived != server.StatusUnknown {
+			m.status = "mark-stopped applies only to a server in Unknown"
+			return nil, true
+		}
+		m.busy = true
+		m.status = "marking " + string(spec.ID) + " stopped…"
+		return m.markStoppedCmd(spec), true
+	case key.Matches(msg, m.keys.Patch):
+		return m.planPatchCmd(spec), true
+	}
+	return nil, false
 }
+
+// --- modal input: console ---
 
 // openConsole focuses a one-line input that sends commands to the selected
 // server's console. It stays open after a send so the operator can type again.
@@ -228,18 +334,17 @@ func (m *model) openConsole(spec server.Spec) tea.Cmd {
 	ti.Prompt = string(spec.ID) + " › "
 	ti.Placeholder = "server command, e.g. list"
 	ti.CharLimit = 512
-	ti.Width = max(m.width-listWidth-len(ti.Prompt)-4, 20)
 	ti.Focus()
 	m.console = &ti
-	m.status = "console · enter send · esc close"
-	m.layout()
+	m.status = "console open"
+	m.relayout()
 	return textinput.Blink
 }
 
 func (m *model) closeConsole(reason string) (tea.Model, tea.Cmd) {
 	m.console = nil
 	m.status = reason
-	m.layout()
+	m.relayout()
 	return m, nil
 }
 
@@ -264,24 +369,37 @@ func (m *model) updateConsole(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m *model) updatePicker(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if k, ok := msg.(tea.KeyMsg); ok && (k.String() == "esc" || k.String() == "ctrl+c") {
+// --- modal input: folder picker ---
+
+// openPicker starts the folder browser at the operator's home directory.
+func (m *model) openPicker() tea.Cmd {
+	fp := filepicker.New()
+	fp.DirAllowed = true
+	fp.FileAllowed = false
+	if home, err := os.UserHomeDir(); err == nil {
+		fp.CurrentDirectory = home
+	}
+	fp.AutoHeight = false
+	m.pick = &fp
+	m.status = "pick the folder your server lives in"
+	m.relayout()
+	return fp.Init()
+}
+
+func (m *model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "esc" || msg.String() == "ctrl+c" {
 		m.pick = nil
 		m.status = "add cancelled"
+		m.relayout()
 		return m, nil
 	}
-	if sz, ok := msg.(tea.WindowSizeMsg); ok {
-		m.width, m.height = sz.Width, sz.Height
-		m.pick.SetHeight(max(sz.Height-4, 5))
-	}
-
 	fp, cmd := m.pick.Update(msg)
 	m.pick = &fp
-
 	if ok, path := fp.DidSelectFile(msg); ok {
 		m.pick = nil
 		m.busy = true
 		m.status = "adding " + path + "…"
+		m.relayout()
 		return m, m.addRootCmd(path)
 	}
 	if ok, path := fp.DidSelectDisabledFile(msg); ok {
@@ -291,116 +409,27 @@ func (m *model) updatePicker(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m *model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.console != nil {
-		return m.updateConsole(msg)
-	}
-	if m.pat != nil {
-		switch msg.String() {
-		case "y":
-			p := m.pat.patch
-			m.pat = nil
-			m.busy = true
-			m.status = "patching…"
-			return m, m.applyPatchCmd(p)
-		case "n", "esc", "q":
-			m.pat = nil
-			m.status = "patch cancelled"
-			return m, nil
-		}
-		return m, nil
-	}
+// --- modal input: patch confirm ---
 
+func (m *model) updatePatch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "ctrl+c":
-		return m, tea.Quit
-	case "up", "k":
-		m.move(-1)
-	case "down", "j":
-		m.move(1)
-	case "r":
-		return m, m.reloadCmd()
-	case "i":
+	case "y":
+		p := m.pat.patch
+		m.pat = nil
 		m.busy = true
-		m.status = "scanning…"
-		return m, m.importCmd()
-	case "a":
-		return m, m.openPicker()
-	case "u":
-		if m.update != nil {
-			m.status = "update: " + m.update.command
-			m.update = nil
-			return m, nil
-		}
-	}
-
-	if m.busy {
-		m.status = "an operation is already running"
+		m.status = "patching…"
+		m.relayout()
+		return m, m.applyPatchCmd(p)
+	case "n", "esc", "q":
+		m.pat = nil
+		m.status = "patch cancelled"
+		m.relayout()
 		return m, nil
-	}
-	spec, ok := m.selected()
-	if !ok {
-		return m, nil
-	}
-	switch msg.String() {
-	case "s":
-		m.busy = true
-		m.status = "starting " + string(spec.ID) + "…"
-		return m, m.startCmd(spec)
-	case "x":
-		m.busy = true
-		m.status = "stopping " + string(spec.ID) + "… (up to " + m.app.Cfg.StopTimeout.Std().String() + ")"
-		return m, m.stopCmd(spec)
-	case "K":
-		if !m.timedOut[spec.ID] {
-			m.status = "force-kill is offered only after a stop times out"
-			return m, nil
-		}
-		m.busy = true
-		m.status = "force-killing " + string(spec.ID) + "…"
-		return m, m.forceKillCmd(spec)
-	case "m":
-		if m.reports[spec.ID].Derived != server.StatusUnknown {
-			m.status = "mark-stopped applies only to a server in Unknown"
-			return m, nil
-		}
-		m.busy = true
-		m.status = "marking " + string(spec.ID) + " stopped…"
-		return m, m.markStoppedCmd(spec)
-	case "p":
-		return m, m.planPatchCmd(spec)
-	case "c":
-		if m.reports[spec.ID].Derived != server.StatusRunning {
-			m.status = "console works only while the server is running"
-			return m, nil
-		}
-		return m, m.openConsole(spec)
 	}
 	return m, nil
 }
 
-func (m *model) move(delta int) {
-	if len(m.specs) == 0 {
-		return
-	}
-	i := m.indexOf(m.selID) + delta
-	if i < 0 {
-		i = 0
-	}
-	if i >= len(m.specs) {
-		i = len(m.specs) - 1
-	}
-	m.point(m.specs[i].ID)
-}
-
-func (m *model) indexOf(id server.ID) int {
-	for i, s := range m.specs {
-		if s.ID == id {
-			return i
-		}
-	}
-	return 0
-}
+// --- selection and layout ---
 
 func (m *model) selected() (server.Spec, bool) {
 	for _, s := range m.specs {
@@ -411,21 +440,35 @@ func (m *model) selected() (server.Spec, bool) {
 	return server.Spec{}, false
 }
 
-// point moves the log view to a different server, resetting the follower and
-// the buffered lines.
-func (m *model) point(id server.ID) {
-	if id == m.selID && m.tail != nil {
-		return
-	}
-	m.selID = id
-	spec, ok := m.selected()
+// syncSelection follows the list cursor: it points the log follower at the
+// newly selected server and clears the viewport.
+func (m *model) syncSelection() {
+	it, ok := m.list.SelectedItem().(serverItem)
 	if !ok {
+		m.selID = ""
 		m.tail = nil
 		return
 	}
-	m.tail = newFollower(spec.LogFile)
+	if it.spec.ID == m.selID && m.tail != nil {
+		return
+	}
+	m.selID = it.spec.ID
+	m.tail = newFollower(it.spec.LogFile)
 	m.vp.SetContent("")
 	m.vp.GotoTop()
+}
+
+func (m *model) refreshItems() {
+	if m.list.FilterState() == list.Filtering {
+		return
+	}
+	items := make([]list.Item, len(m.specs))
+	for i, s := range m.specs {
+		r := m.reports[s.ID]
+		items[i] = serverItem{spec: s, status: r.Derived, warn: r.Warning}
+	}
+	m.list.SetItems(items)
+	m.syncSelection()
 }
 
 func (m *model) appendLogs(lines []string) {
@@ -433,31 +476,92 @@ func (m *model) appendLogs(lines []string) {
 	m.vp.SetContent(strings.Join(cur, "\n"))
 }
 
+// relayout sizes every pane from the current terminal size and mode. It runs on
+// resize and whenever a mode changes the chrome (console bar, "?" help grid).
+func (m *model) relayout() {
+	if m.width == 0 || m.height == 0 {
+		return
+	}
+	innerW := max(m.width-2*framePadX, 20)
+	innerH := max(m.height-2*framePadY, 8)
+	m.help.Width = innerW
+
+	helpH := lipgloss.Height(m.help.View(m.commandBar()))
+	// rows: header(1) + help(helpH) + spacer(1) + body + spacer(1) + status(1)
+	bodyH := innerH - helpH - 4
+	if m.console != nil {
+		bodyH -= 2 // spacer + input bar
+	}
+	bodyH = max(bodyH, 3)
+	m.bodyW, m.bodyH = innerW, bodyH
+
+	leftW := clampInt(innerW/3, 18, 34)
+	m.list.SetSize(leftW, bodyH)
+
+	m.vp.Width = max(innerW-leftW-4, 10)
+	m.vp.Height = max(bodyH-2, 1) // log header + rule
+
+	if m.pick != nil {
+		m.pick.SetHeight(max(bodyH-2, 3))
+	}
+	if m.console != nil {
+		m.console.Width = max(innerW-lipgloss.Width(m.console.Prompt)-2, 20)
+	}
+}
+
 func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 	if msg.err != nil {
 		m.status = "registry: " + msg.err.Error()
 		return nil
 	}
+	m.loaded = true
+	prev := m.selID
 	m.specs = msg.specs
-	if len(m.specs) == 0 {
-		m.selID = ""
-		m.tail = nil
-		if m.status == "loading…" || m.status == "scanning…" {
-			if len(m.app.Cfg.ScanRoots) == 0 {
-				m.status = "no servers yet — press a to add the folder your servers live in"
-			} else {
-				m.status = "no servers found under " + fmt.Sprint(m.app.Cfg.ScanRoots) + " — press a to add another folder, i to re-scan"
+	m.refreshItems()
+	if prev != "" {
+		for i, s := range m.specs {
+			if s.ID == prev {
+				m.list.Select(i)
+				break
 			}
 		}
+	}
+	m.syncSelection()
+	m.relayout()
+
+	switch {
+	case len(m.specs) == 0:
+		m.tail = nil
+		if m.transientStatus() {
+			m.status = "no servers yet"
+		}
 		return nil
+	default:
+		if m.transientStatus() {
+			m.status = "ready"
+		}
+		return m.reconcileCmd()
 	}
-	if _, ok := m.selected(); !ok {
-		m.point(m.specs[0].ID)
+}
+
+// transientStatus reports whether the status line still holds a boot or scan
+// placeholder that a fresh reload should replace.
+func (m *model) transientStatus() bool {
+	switch m.status {
+	case initialStatus, "scanning your folders…", "scanning the folder you added…", "refreshing":
+		return true
 	}
-	if m.status == "loading…" || m.status == "scanning…" {
-		m.status = "j/k move · s start · x stop · c console · K force-kill · m mark-stopped · a add-folder · i import · p patch · q quit"
+	return false
+}
+
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
 	}
-	return m.reconcileCmd()
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 // --- messages and commands ---
@@ -624,112 +728,4 @@ func (m *model) markStoppedCmd(spec server.Spec) tea.Cmd {
 		}
 		return opDoneMsg{id: spec.ID, label: label, err: err}
 	}
-}
-
-// --- view ---
-
-var (
-	titleStyle   = lipgloss.NewStyle().Bold(true).Padding(0, 1)
-	updateStyle  = lipgloss.NewStyle().Bold(true)
-	listStyle    = lipgloss.NewStyle().Width(listWidth).Border(lipgloss.NormalBorder(), false, true, false, false)
-	selStyle     = lipgloss.NewStyle().Bold(true).Reverse(true)
-	statusStyle  = lipgloss.NewStyle().Padding(0, 1)
-	consoleStyle = lipgloss.NewStyle().Padding(0, 1)
-	warnStyle    = lipgloss.NewStyle().Bold(true)
-	dialogStyle  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
-)
-
-func (m *model) View() string {
-	if !m.ready {
-		return "starting beacon…"
-	}
-	if m.pat != nil {
-		return m.dialogView()
-	}
-
-	name := "beacon"
-	if m.update != nil {
-		name += updateStyle.Render("   ⬆ " + m.update.latest + " available (press u for the command)")
-	}
-	title := titleStyle.Render(name)
-
-	var body string
-	if m.pick != nil {
-		body = titleStyle.Render("add a server — "+m.pick.CurrentDirectory) + "\n" + m.pick.View()
-	} else {
-		body = lipgloss.JoinHorizontal(lipgloss.Top, listStyle.Render(m.listView()), m.vp.View())
-	}
-
-	rows := []string{title, body}
-	if m.console != nil {
-		rows = append(rows, consoleStyle.Render(m.console.View()))
-	}
-	rows = append(rows, statusStyle.Render(m.statusLine()))
-	return lipgloss.JoinVertical(lipgloss.Left, rows...)
-}
-
-func (m *model) listView() string {
-	if len(m.specs) == 0 {
-		return "no servers"
-	}
-	lines := make([]string, 0, len(m.specs))
-	for _, s := range m.specs {
-		st := m.reports[s.ID].Derived
-		row := fmt.Sprintf("%s %-*s %s", statusGlyph(st), listWidth-12, truncate(string(s.ID), listWidth-12), short(st))
-		if s.ID == m.selID {
-			row = selStyle.Render(row)
-		}
-		lines = append(lines, row)
-	}
-	return strings.Join(lines, "\n")
-}
-
-func (m *model) statusLine() string {
-	if m.pick != nil || m.console != nil {
-		return m.status
-	}
-	spec, ok := m.selected()
-	if !ok {
-		return m.status
-	}
-	r := m.reports[spec.ID]
-	line := fmt.Sprintf("%s  [%s]  port %d", spec.ID, r.Derived, spec.Port)
-	if !spec.Exec.Launchable() {
-		line += "  script needs `exec` (press p)"
-	}
-	if r.Warning != "" {
-		line += "  " + warnStyle.Render("⚠ "+r.Warning)
-	}
-	return line + "\n" + m.status
-}
-
-func (m *model) dialogView() string {
-	p := m.pat
-	content := fmt.Sprintf("Patch %s so its last line execs?\n\n%s\n\ny apply · n cancel", p.id, p.patch.Diff())
-	return dialogStyle.Render(content)
-}
-
-func statusGlyph(s server.Status) string {
-	switch s {
-	case server.StatusRunning:
-		return "▶"
-	case server.StatusStarting, server.StatusStopping:
-		return "…"
-	case server.StatusUnknown:
-		return "?"
-	default:
-		return "○"
-	}
-}
-
-func short(s server.Status) string { return s.String() }
-
-func truncate(s string, n int) string {
-	if n <= 0 || len(s) <= n {
-		return s
-	}
-	if n == 1 {
-		return "…"
-	}
-	return s[:n-1] + "…"
 }

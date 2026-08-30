@@ -9,18 +9,20 @@ server half-dead.
 [![License](https://img.shields.io/github/license/syoopie/beacon-tui)](LICENSE)
 
 ```text
- beacon   ⬆ v0.2.0 available (press u for the command)
-┌────────────────────────────┬──────────────────────────────────────────────────┐
-│ ▶ survival        running  │ [12:31:02] [Server thread/INFO]: Done (6.4s)!     │
-│ ○ creative        stopped  │ [12:31:02] [Server thread/INFO]: For help, type   │
-│ ? skyblock        unknown  │   "help"                                          │
-│                            │ [12:33:20] [Server thread/INFO]: Steve joined the │
-│                            │   game                                           │
-├────────────────────────────┴──────────────────────────────────────────────────┤
-│ survival  [running]  port 25565                                               │
-│ j/k move · s start · x stop · a add a server · q quit                         │
-└──────────────────────────────────────────────────────────────────────────────┘
+  beacon                                         ↑ v0.2.0 available
+  ↑/k up • ↓/j down • x stop • c console • a add server • ? more keys • q quit
+
+  Servers                  │  survival   ·   running   ·   port 25565
+                           │  ──────────────────────────────────────────────────
+  ▸ ● survival     running │  [12:31:02] [Server thread/INFO]: Done (6.4s)!
+    ○ creative     stopped │  [12:31:02] [Server thread/INFO]: For help, type "help"
+    ◆ skyblock     unknown │  [12:33:20] [Server thread/INFO]: Steve joined the game
+
+  survival stopped
 ```
+
+The bar under the title always shows the keys that do something right now. Press
+`?` for the full list.
 
 ## Why beacon
 
@@ -56,11 +58,14 @@ Run it:
 beacon
 ```
 
+The first run opens on a welcome screen because you have no servers yet.
+
 1. Press `a` and pick the folder your server lives in. beacon browses your
    folders, so you do not need to type a path.
 2. Your server shows up in the list. Move the highlight with `j` and `k`.
 3. Press `s` to start it, `x` to stop it. The log fills the panel on the right.
 4. Press `c` to open a console and type commands straight to the server.
+5. Have many servers? Press `/` to filter the list by name.
 
 Have several servers, each in its own folder? Add each one with `a`. Or point
 beacon at a folder that contains all of them and it picks up every server inside.
@@ -70,6 +75,7 @@ beacon at a folder that contains all of them and it picks up every server inside
 | Key     | What it does                                                  |
 | ------- | ------------------------------------------------------------- |
 | `j` `k` | move the highlight                                            |
+| `/`     | filter the list by name                                       |
 | `s`     | start the highlighted server                                  |
 | `x`     | stop it, waiting for a clean shutdown                         |
 | `c`     | open a console to type a command straight to the server       |
@@ -80,7 +86,11 @@ beacon at a folder that contains all of them and it picks up every server inside
 | `p`     | fix a start script beacon cannot control (it shows you first) |
 | `u`     | show the command to update beacon                             |
 | `r`     | refresh now                                                   |
+| `?`     | show every key                                                |
 | `q`     | quit (your servers keep running)                              |
+
+Only the keys that apply right now show in the bar at the top. `?` expands the
+full list.
 
 ## Questions
 

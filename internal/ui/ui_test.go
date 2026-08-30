@@ -229,7 +229,7 @@ func TestAddKeyOpensAndEscapesTheFolderPicker(t *testing.T) {
 	if m.pick == nil {
 		t.Fatal("pressing a did not open the folder picker")
 	}
-	if !strings.Contains(tm.View(), "add a server") {
+	if !strings.Contains(tm.View(), "Add a server") {
 		t.Fatalf("picker view not shown:\n%s", tm.View())
 	}
 
@@ -270,6 +270,61 @@ func TestPickedFolderIsAddedAndScanned(t *testing.T) {
 	if len(specs) != 1 || specs[0].ID != "survival" {
 		t.Fatalf("import after add wrote %+v, want one spec 'survival'", specs)
 	}
+}
+
+func TestLandingPageShownWhenNoServers(t *testing.T) {
+	m, tm, _, _, _ := bootModel(t)
+	tm = loadRegistry(t, m, tm)
+
+	view := tm.View()
+	for _, want := range []string{"no servers yet", "add your first server", "a add server"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("landing view missing %q:\n%s", want, view)
+		}
+	}
+}
+
+func TestFrameIsPadded(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+
+	for _, line := range strings.Split(tm.View(), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, "  ") {
+			t.Fatalf("line is flush with the edge, no left padding: %q", line)
+		}
+	}
+}
+
+func TestCommandBarTracksSelectedServerStatus(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusStopped}
+	m.refreshItems()
+	if bar := commandLine(tm.View()); !strings.Contains(bar, "s start") || strings.Contains(bar, "x stop") {
+		t.Fatalf("stopped server should offer start, not stop: %q", bar)
+	}
+
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
+	m.refreshItems()
+	if bar := commandLine(tm.View()); !strings.Contains(bar, "x stop") || !strings.Contains(bar, "c console") || strings.Contains(bar, "s start") {
+		t.Fatalf("running server should offer stop and console, not start: %q", bar)
+	}
+}
+
+// commandLine returns the command bar, which sits on the third rendered row
+// (blank top-padding line, brand line, then the bar).
+func commandLine(view string) string {
+	lines := strings.Split(view, "\n")
+	if len(lines) < 3 {
+		return ""
+	}
+	return lines[2]
 }
 
 func TestConsoleSendsTypedLineToRunningServer(t *testing.T) {
