@@ -19,7 +19,8 @@ func TestNewer(t *testing.T) {
 		{"v0.1.0", "v0.2.0", false},
 		{"v0.2.0", "dev", false},
 		{"garbage", "v0.1.0", false},
-		{"v0.2", "v0.1.0", false},
+		{"v0.2", "v0.1.0", true},  // semver reads v0.2 as v0.2.0
+		{"1.0.0", "0.9.0", false}, // no leading v, rejected
 	}
 	for _, c := range cases {
 		if got := newer(c.latest, c.current); got != c.want {

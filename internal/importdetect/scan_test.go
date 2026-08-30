@@ -129,6 +129,30 @@ func TestScanRootIsItselfAServer(t *testing.T) {
 	}
 }
 
+func TestScanServerRootDoesNotDescendIntoPluginsFolder(t *testing.T) {
+	root := t.TempDir()
+	server := filepath.Join(root, "survival")
+	plugins := filepath.Join(server, "plugins")
+	if err := os.MkdirAll(plugins, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(server, "run.sh"), []byte("#!/bin/sh\nexec java -jar paper.jar\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A Paper plugin named like a server jar.
+	if err := os.WriteFile(filepath.Join(plugins, "paper-economy.jar"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Scan([]string{server})
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(got) != 1 || got[0].Dir != server {
+		t.Fatalf("Scan = %+v, want exactly the server directory", got)
+	}
+}
+
 func TestScanOverlappingRoots(t *testing.T) {
 	a := fixtureRoot(t, "a")
 	vanilla := filepath.Join(a, "vanilla")

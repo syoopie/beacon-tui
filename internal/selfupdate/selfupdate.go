@@ -8,9 +8,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/mod/semver"
 )
 
 // Result is the outcome of a check.
@@ -69,42 +70,13 @@ func check(ctx context.Context, base, repo, current string) (Result, error) {
 	}, nil
 }
 
-// newer reports whether latest is a strictly higher vMAJOR.MINOR.PATCH than
-// current. Anything it cannot parse on either side is not newer, so a "dev"
-// build is never nagged.
+// newer reports whether latest is a strictly higher semantic version than
+// current. Anything golang.org/x/mod/semver rejects on either side is not newer,
+// so a "dev" build is never nagged.
 func newer(latest, current string) bool {
-	l, ok := parse(latest)
-	if !ok {
+	latest, current = strings.TrimSpace(latest), strings.TrimSpace(current)
+	if !semver.IsValid(latest) || !semver.IsValid(current) {
 		return false
 	}
-	c, ok := parse(current)
-	if !ok {
-		return false
-	}
-	for i := range 3 {
-		if l[i] != c[i] {
-			return l[i] > c[i]
-		}
-	}
-	return false
-}
-
-func parse(v string) ([3]int, bool) {
-	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
-	if i := strings.IndexAny(v, "-+"); i >= 0 {
-		v = v[:i]
-	}
-	parts := strings.Split(v, ".")
-	if len(parts) != 3 {
-		return [3]int{}, false
-	}
-	var out [3]int
-	for i, p := range parts {
-		n, err := strconv.Atoi(p)
-		if err != nil || n < 0 {
-			return [3]int{}, false
-		}
-		out[i] = n
-	}
-	return out, true
+	return semver.Compare(latest, current) > 0
 }

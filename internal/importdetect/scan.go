@@ -30,8 +30,12 @@ var scriptNames = []string{"run.sh", "start.sh"}
 
 var jarPatterns = []string{"server.jar", "paper*.jar", "fabric-server*.jar"}
 
-// Scan inspects each configured root and its immediate subdirectories. It never
-// recurses further: scan roots are configuration, not a search hint.
+// Scan inspects each configured root. If the root is itself a server directory
+// (the common case: the operator picked the folder their server lives in), that
+// is the one server the root contributes. Otherwise beacon looks one level down
+// at the root's immediate subdirectories, so pointing it at a folder that holds
+// several servers also works. It never recurses further, so a server's own
+// plugins or mods folder is not mistaken for another server.
 func Scan(roots []string) ([]Candidate, error) {
 	if len(roots) == 0 {
 		return nil, errors.New("scanning for servers: no scan root configured")
@@ -39,52 +43,52 @@ func Scan(roots []string) ([]Candidate, error) {
 
 	var cands []Candidate
 	seen := make(map[string]bool)
+	add := func(dir string) {
+		if seen[dir] {
+			return
+		}
+		seen[dir] = true
+		if c, ok := inspectDir(dir); ok {
+			cands = append(cands, c)
+		}
+	}
+
 	for _, root := range roots {
-		dirs, err := scanTargets(root)
+		abs, err := scanRoot(root)
 		if err != nil {
 			return nil, err
 		}
-		for _, dir := range dirs {
-			if seen[dir] {
+		if _, ok := inspectDir(abs); ok {
+			add(abs)
+			continue
+		}
+		children, err := os.ReadDir(abs)
+		if err != nil {
+			return nil, fmt.Errorf("reading scan root %s: %w", abs, err)
+		}
+		for _, e := range children {
+			if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 				continue
 			}
-			seen[dir] = true
-			if c, ok := inspectDir(dir); ok {
-				cands = append(cands, c)
-			}
+			add(filepath.Join(abs, e.Name()))
 		}
 	}
 	return cands, nil
 }
 
-// scanTargets returns the root itself followed by its immediate subdirectories.
-// os.DirEntry.IsDir is false for a symlink, which is how a symlinked entry is
-// kept from turning into a scan root of its own.
-func scanTargets(root string) ([]string, error) {
+func scanRoot(root string) (string, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
-		return nil, fmt.Errorf("resolving scan root %s: %w", root, err)
+		return "", fmt.Errorf("resolving scan root %s: %w", root, err)
 	}
 	info, err := os.Stat(abs)
 	if err != nil {
-		return nil, fmt.Errorf("reading scan root %s: %w", abs, err)
+		return "", fmt.Errorf("reading scan root %s: %w", abs, err)
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("scan root %s: not a directory", abs)
+		return "", fmt.Errorf("scan root %s: not a directory", abs)
 	}
-	entries, err := os.ReadDir(abs)
-	if err != nil {
-		return nil, fmt.Errorf("reading scan root %s: %w", abs, err)
-	}
-
-	dirs := []string{abs}
-	for _, e := range entries {
-		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
-			continue
-		}
-		dirs = append(dirs, filepath.Join(abs, e.Name()))
-	}
-	return dirs, nil
+	return abs, nil
 }
 
 func inspectDir(dir string) (Candidate, bool) {

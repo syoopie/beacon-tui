@@ -18,7 +18,7 @@ Tailscale, or sitting in front of it) is how you reach beacon.
 │ ▶ survival        running  │ [12:31:02] [Server thread/INFO]: Done (6.4s)!     │
 │ ○ creative        stopped  │ [12:31:02] [Server thread/INFO]: For help, type   │
 │ ? skyblock        unknown  │   "help"                                          │
-│                            │ [12:33:20] [Server thread/INFO]: Sun joined the   │
+│                            │ [12:33:20] [Server thread/INFO]: Steve joined the │
 │                            │   game                                           │
 ├────────────────────────────┴──────────────────────────────────────────────────┤
 │ survival  [running]  port 25565                                               │
