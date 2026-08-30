@@ -10,7 +10,7 @@ server half-dead.
 
 ```text
   beacon                                         ↑ v0.2.0 available
-  ↑/k up • ↓/j down • x stop • c console • a add server • ? more keys • q quit
+  ↑ up • ↓ down • x stop • c console • a add server • ? more keys • q quit
 
   Servers                  │  survival   ·   running   ·   port 25565
                            │  ──────────────────────────────────────────────────
@@ -74,7 +74,7 @@ beacon at a folder that contains all of them and it picks up every server inside
 
 | Key     | What it does                                                  |
 | ------- | ------------------------------------------------------------- |
-| `j` `k` | move the highlight                                            |
+| `↑` `↓` | move the highlight                                            |
 | `/`     | filter the list by name                                       |
 | `s`     | start the highlighted server                                  |
 | `x`     | stop it, waiting for a clean shutdown                         |
@@ -98,6 +98,12 @@ full list.
 config folder (`~/Library/Application Support/beacon` on macOS, `~/.config/beacon`
 on Linux). Logs live under `~/.local/state/beacon/logs`. You rarely need to touch
 either.
+
+**My server flips straight to `unknown` when I start it.** It started and then
+exited on its own. The log panel on the right shows why. The usual cause is Java
+not being on your `PATH`; most modpacks need Java 17 or 21. Install it (macOS:
+`brew install openjdk@17`, then follow the caveats `brew` prints so `java` is
+found), then try again.
 
 **Can I use it on a remote box?** Yes. beacon is a local program with no network
 of its own. However you already get a terminal on that machine (SSH, Tailscale,

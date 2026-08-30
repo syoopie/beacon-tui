@@ -25,8 +25,8 @@ type keymap struct {
 
 func newKeymap() keymap {
 	return keymap{
-		Up:          key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-		Down:        key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Up:          key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "up")),
+		Down:        key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "down")),
 		Start:       key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start")),
 		Stop:        key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "stop")),
 		Console:     key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "console")),
@@ -38,7 +38,7 @@ func newKeymap() keymap {
 		Update:      key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update")),
 		Refresh:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more keys")),
-		Quit:        key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+		Quit:        key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
 	}
 }
 

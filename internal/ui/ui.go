@@ -90,6 +90,14 @@ func newModel(app App) *model {
 	l.SetStatusBarItemName("server", "servers")
 	l.KeyMap.Quit.SetEnabled(false)
 	l.KeyMap.ForceQuit.SetEnabled(false)
+	// One key per action: the list's vim-style aliases (j/k, h/l, g/G) are
+	// dropped in favour of the arrow and page keys.
+	l.KeyMap.CursorUp = key.NewBinding(key.WithKeys("up"))
+	l.KeyMap.CursorDown = key.NewBinding(key.WithKeys("down"))
+	l.KeyMap.NextPage = key.NewBinding(key.WithKeys("pgdown"))
+	l.KeyMap.PrevPage = key.NewBinding(key.WithKeys("pgup"))
+	l.KeyMap.GoToStart = key.NewBinding(key.WithKeys("home"))
+	l.KeyMap.GoToEnd = key.NewBinding(key.WithKeys("end"))
 	l.Styles.Title = lipgloss.NewStyle().Bold(true)
 	l.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 1, 0)
 	l.Styles.NoItems = mutedStyle
@@ -133,6 +141,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.reports = msg.reports
 		m.refreshItems()
+		m.relayout() // a new warning adds the notice banner, which resizes the body
 		return m, nil
 
 	case logMsg:
@@ -219,6 +228,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "ctrl+c" { // the interrupt, always available, never in help
+		return m, tea.Quit
+	}
 	switch {
 	case m.console != nil:
 		return m.updateConsole(msg)
@@ -350,7 +362,7 @@ func (m *model) closeConsole(reason string) (tea.Model, tea.Cmd) {
 
 func (m *model) updateConsole(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc", "ctrl+c":
+	case "esc":
 		return m.closeConsole("console closed")
 	case "enter":
 		line := strings.TrimSpace(m.console.Value())
@@ -387,7 +399,7 @@ func (m *model) openPicker() tea.Cmd {
 }
 
 func (m *model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if msg.String() == "esc" || msg.String() == "ctrl+c" {
+	if msg.String() == "esc" {
 		m.pick = nil
 		m.status = "add cancelled"
 		m.relayout()
@@ -420,9 +432,9 @@ func (m *model) updatePatch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.status = "patching…"
 		m.relayout()
 		return m, m.applyPatchCmd(p)
-	case "n", "esc", "q":
+	case "esc":
 		m.pat = nil
-		m.status = "patch cancelled"
+		m.status = "script left unchanged"
 		m.relayout()
 		return m, nil
 	}
@@ -456,6 +468,7 @@ func (m *model) syncSelection() {
 	m.tail = newFollower(it.spec.LogFile)
 	m.vp.SetContent("")
 	m.vp.GotoTop()
+	m.relayout() // the notice banner depends on which server is selected
 }
 
 func (m *model) refreshItems() {
@@ -472,8 +485,18 @@ func (m *model) refreshItems() {
 }
 
 func (m *model) appendLogs(lines []string) {
-	cur := m.tail.append(lines, maxLogLines)
-	m.vp.SetContent(strings.Join(cur, "\n"))
+	m.tail.append(lines, maxLogLines)
+	m.renderLog()
+}
+
+// renderLog word-wraps the buffered log to the current pane width so no line is
+// cut off. It re-runs on resize.
+func (m *model) renderLog() {
+	if m.tail == nil {
+		return
+	}
+	w := max(m.vp.Width, 1)
+	m.vp.SetContent(lipgloss.NewStyle().Width(w).Render(strings.Join(m.tail.lines, "\n")))
 }
 
 // relayout sizes every pane from the current terminal size and mode. It runs on
@@ -485,21 +508,27 @@ func (m *model) relayout() {
 	innerW := max(m.width-2*framePadX, 20)
 	innerH := max(m.height-2*framePadY, 8)
 	m.help.Width = innerW
+	m.bodyW = innerW
 
 	helpH := lipgloss.Height(m.help.View(m.commandBar()))
-	// rows: header(1) + help(helpH) + spacer(1) + body + spacer(1) + status(1)
-	bodyH := innerH - helpH - 4
+	noticeH := 0
+	if t := m.noticeText(); t != "" {
+		noticeH = lipgloss.Height(lipgloss.NewStyle().Width(innerW).Render(t)) + 1 // banner + spacer
+	}
+	// rows: header(1) + help(helpH) + spacer(1) + [notice + spacer] + body + spacer(1) + status(1)
+	bodyH := innerH - helpH - noticeH - 4
 	if m.console != nil {
 		bodyH -= 2 // spacer + input bar
 	}
 	bodyH = max(bodyH, 3)
-	m.bodyW, m.bodyH = innerW, bodyH
+	m.bodyH = bodyH
 
 	leftW := clampInt(innerW/3, 18, 34)
 	m.list.SetSize(leftW, bodyH)
 
 	m.vp.Width = max(innerW-leftW-4, 10)
 	m.vp.Height = max(bodyH-2, 1) // log header + rule
+	m.renderLog()
 
 	if m.pick != nil {
 		m.pick.SetHeight(max(bodyH-2, 3))

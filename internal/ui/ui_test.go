@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
@@ -295,6 +296,30 @@ func TestFrameIsPadded(t *testing.T) {
 		}
 		if !strings.HasPrefix(line, "  ") {
 			t.Fatalf("line is flush with the edge, no left padding: %q", line)
+		}
+	}
+}
+
+func TestUnknownServerShowsNoticeAndNeverOverflows(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t) // 100 x 30
+	spec := writeSpec(t, dirs, "bmc4_serverpack_v61")
+	tm = loadRegistry(t, m, tm)
+
+	m.reports[spec.ID] = reconcile.Report{
+		ID:      spec.ID,
+		Derived: server.StatusUnknown,
+		Warning: "beacon lost track of this server: its tmux session vanished while it was running. Check whether it is really down before starting it again.",
+	}
+	m.refreshItems()
+	m.appendLogs([]string{strings.Repeat("a very long unbroken log line that must not spill past the pane ", 4)})
+
+	view := tm.View()
+	if !strings.Contains(view, "lost track of this server") {
+		t.Fatalf("Unknown server should raise the notice banner:\n%s", view)
+	}
+	for i, line := range strings.Split(view, "\n") {
+		if w := lipgloss.Width(line); w > 100 {
+			t.Fatalf("line %d is %d cols wide, past the 100-col terminal: %q", i, w, line)
 		}
 	}
 }
