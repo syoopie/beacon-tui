@@ -12,7 +12,7 @@ log, and start or stop it safely even with several beacon windows open at once.
 Beacon does not touch networking. However you already reach the machine (SSH,
 Tailscale, or sitting in front of it) is how you reach beacon.
 
-```
+```text
  beacon   ⬆ v0.2.0 available (press u for the command)
 ┌────────────────────────────┬──────────────────────────────────────────────────┐
 │ ▶ survival        running  │ [12:31:02] [Server thread/INFO]: Done (6.4s)!     │
@@ -82,19 +82,19 @@ beacon
 
 ### Keys
 
-| Key   | Action                                                              |
-|-------|--------------------------------------------------------------------- |
-| `j` `k` | move the selection                                                |
-| `s`   | start the selected server                                           |
-| `x`   | stop it, waiting up to the stop timeout                             |
-| `K`   | force-kill (offered only after a stop times out)                    |
-| `m`   | mark an `unknown` server stopped, once you have confirmed it is down |
-| `a`   | add a folder to scan                                                |
-| `i`   | re-scan the configured folders                                      |
-| `p`   | patch a start script that does not `exec` its command               |
-| `u`   | show the update command when a new release is available             |
-| `r`   | refresh now                                                         |
-| `q`   | quit (servers keep running)                                         |
+| Key     | Action                                                              |
+| ------- | ------------------------------------------------------------------- |
+| `j` `k` | move the selection                                                 |
+| `s`     | start the selected server                                          |
+| `x`     | stop it, waiting up to the stop timeout                            |
+| `K`     | force-kill (offered only after a stop times out)                   |
+| `m`     | mark an `unknown` server stopped, once you confirm it is down      |
+| `a`     | add a folder to scan                                               |
+| `i`     | re-scan the configured folders                                     |
+| `p`     | patch a start script that does not `exec` its command              |
+| `u`     | show the update command when a new release is available            |
+| `r`     | refresh now                                                        |
+| `q`     | quit (servers keep running)                                        |
 
 ## How it works
 
@@ -151,18 +151,18 @@ does.
 
 Package layout:
 
-| Package               | Responsibility                                     |
-|-----------------------|---------------------------------------------------|
-| `internal/config`     | dirs, TOML parse and atomic write                 |
-| `internal/server`     | IDs, spec, the status state machine               |
+| Package                 | Responsibility                                     |
+| ----------------------- | ------------------------------------------------- |
+| `internal/config`       | dirs, TOML parse and atomic write                 |
+| `internal/server`       | IDs, spec, the status state machine               |
 | `internal/importdetect` | scan folders, detect scripts and jars, exec patch |
-| `internal/supervisor` | the `Supervisor` port                             |
-| `internal/tmux`       | the tmux adapter and the log tailer               |
-| `internal/reconcile`  | derive status from tmux, port collision check     |
-| `internal/oplock`     | the host operation lock                           |
-| `internal/lifecycle`  | start, stop, force-kill under the lock            |
-| `internal/selfupdate` | the startup release check                         |
-| `internal/ui`         | the Bubble Tea front end                          |
+| `internal/supervisor`   | the `Supervisor` port                             |
+| `internal/tmux`         | the tmux adapter and the log tailer               |
+| `internal/reconcile`    | derive status from tmux, port collision check     |
+| `internal/oplock`       | the host operation lock                           |
+| `internal/lifecycle`    | start, stop, force-kill under the lock            |
+| `internal/selfupdate`   | the startup release check                         |
+| `internal/ui`           | the Bubble Tea front end                          |
 
 ### Cutting a release
 
