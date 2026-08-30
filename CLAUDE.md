@@ -80,7 +80,8 @@ for fixtures: `~/MinecraftServer/BMC4_ServerPack_v61/logs/latest.log`.
 | `internal/server`       | IDs, spec, the status state machine               |
 | `internal/importdetect` | scan folders, detect scripts and jars, exec patch |
 | `internal/supervisor`   | the `Supervisor` port                             |
-| `internal/tmux`         | the tmux adapter and the log tailer               |
+| `internal/tmux`         | the tmux adapter, the only package that knows tmux |
+| `internal/logtail`      | append-only log file follower, reopens on truncate |
 | `internal/reconcile`    | derive status from tmux, port collision check     |
 | `internal/oplock`       | the host operation lock                           |
 | `internal/lifecycle`    | start, stop, force-kill, config writes under the lock |
