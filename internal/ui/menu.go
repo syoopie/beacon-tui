@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -138,28 +137,37 @@ func (m *model) runMenuAction(act menuAction) tea.Cmd {
 	return nil
 }
 
-func (m *model) menuView() string {
+// detailView is the right column: the selected server's status and the actions
+// that apply to it. It is always on screen beside the list; screenMenu focus
+// only adds the row cursor and lets enter fire a row.
+func (m *model) detailView() string {
 	spec, ok := m.selected()
 	if !ok {
-		return mutedStyle.Render("no server selected")
+		return mutedStyle.Render("Select a server on the left.")
 	}
 	r := m.reports[spec.ID]
-	head := strings.Join([]string{
+	focused := m.screen == screenMenu
+
+	head := lipgloss.JoinVertical(lipgloss.Left,
 		sectionStyle.Render(string(spec.ID)),
-		lipgloss.NewStyle().Foreground(statusColor(r.Derived)).Render(r.Derived.String()),
-		mutedStyle.Render(fmt.Sprintf("port %d", spec.Port)),
-		mutedStyle.Render("via " + launchSummary(spec)),
-	}, mutedStyle.Render("   ·   "))
+		lipgloss.NewStyle().Foreground(statusColor(r.Derived)).Render(statusGlyph(r.Derived)+" "+r.Derived.String())+
+			mutedStyle.Render(fmt.Sprintf("   port %d", spec.Port)),
+		mutedStyle.Render("via "+launchSummary(spec)),
+	)
 
 	rows := make([]string, 0, len(m.menuRows()))
 	for i, row := range m.menuRows() {
 		marker := "  "
 		label := row.label
-		if i == m.menuCursor {
+		if focused && i == m.menuCursor {
 			marker = "▸ "
 			label = selectedRow.Render(label)
 		}
-		rows = append(rows, "  "+marker+label)
+		rows = append(rows, marker+label)
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, head, "", lipgloss.JoinVertical(lipgloss.Left, rows...))
+	actions := lipgloss.JoinVertical(lipgloss.Left, rows...)
+	if !focused {
+		actions = mutedStyle.Render(actions) + "\n\n" + mutedStyle.Render("→  act on this server")
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, head, "", actions)
 }

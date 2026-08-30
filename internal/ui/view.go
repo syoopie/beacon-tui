@@ -158,7 +158,7 @@ func (m *model) commandBar() helpSet {
 	switch m.screen {
 	case screenMenu:
 		return helpSet{short: []key.Binding{
-			hint("↑↓", "move"), hint("enter", "choose"), m.keys.Back, m.keys.Quit,
+			hint("↑↓", "move"), hint("enter", "run"), m.keys.Back, m.keys.Quit,
 		}}
 	case screenConsole:
 		return helpSet{short: []key.Binding{
@@ -170,13 +170,13 @@ func (m *model) commandBar() helpSet {
 	if len(m.specs) == 0 {
 		return helpSet{short: []key.Binding{m.keys.Add, m.keys.Refresh, m.keys.Quit}}
 	}
-	short := []key.Binding{m.keys.Up, m.keys.Down, m.keys.Enter, hint("/", "filter"), m.keys.Add}
+	short := []key.Binding{m.keys.Up, m.keys.Down, m.keys.Act, hint("/", "filter"), m.keys.Add}
 	if m.update != nil {
 		short = append(short, m.keys.Update)
 	}
 	short = append(short, m.keys.Help, m.keys.Quit)
 	full := [][]key.Binding{
-		{m.keys.Up, m.keys.Down, m.keys.Enter, hint("/", "filter")},
+		{m.keys.Up, m.keys.Down, m.keys.Act, hint("/", "filter")},
 		{m.keys.Add, m.keys.Rescan, m.keys.Refresh, m.keys.Update},
 		{m.keys.Help, m.keys.Quit},
 	}
@@ -228,11 +228,8 @@ func (m *model) noticeText() string {
 	if m.pat != nil || m.pick != nil || m.launch != nil {
 		return ""
 	}
-	// The notice belongs to a specific server, so it only shows once one is
-	// open: on its menu or its console.
-	if m.screen == screenList {
-		return ""
-	}
+	// The notice belongs to whichever server is highlighted, so it rides along
+	// with the selection on every screen.
 	spec, ok := m.selected()
 	if !ok {
 		return ""
@@ -266,15 +263,27 @@ func (m *model) bodyView() string {
 		content = m.pickerView()
 	case m.loaded && len(m.specs) == 0:
 		content = m.landingView()
-	case m.screen == screenMenu:
-		content = m.menuView()
 	case m.screen == screenConsole:
 		content = m.consoleView()
 	default:
-		content = m.list.View()
+		content = m.splitView()
 	}
 	return lipgloss.NewStyle().MaxWidth(m.bodyW).
 		Height(m.bodyH).MaxHeight(m.bodyH).Render(content)
+}
+
+// splitView is the list and detail screens: the server list in a slim left
+// column, the selected server's detail and actions on the right, a divider
+// between. Only the focus differs between screenList and screenMenu.
+func (m *model) splitView() string {
+	left := lipgloss.NewStyle().Width(m.listW).Render(m.list.View())
+	right := lipgloss.NewStyle().
+		Height(m.bodyH).
+		BorderStyle(lipgloss.NormalBorder()).BorderLeft(true).BorderForeground(mutedColor).
+		MarginLeft(2).PaddingLeft(2).
+		Width(max(m.bodyW-m.listW-5, 20)).
+		Render(m.detailView())
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 }
 
 func (m *model) consoleView() string {

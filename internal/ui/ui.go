@@ -71,6 +71,7 @@ type model struct {
 
 	screen     screen
 	menuCursor int
+	listW      int
 
 	ready         bool
 	loaded        bool
@@ -279,7 +280,7 @@ func (m *model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	switch {
-	case key.Matches(msg, m.keys.Enter):
+	case key.Matches(msg, m.keys.Act):
 		if _, ok := m.selected(); ok {
 			m.screen = screenMenu
 			m.menuCursor = 0
@@ -521,9 +522,11 @@ func (m *model) relayout() {
 	bodyH = max(bodyH, 3)
 	m.bodyH = bodyH
 
-	// Each screen owns the whole body in turn. The list reads better held to a
-	// column rather than stretched across a wide terminal.
-	m.list.SetSize(min(innerW, 72), bodyH)
+	// The list and detail screens share the body as two columns; the console
+	// screen takes the whole width. The list is held to a slim column so the
+	// detail panel beside it gets the room.
+	m.listW = clampInt(innerW*2/5, 24, 34)
+	m.list.SetSize(m.listW, bodyH)
 	m.vp.Width = innerW
 	m.vp.Height = max(bodyH-2, 1) // log header + rule
 	m.renderLog()

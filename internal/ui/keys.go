@@ -9,6 +9,7 @@ type keymap struct {
 	Up      key.Binding
 	Down    key.Binding
 	Enter   key.Binding
+	Act     key.Binding
 	Back    key.Binding
 	Console key.Binding
 	Add     key.Binding
@@ -24,7 +25,8 @@ func newKeymap() keymap {
 		Up:      key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "up")),
 		Down:    key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "down")),
 		Enter:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open")),
-		Back:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+		Act:     key.NewBinding(key.WithKeys("right", "enter"), key.WithHelp("→", "actions")),
+		Back:    key.NewBinding(key.WithKeys("esc", "left"), key.WithHelp("←", "back")),
 		Console: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "type a command")),
 		Add:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add server")),
 		Rescan:  key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "rescan folders")),

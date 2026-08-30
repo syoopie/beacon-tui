@@ -234,6 +234,31 @@ func TestStartFromMenuDrivesLifecycleAndClearsBusy(t *testing.T) {
 	}
 }
 
+func TestListStaysVisibleBesideTheActionPanel(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	writeSpec(t, dirs, "creative")
+	tm = loadRegistry(t, m, tm)
+
+	if !strings.Contains(tm.View(), "creative") || !strings.Contains(tm.View(), "→  act on this server") {
+		t.Fatalf("list screen should show both the list and the passive action panel:\n%s", tm.View())
+	}
+
+	tm = openMenu(t, m, tm)
+	view := tm.View()
+	if !strings.Contains(view, "survival") || !strings.Contains(view, "creative") {
+		t.Fatalf("the list must remain on screen while the panel is focused:\n%s", view)
+	}
+	if !strings.Contains(view, "▸ Open console") {
+		t.Fatalf("focused panel should show the row cursor:\n%s", view)
+	}
+
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyLeft})
+	if m.screen != screenList {
+		t.Fatalf("left arrow should return focus to the list, screen = %d", m.screen)
+	}
+}
+
 func TestForceKillHiddenFromMenuUntilTimeout(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	writeSpec(t, dirs, "survival")

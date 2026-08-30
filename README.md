@@ -9,21 +9,27 @@ server half-dead.
 [![License](https://img.shields.io/github/license/syoopie/beacon-tui)](LICENSE)
 
 ```text
-  Beacon                                              ↑ v0.2.0 available
-  ↑ up • ↓ down • enter open • / filter • a add server • ? more keys • q quit
+  Beacon                                         ↑ v0.2.0 available
+  ↑ up • ↓ down • → actions • / filter • a add server • ? more keys • q quit
 
-  Servers
-
-  ▸ ● survival                                                  running
-    ○ creative                                                  stopped
-    ◆ skyblock                                                  unknown
+  Servers                    │  survival
+                             │  ● running   port 25565
+  ▸ ● survival      running  │  via run.sh
+    ○ creative      stopped  │
+    ◆ skyblock      unknown  │    Open console
+                             │    Stop
+                             │    Launch settings
+                             │
+                             │  →  act on this server
 
   ready
 ```
 
-Pick a server with `enter` and you get its menu: start, stop, open console,
-launch settings. "Open console" fills the screen with the server log. The bar
-under the title always shows the keys that work right now; `?` expands it.
+The panel on the right follows the highlighted server: its status, its port, the
+script or jar it starts with, and the actions that apply to it right now. Press
+`→` to step into that panel, `↑` `↓` to pick an action, `enter` to run it, `←` to
+step back to the list. "Open console" fills the screen with the server log. The
+bar under the title always shows the keys that work right now; `?` expands it.
 
 ## Why Beacon
 
@@ -63,10 +69,11 @@ The first run opens on a welcome screen because you have no servers yet.
 
 1. Press `a` and pick the folder your server lives in. Beacon browses your
    folders, so you do not need to type a path.
-2. Your server shows up in the list. Move the highlight with `↑` and `↓`, then
-   press `enter` to open its menu.
-3. The menu holds the actions that make sense right now (start, stop, open
-   console, launch settings). Pick one with `enter`; `esc` goes back.
+2. Your server shows up in the list. Move the highlight with `↑` and `↓`; the
+   panel on the right updates to match.
+3. Press `→` to step into that panel. It holds the actions that make sense right
+   now (start, stop, open console, launch settings). Pick one with `↑` `↓` and
+   `enter`; `←` steps back to the list.
 4. "Open console" is a full screen: the server log, scrollable. Press `c` there
    to type a command straight to the server.
 5. Have many servers? Press `/` to filter the list by name.
@@ -74,10 +81,10 @@ The first run opens on a welcome screen because you have no servers yet.
 Have several servers, each in its own folder? Add each one with `a`. Or point
 Beacon at a folder that contains all of them and it picks up every server inside.
 
-The right-hand panel's header shows which script or jar Beacon starts each
-server with (`via run.sh`). A pack that ships more than one launcher, such as a
-`run.sh` and a `start.sh`, defaults to `run.sh`; press `l` to switch it or to
-set the arguments passed to it.
+The panel's header shows which script or jar Beacon starts each server with
+(`via run.sh`). A pack that ships more than one launcher, such as a `run.sh` and
+a `start.sh`, defaults to `run.sh`; the "Launch settings" action switches it or
+sets the arguments passed to it.
 
 ### Keys
 
@@ -86,7 +93,7 @@ On the list:
 | Key     | What it does                         |
 | ------- | ------------------------------------ |
 | `↑` `↓` | move the highlight                   |
-| `enter` | open the highlighted server's menu   |
+| `→`     | step into the server's actions       |
 | `/`     | filter the list by name              |
 | `a`     | add a server (pick its folder)       |
 | `i`     | re-scan your folders for new servers |
@@ -95,9 +102,9 @@ On the list:
 | `?`     | show every key                       |
 | `q`     | quit (your servers keep running)     |
 
-In a server's menu: `↑` `↓` move, `enter` runs the row, `esc` goes back. The
-rows depend on status: start, stop, open console, mark stopped, force-kill
-(only after a stop hangs), fix start script, launch settings.
+In the action panel: `↑` `↓` move, `enter` runs the row, `←` or `esc` goes back
+to the list. The rows depend on status: start, stop, open console, mark stopped,
+force-kill (only after a stop hangs), fix start script, launch settings.
 
 In the console screen: `↑` `↓` scroll, `c` types a command to the server, `esc`
 goes back.
@@ -122,7 +129,7 @@ sitting in front of it) is how you use Beacon.
 **What is that `unknown` status?** Beacon knows a server was running, but its
 session has vanished. It will not guess that the server is safely off, because
 guessing wrong is how you get two servers fighting over one port. Check the box,
-then press `m`.
+then run the "Mark stopped" action.
 
 **Does it keep itself updated?** It tells you when a new version is out and shows
 the command to run. Updating is re-running the install line above.
