@@ -21,6 +21,10 @@ func TestDefaultDirsState(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("HOME", home)
+			// Pin the config dir under home too. os.UserConfigDir honours
+			// XDG_CONFIG_HOME on Linux and ignores it on Darwin, so the runner's
+			// own XDG_CONFIG_HOME must not leak into the Config assertion below.
+			t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "xdgconfig"))
 			t.Setenv("XDG_STATE_HOME", tt.xdg)
 
 			dirs, err := DefaultDirs()
