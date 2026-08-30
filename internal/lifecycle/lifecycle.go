@@ -45,7 +45,7 @@ func NewManager(sup supervisor.Supervisor, dirs config.Dirs, stopTimeout time.Du
 }
 
 // ErrBusy is returned when this process is already running a mutating operation.
-var ErrBusy = errors.New("an operation is already running in this beacon")
+var ErrBusy = errors.New("an operation is already running in this Beacon")
 
 // StopOutcome reports how a Stop ended.
 type StopOutcome struct {

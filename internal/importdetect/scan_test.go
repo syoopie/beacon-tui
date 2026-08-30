@@ -30,7 +30,7 @@ func TestScanFixtureRoots(t *testing.T) {
 		{
 			Dir:    filepath.Join(a, "legacy"),
 			Base:   "legacy",
-			Start:  "./start.sh",
+			Start:  "./start.sh nogui",
 			Script: "start.sh",
 			Exec:   server.ExecMissing,
 			Port:   25565,
@@ -45,7 +45,7 @@ func TestScanFixtureRoots(t *testing.T) {
 		{
 			Dir:    filepath.Join(a, "survival"),
 			Base:   "survival",
-			Start:  "./run.sh",
+			Start:  "./run.sh nogui",
 			Script: "run.sh",
 			Exec:   server.ExecOK,
 			Port:   25565,
@@ -53,7 +53,7 @@ func TestScanFixtureRoots(t *testing.T) {
 		{
 			Dir:    filepath.Join(a, "vanilla"),
 			Base:   "vanilla",
-			Start:  "./run.sh",
+			Start:  "./run.sh nogui",
 			Script: "run.sh",
 			Exec:   server.ExecOK,
 			Port:   25566,
@@ -61,7 +61,7 @@ func TestScanFixtureRoots(t *testing.T) {
 		{
 			Dir:    filepath.Join(b, "survival"),
 			Base:   "survival",
-			Start:  "./run.sh",
+			Start:  "./run.sh nogui",
 			Script: "run.sh",
 			Exec:   server.ExecOK,
 			Port:   25565,
@@ -119,7 +119,7 @@ func TestScanRootIsItselfAServer(t *testing.T) {
 	want := Candidate{
 		Dir:    dir,
 		Base:   "vanilla",
-		Start:  "./run.sh",
+		Start:  "./run.sh nogui",
 		Script: "run.sh",
 		Exec:   server.ExecOK,
 		Port:   25566,

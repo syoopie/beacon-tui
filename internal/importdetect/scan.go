@@ -101,15 +101,14 @@ func inspectDir(dir string) (Candidate, bool) {
 		return Candidate{}, false
 	}
 	// Import takes the first option, the same priority order the operator sees
-	// in the launch-settings modal, where they can switch to another.
+	// in the launch-settings modal, where they can switch to another. nogui
+	// stops the server opening its own Swing console window; Beacon is the
+	// console.
 	o := opts[0]
-	c := Candidate{Dir: dir, Base: base, Port: readPort(dir), Script: o.Script, Exec: o.Exec}
-	if o.Script == "" {
-		c.Start = o.Command("nogui")
-	} else {
-		c.Start = o.Command("")
-	}
-	return c, true
+	return Candidate{
+		Dir: dir, Base: base, Port: readPort(dir),
+		Script: o.Script, Exec: o.Exec, Start: o.Command("nogui"),
+	}, true
 }
 
 // LaunchOption is one way to start the server in a directory: a start script or

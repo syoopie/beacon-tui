@@ -54,7 +54,7 @@ func derive(sessionExists bool, lastKnown server.Status) (server.Status, string)
 	}
 	switch lastKnown {
 	case server.StatusStarting, server.StatusRunning, server.StatusStopping:
-		return server.StatusUnknown, "beacon lost track of this server: its tmux session vanished while it was running. Check whether it is really down before starting it again."
+		return server.StatusUnknown, "Beacon lost track of this server: its tmux session vanished while it was running. Check whether it is really down before starting it again."
 	default:
 		return server.StatusStopped, ""
 	}

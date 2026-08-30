@@ -1,4 +1,4 @@
-# beacon
+# Beacon
 
 Run your Minecraft servers from one clean terminal screen. Start them, stop them,
 watch their logs, all without hunting for the right `screen` session or leaving a
@@ -9,7 +9,7 @@ server half-dead.
 [![License](https://img.shields.io/github/license/syoopie/beacon-tui)](LICENSE)
 
 ```text
-  beacon                                         ↑ v0.2.0 available
+  Beacon                                         ↑ v0.2.0 available
   ↑ up • ↓ down • x stop • c console • a add server • ? more keys • q quit
 
   Servers                  │  survival   ·   running   ·   port 25565
@@ -24,13 +24,13 @@ server half-dead.
 The bar under the title always shows the keys that do something right now. Press
 `?` for the full list.
 
-## Why beacon
+## Why Beacon
 
-- **Your servers stay up when you leave.** beacon is just a control panel. Close
+- **Your servers stay up when you leave.** Beacon is just a control panel. Close
   it, log out, come back tomorrow. The servers keep running.
-- **Nothing gets started twice.** Open beacon in three windows if you like. It
+- **Nothing gets started twice.** Open Beacon in three windows if you like. It
   will not launch a second copy of a server or let two people fight over one.
-- **Stops are safe.** beacon asks the server to save and shut down, waits, and
+- **Stops are safe.** Beacon asks the server to save and shut down, waits, and
   only offers a hard kill if it hangs. It never yanks the plug on its own.
 - **It finds your servers for you.** Point it at a server's folder and it works
   out how to launch it, whether that is a `run.sh`, a Paper jar, or a Fabric jar.
@@ -48,7 +48,7 @@ You also need `tmux`:
 - macOS: `brew install tmux`
 - Debian / Ubuntu: `sudo apt-get install -y tmux`
 
-That is it. beacon runs on macOS and Linux. Windows is not supported.
+That is it. Beacon runs on macOS and Linux. Windows is not supported.
 
 ## Getting started
 
@@ -60,17 +60,17 @@ beacon
 
 The first run opens on a welcome screen because you have no servers yet.
 
-1. Press `a` and pick the folder your server lives in. beacon browses your
+1. Press `a` and pick the folder your server lives in. Beacon browses your
    folders, so you do not need to type a path.
-2. Your server shows up in the list. Move the highlight with `j` and `k`.
+2. Your server shows up in the list. Move the highlight with `↑` and `↓`.
 3. Press `s` to start it, `x` to stop it. The log fills the panel on the right.
 4. Press `c` to open a console and type commands straight to the server.
 5. Have many servers? Press `/` to filter the list by name.
 
 Have several servers, each in its own folder? Add each one with `a`. Or point
-beacon at a folder that contains all of them and it picks up every server inside.
+Beacon at a folder that contains all of them and it picks up every server inside.
 
-The right-hand panel's header shows which script or jar beacon starts each
+The right-hand panel's header shows which script or jar Beacon starts each
 server with (`via run.sh`). A pack that ships more than one launcher, such as a
 `run.sh` and a `start.sh`, defaults to `run.sh`; press `l` to switch it or to
 set the arguments passed to it.
@@ -88,9 +88,9 @@ set the arguments passed to it.
 | `m`     | mark a server stopped once you have checked it really is down |
 | `a`     | add a server (pick its folder)                                |
 | `i`     | re-scan your folders for new servers                          |
-| `p`     | fix a start script beacon cannot control (it shows you first) |
+| `p`     | fix a start script Beacon cannot control (it shows you first) |
 | `l`     | launch settings: which script or jar starts it, and its args  |
-| `u`     | show the command to update beacon                             |
+| `u`     | show the command to update Beacon                             |
 | `r`     | refresh now                                                   |
 | `?`     | show every key                                                |
 | `q`     | quit (your servers keep running)                              |
@@ -100,7 +100,7 @@ full list.
 
 ## Questions
 
-**Where does beacon keep things?** Settings live in `config.toml` under your
+**Where does Beacon keep things?** Settings live in `config.toml` under your
 config folder (`~/Library/Application Support/beacon` on macOS, `~/.config/beacon`
 on Linux). Logs live under `~/.local/state/beacon/logs`. You rarely need to touch
 either.
@@ -111,11 +111,11 @@ not being on your `PATH`; most modpacks need Java 17 or 21. Install it (macOS:
 `brew install openjdk@17`, then follow the caveats `brew` prints so `java` is
 found), then try again.
 
-**Can I use it on a remote box?** Yes. beacon is a local program with no network
+**Can I use it on a remote box?** Yes. Beacon is a local program with no network
 of its own. However you already get a terminal on that machine (SSH, Tailscale,
-sitting in front of it) is how you use beacon.
+sitting in front of it) is how you use Beacon.
 
-**What is that `unknown` status?** beacon knows a server was running, but its
+**What is that `unknown` status?** Beacon knows a server was running, but its
 session has vanished. It will not guess that the server is safely off, because
 guessing wrong is how you get two servers fighting over one port. Check the box,
 then press `m`.
@@ -140,16 +140,16 @@ not on `PATH`. `make lint` runs golangci-lint if it is installed; CI always does
 
 ### How it works
 
-- **tmux owns process lifetime and stdin.** beacon launches each server through a
+- **tmux owns process lifetime and stdin.** Beacon launches each server through a
   shell that redirects output to a log file and `exec`s the command, so the pane
   process is the JVM itself. Sessions are named `beacon-<id>`.
 - **Logs are plain files**, tailed from disk. The tailer reopens a log that is
   truncated or rotated.
 - **Disk is the source of truth.** `config.toml` and `servers/<id>.toml` hold
-  everything that matters. Every beacon process reloads them each tick. Memory is
+  everything that matters. Every Beacon process reloads them each tick. Memory is
   a cache that goes stale until the next reconcile.
 - **A host lock serializes every mutating operation** (start, stop, force-kill,
-  import, script patch, config write) across all beacon processes. It is a
+  import, script patch, config write) across all Beacon processes. It is a
   PID-bearing lockfile with stale-holder recovery. Reads never take it.
 - **Reconcile** compares recorded state against tmux on startup and on a ticker,
   and derives the status shown in the list.

@@ -38,6 +38,9 @@ func (m *model) openLaunch(spec server.Spec) tea.Cmd {
 		}
 	}
 	args := strings.TrimSpace(strings.TrimPrefix(spec.Start, opts[cursor].Base))
+	if args == "" {
+		args = "nogui" // Beacon is the console; the server should not open its own window
+	}
 
 	ti := textinput.New()
 	ti.Prompt = "arguments  "

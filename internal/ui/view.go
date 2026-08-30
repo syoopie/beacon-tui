@@ -200,7 +200,7 @@ func (m *model) contextBindings() []key.Binding {
 
 func (m *model) View() string {
 	if !m.ready {
-		return "starting beacon…"
+		return "starting Beacon…"
 	}
 	rows := []string{
 		m.headerView(),
@@ -219,7 +219,7 @@ func (m *model) View() string {
 }
 
 func (m *model) headerView() string {
-	left := brandStyle.Render("beacon")
+	left := brandStyle.Render("Beacon")
 	var right string
 	if m.update != nil {
 		right = badgeStyle.Render("↑ " + m.update.latest + " available")
@@ -250,7 +250,7 @@ func (m *model) noticeText() string {
 	case r.Derived == server.StatusUnknown && r.Warning != "":
 		return "⚠  " + r.Warning + "  Once you have checked, press m to mark it stopped."
 	case !spec.Exec.Launchable():
-		return "⚠  " + string(spec.ID) + "'s start script does not hand off to Java with exec, so beacon can't start it. Press p to see if beacon can fix the script, or l to point it at another one."
+		return "⚠  " + string(spec.ID) + "'s start script does not hand off to Java with exec, so Beacon can't start it. Press p to see if Beacon can fix the script, or l to point it at another one."
 	}
 	return ""
 }
@@ -324,12 +324,12 @@ func launchSummary(s server.Spec) string {
 
 func (m *model) landingView() string {
 	panel := lipgloss.JoinVertical(lipgloss.Center,
-		brandStyle.Render("beacon"),
+		brandStyle.Render("Beacon"),
 		mutedStyle.Render("Run your Minecraft servers from one screen."),
 		"",
 		lipgloss.NewStyle().Foreground(mutedColor).Align(lipgloss.Center).Render(
 			"You have no servers yet.\n\n"+
-				"beacon needs the folder your server lives in —\n"+
+				"Beacon needs the folder your server lives in —\n"+
 				"the one with a run.sh or a server.jar inside."),
 		"",
 		ctaStyle.Render("Press  a  to add your first server"),
@@ -352,11 +352,11 @@ func (m *model) patchDialogView() string {
 
 	scriptName := filepath.Base(p.patch.Path)
 	inner := lipgloss.JoinVertical(lipgloss.Left,
-		sectionStyle.Render("Let beacon fix "+string(p.id)+"'s start script?"),
+		sectionStyle.Render("Let Beacon fix "+string(p.id)+"'s start script?"),
 		"",
-		para.Render("beacon runs each server inside tmux and needs the Java process to be "+
+		para.Render("Beacon runs each server inside tmux and needs the Java process to be "+
 			"the script itself, not a program the script starts and waits on. As a "+
-			"child process, a \"stop\" typed to the server may not reach it, and beacon "+
+			"child process, a \"stop\" typed to the server may not reach it, and Beacon "+
 			"cannot tell whether the server is really up."),
 		"",
 		para.Render("The fix adds exec in front of the java line in "+scriptName+", so the "+
@@ -376,8 +376,8 @@ func (m *model) launchDialogView() string {
 	width := clampInt(m.bodyW-12, 40, 72)
 
 	rows := []string{
-		sectionStyle.Render("How should beacon start " + string(lp.id) + "?"),
-		mutedStyle.Render("Every launch method beacon found in its folder:"),
+		sectionStyle.Render("How should Beacon start " + string(lp.id) + "?"),
+		mutedStyle.Render("Every launch method Beacon found in its folder:"),
 		"",
 	}
 	for i, o := range lp.opts {

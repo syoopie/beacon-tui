@@ -308,7 +308,7 @@ func TestUnknownServerShowsNoticeAndNeverOverflows(t *testing.T) {
 	m.reports[spec.ID] = reconcile.Report{
 		ID:      spec.ID,
 		Derived: server.StatusUnknown,
-		Warning: "beacon lost track of this server: its tmux session vanished while it was running. Check whether it is really down before starting it again.",
+		Warning: "Beacon lost track of this server: its tmux session vanished while it was running. Check whether it is really down before starting it again.",
 	}
 	m.refreshItems()
 	m.appendLogs([]string{strings.Repeat("a very long unbroken log line that must not spill past the pane ", 4)})
@@ -458,12 +458,11 @@ func TestLaunchSettingsSwitchesTheStartScript(t *testing.T) {
 	if m.launch == nil {
 		t.Fatal("pressing l did not open launch settings")
 	}
-	if !strings.Contains(tm.View(), "How should beacon start survival") {
+	if !strings.Contains(tm.View(), "How should Beacon start survival") {
 		t.Fatalf("launch dialog not shown:\n%s", tm.View())
 	}
 
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyDown}) // run.sh -> start.sh
-	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("nogui")})
 	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
 	for _, msg := range msgs {
 		tm, _ = drive(t, tm, msg)
@@ -486,5 +485,34 @@ func TestLaunchSettingsSwitchesTheStartScript(t *testing.T) {
 	tm = loadRegistry(t, m, tm)
 	if !strings.Contains(tm.View(), "via start.sh") {
 		t.Fatalf("detail pane should show the new launch script:\n%s", tm.View())
+	}
+}
+
+func TestLaunchSettingsEditsTheArguments(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	if err := os.WriteFile(filepath.Join(spec.Dir, "run.sh"),
+		[]byte("#!/bin/sh\nexec java -jar server.jar \"$@\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tm = loadRegistry(t, m, tm)
+
+	tm, _ = pressRune(t, m, tm, "l")
+	// The args field defaults to "nogui"; clear it and type a custom set.
+	for range "nogui" {
+		tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyBackspace})
+	}
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("nogui --world lobby")})
+	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	for _, msg := range msgs {
+		tm, _ = drive(t, tm, msg)
+	}
+
+	reloaded, err := config.LoadSpec(dirs.ServerFile(spec.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Start != "./run.sh nogui --world lobby" {
+		t.Fatalf("Start = %q, want ./run.sh nogui --world lobby", reloaded.Start)
 	}
 }
