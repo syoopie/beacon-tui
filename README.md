@@ -9,20 +9,21 @@ server half-dead.
 [![License](https://img.shields.io/github/license/syoopie/beacon-tui)](LICENSE)
 
 ```text
-  Beacon                                         ↑ v0.2.0 available
-  ↑ up • ↓ down • x stop • c console • a add server • ? more keys • q quit
+  Beacon                                              ↑ v0.2.0 available
+  ↑ up • ↓ down • enter open • / filter • a add server • ? more keys • q quit
 
-  Servers                  │  survival   ·   running   ·   port 25565
-                           │  ──────────────────────────────────────────────────
-  ▸ ● survival     running │  [12:31:02] [Server thread/INFO]: Done (6.4s)!
-    ○ creative     stopped │  [12:31:02] [Server thread/INFO]: For help, type "help"
-    ◆ skyblock     unknown │  [12:33:20] [Server thread/INFO]: Steve joined the game
+  Servers
 
-  survival stopped
+  ▸ ● survival                                                  running
+    ○ creative                                                  stopped
+    ◆ skyblock                                                  unknown
+
+  ready
 ```
 
-The bar under the title always shows the keys that do something right now. Press
-`?` for the full list.
+Pick a server with `enter` and you get its menu: start, stop, open console,
+launch settings. "Open console" fills the screen with the server log. The bar
+under the title always shows the keys that work right now; `?` expands it.
 
 ## Why Beacon
 
@@ -62,9 +63,12 @@ The first run opens on a welcome screen because you have no servers yet.
 
 1. Press `a` and pick the folder your server lives in. Beacon browses your
    folders, so you do not need to type a path.
-2. Your server shows up in the list. Move the highlight with `↑` and `↓`.
-3. Press `s` to start it, `x` to stop it. The log fills the panel on the right.
-4. Press `c` to open a console and type commands straight to the server.
+2. Your server shows up in the list. Move the highlight with `↑` and `↓`, then
+   press `enter` to open its menu.
+3. The menu holds the actions that make sense right now (start, stop, open
+   console, launch settings). Pick one with `enter`; `esc` goes back.
+4. "Open console" is a full screen: the server log, scrollable. Press `c` there
+   to type a command straight to the server.
 5. Have many servers? Press `/` to filter the list by name.
 
 Have several servers, each in its own folder? Add each one with `a`. Or point
@@ -77,26 +81,26 @@ set the arguments passed to it.
 
 ### Keys
 
-| Key     | What it does                                                  |
-| ------- | ------------------------------------------------------------- |
-| `↑` `↓` | move the highlight                                            |
-| `/`     | filter the list by name                                       |
-| `s`     | start the highlighted server                                  |
-| `x`     | stop it, waiting for a clean shutdown                         |
-| `c`     | open a console to type a command straight to the server       |
-| `K`     | force-kill (only offered after a stop has hung)               |
-| `m`     | mark a server stopped once you have checked it really is down |
-| `a`     | add a server (pick its folder)                                |
-| `i`     | re-scan your folders for new servers                          |
-| `p`     | fix a start script Beacon cannot control (it shows you first) |
-| `l`     | launch settings: which script or jar starts it, and its args  |
-| `u`     | show the command to update Beacon                             |
-| `r`     | refresh now                                                   |
-| `?`     | show every key                                                |
-| `q`     | quit (your servers keep running)                              |
+On the list:
 
-Only the keys that apply right now show in the bar at the top. `?` expands the
-full list.
+| Key     | What it does                         |
+| ------- | ------------------------------------ |
+| `↑` `↓` | move the highlight                   |
+| `enter` | open the highlighted server's menu   |
+| `/`     | filter the list by name              |
+| `a`     | add a server (pick its folder)       |
+| `i`     | re-scan your folders for new servers |
+| `u`     | show the command to update Beacon    |
+| `r`     | refresh now                          |
+| `?`     | show every key                       |
+| `q`     | quit (your servers keep running)     |
+
+In a server's menu: `↑` `↓` move, `enter` runs the row, `esc` goes back. The
+rows depend on status: start, stop, open console, mark stopped, force-kill
+(only after a stop hangs), fix start script, launch settings.
+
+In the console screen: `↑` `↓` scroll, `c` types a command to the server, `esc`
+goes back.
 
 ## Questions
 

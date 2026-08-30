@@ -145,6 +145,55 @@ func pressRune(t *testing.T, m *model, tm tea.Model, r string) (tea.Model, []tea
 	return drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(r)})
 }
 
+// openMenu presses enter on the list to drill into the selected server's menu.
+func openMenu(t *testing.T, m *model, tm tea.Model) tea.Model {
+	t.Helper()
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.screen != screenMenu {
+		t.Fatalf("expected the server menu, still on screen %d", m.screen)
+	}
+	return tm
+}
+
+// chooseMenu moves the menu cursor to the row with the given label and presses enter.
+func chooseMenu(t *testing.T, m *model, tm tea.Model, label string) (tea.Model, []tea.Msg) {
+	t.Helper()
+	idx := -1
+	for i, r := range m.menuRows() {
+		if r.label == label {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		t.Fatalf("menu has no row %q; rows: %v", label, menuLabels(m))
+	}
+	for m.menuCursor != idx {
+		key := tea.KeyDown
+		if m.menuCursor > idx {
+			key = tea.KeyUp
+		}
+		tm, _ = drive(t, tm, tea.KeyMsg{Type: key})
+	}
+	return drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+}
+
+func menuLabels(m *model) []string {
+	var out []string
+	for _, r := range m.menuRows() {
+		out = append(out, r.label)
+	}
+	return out
+}
+
+func hasMenuRow(m *model, label string) bool {
+	for _, l := range menuLabels(m) {
+		if l == label {
+			return true
+		}
+	}
+	return false
+}
+
 func TestModelLoadsRegistryAndRendersList(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	writeSpec(t, dirs, "survival")
@@ -157,14 +206,15 @@ func TestModelLoadsRegistryAndRendersList(t *testing.T) {
 	}
 }
 
-func TestStartKeyDrivesLifecycleAndClearsBusy(t *testing.T) {
+func TestStartFromMenuDrivesLifecycleAndClearsBusy(t *testing.T) {
 	m, tm, sup, dirs, _ := bootModel(t)
 	spec := writeSpec(t, dirs, "survival")
 	tm = loadRegistry(t, m, tm)
 
-	tm, msgs := pressRune(t, m, tm, "s")
+	tm = openMenu(t, m, tm)
+	tm, msgs := chooseMenu(t, m, tm, "Start")
 	if !m.busy {
-		t.Fatal("model should be busy right after pressing s")
+		t.Fatal("model should be busy right after choosing Start")
 	}
 	for _, msg := range msgs {
 		tm, _ = drive(t, tm, msg)
@@ -184,17 +234,14 @@ func TestStartKeyDrivesLifecycleAndClearsBusy(t *testing.T) {
 	}
 }
 
-func TestForceKillKeyRefusedUntilTimeout(t *testing.T) {
+func TestForceKillHiddenFromMenuUntilTimeout(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	writeSpec(t, dirs, "survival")
 	tm = loadRegistry(t, m, tm)
 
-	pressRune(t, m, tm, "K")
-	if m.busy {
-		t.Fatal("force-kill ran without a prior stop timeout")
-	}
-	if !strings.Contains(m.status, "force-kill") {
-		t.Fatalf("status = %q, want an explanation of when force-kill is offered", m.status)
+	openMenu(t, m, tm)
+	if hasMenuRow(m, "Force-kill") {
+		t.Fatalf("force-kill offered without a prior stop timeout; rows: %v", menuLabels(m))
 	}
 }
 
@@ -311,6 +358,8 @@ func TestUnknownServerShowsNoticeAndNeverOverflows(t *testing.T) {
 		Warning: "Beacon lost track of this server: its tmux session vanished while it was running. Check whether it is really down before starting it again.",
 	}
 	m.refreshItems()
+	tm = openMenu(t, m, tm)
+	tm, _ = chooseMenu(t, m, tm, "Open console")
 	m.appendLogs([]string{strings.Repeat("a very long unbroken log line that must not spill past the pane ", 4)})
 
 	view := tm.View()
@@ -324,32 +373,23 @@ func TestUnknownServerShowsNoticeAndNeverOverflows(t *testing.T) {
 	}
 }
 
-func TestCommandBarTracksSelectedServerStatus(t *testing.T) {
+func TestServerMenuTracksStatus(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	spec := writeSpec(t, dirs, "survival")
-	tm = loadRegistry(t, m, tm)
+	loadRegistry(t, m, tm)
 
 	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusStopped}
-	m.refreshItems()
-	if bar := commandLine(tm.View()); !strings.Contains(bar, "s start") || strings.Contains(bar, "x stop") {
-		t.Fatalf("stopped server should offer start, not stop: %q", bar)
+	if !hasMenuRow(m, "Start") || hasMenuRow(m, "Stop") {
+		t.Fatalf("stopped server menu should offer Start, not Stop: %v", menuLabels(m))
 	}
 
 	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
-	m.refreshItems()
-	if bar := commandLine(tm.View()); !strings.Contains(bar, "x stop") || !strings.Contains(bar, "c console") || strings.Contains(bar, "s start") {
-		t.Fatalf("running server should offer stop and console, not start: %q", bar)
+	if !hasMenuRow(m, "Stop") || hasMenuRow(m, "Start") {
+		t.Fatalf("running server menu should offer Stop, not Start: %v", menuLabels(m))
 	}
-}
-
-// commandLine returns the command bar, which sits on the third rendered row
-// (blank top-padding line, brand line, then the bar).
-func commandLine(view string) string {
-	lines := strings.Split(view, "\n")
-	if len(lines) < 3 {
-		return ""
+	if !hasMenuRow(m, "Open console") {
+		t.Fatalf("every server menu should offer the console: %v", menuLabels(m))
 	}
-	return lines[2]
 }
 
 func TestConsoleSendsTypedLineToRunningServer(t *testing.T) {
@@ -360,9 +400,11 @@ func TestConsoleSendsTypedLineToRunningServer(t *testing.T) {
 	sup.present[spec.Session] = true
 	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
 
+	tm = openMenu(t, m, tm)
+	tm, _ = chooseMenu(t, m, tm, "Open console")
 	tm, _ = pressRune(t, m, tm, "c")
 	if m.console == nil {
-		t.Fatal("pressing c did not open the console")
+		t.Fatal("pressing c in the console view did not open the input")
 	}
 
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("say hi")})
@@ -392,9 +434,11 @@ func TestConsoleRefusedUnlessServerIsRunning(t *testing.T) {
 	writeSpec(t, dirs, "survival")
 	tm = loadRegistry(t, m, tm)
 
+	tm = openMenu(t, m, tm)
+	tm, _ = chooseMenu(t, m, tm, "Open console")
 	pressRune(t, m, tm, "c")
 	if m.console != nil {
-		t.Fatal("console opened for a server that is not running")
+		t.Fatal("console input opened for a server that is not running")
 	}
 	if !strings.Contains(m.status, "running") {
 		t.Fatalf("status = %q, want the running-only explanation", m.status)
@@ -454,9 +498,10 @@ func TestLaunchSettingsSwitchesTheStartScript(t *testing.T) {
 	}
 	tm = loadRegistry(t, m, tm)
 
-	tm, _ = pressRune(t, m, tm, "l")
+	tm = openMenu(t, m, tm)
+	tm, _ = chooseMenu(t, m, tm, "Launch settings")
 	if m.launch == nil {
-		t.Fatal("pressing l did not open launch settings")
+		t.Fatal("choosing Launch settings did not open the dialog")
 	}
 	if !strings.Contains(tm.View(), "How should Beacon start survival") {
 		t.Fatalf("launch dialog not shown:\n%s", tm.View())
@@ -497,7 +542,8 @@ func TestLaunchSettingsEditsTheArguments(t *testing.T) {
 	}
 	tm = loadRegistry(t, m, tm)
 
-	tm, _ = pressRune(t, m, tm, "l")
+	tm = openMenu(t, m, tm)
+	tm, _ = chooseMenu(t, m, tm, "Launch settings")
 	// The args field defaults to "nogui"; clear it and type a custom set.
 	for range "nogui" {
 		tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyBackspace})

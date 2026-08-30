@@ -2,45 +2,36 @@ package ui
 
 import "github.com/charmbracelet/bubbles/key"
 
-// keymap is beacon's full set of bindings. The command bar shows only the
-// subset that applies to the current screen and the selected server, but every
-// binding here stays live so a key press always gets an answer, even if that
-// answer is "not now".
+// keymap is Beacon's full set of bindings. The command bar shows only the
+// subset that applies to the current screen, but every binding here stays live
+// so a key press always gets an answer, even if that answer is "not now".
 type keymap struct {
-	Up          key.Binding
-	Down        key.Binding
-	Start       key.Binding
-	Stop        key.Binding
-	Console     key.Binding
-	Kill        key.Binding
-	MarkStopped key.Binding
-	Patch       key.Binding
-	Launch      key.Binding
-	Add         key.Binding
-	Rescan      key.Binding
-	Update      key.Binding
-	Refresh     key.Binding
-	Help        key.Binding
-	Quit        key.Binding
+	Up      key.Binding
+	Down    key.Binding
+	Enter   key.Binding
+	Back    key.Binding
+	Console key.Binding
+	Add     key.Binding
+	Rescan  key.Binding
+	Update  key.Binding
+	Refresh key.Binding
+	Help    key.Binding
+	Quit    key.Binding
 }
 
 func newKeymap() keymap {
 	return keymap{
-		Up:          key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "up")),
-		Down:        key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "down")),
-		Start:       key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start")),
-		Stop:        key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "stop")),
-		Console:     key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "console")),
-		Kill:        key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "force-kill")),
-		MarkStopped: key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "mark stopped")),
-		Patch:       key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "fix script")),
-		Launch:      key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "launch settings")),
-		Add:         key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add server")),
-		Rescan:      key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "rescan folders")),
-		Update:      key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update")),
-		Refresh:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
-		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more keys")),
-		Quit:        key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
+		Up:      key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "up")),
+		Down:    key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "down")),
+		Enter:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open")),
+		Back:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+		Console: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "type a command")),
+		Add:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add server")),
+		Rescan:  key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "rescan folders")),
+		Update:  key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update")),
+		Refresh: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
+		Help:    key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more keys")),
+		Quit:    key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
 	}
 }
 

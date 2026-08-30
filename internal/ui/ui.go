@@ -69,6 +69,9 @@ type model struct {
 	launch  *launchPrompt
 	update  *updateNotice
 
+	screen     screen
+	menuCursor int
+
 	ready         bool
 	loaded        bool
 	width, height int
@@ -247,14 +250,62 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case m.launch != nil:
 		return m.updateLaunch(msg)
 	}
+
+	// Screen-independent keys.
+	switch {
+	case key.Matches(msg, m.keys.Quit):
+		return m, tea.Quit
+	case key.Matches(msg, m.keys.Help):
+		m.help.ShowAll = !m.help.ShowAll
+		m.relayout()
+		return m, nil
+	}
+
+	switch m.screen {
+	case screenMenu:
+		return m.handleMenuKey(msg)
+	case screenConsole:
+		return m.handleConsoleKey(msg)
+	default:
+		return m.handleListKey(msg)
+	}
+}
+
+func (m *model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.list.FilterState() == list.Filtering {
 		var cmd tea.Cmd
 		m.list, cmd = m.list.Update(msg)
 		m.syncSelection()
 		return m, cmd
 	}
-	if cmd, handled := m.command(msg); handled {
-		return m, cmd
+	switch {
+	case key.Matches(msg, m.keys.Enter):
+		if _, ok := m.selected(); ok {
+			m.screen = screenMenu
+			m.menuCursor = 0
+			m.relayout()
+		}
+		return m, nil
+	case key.Matches(msg, m.keys.Add):
+		return m, m.openPicker()
+	case key.Matches(msg, m.keys.Rescan):
+		if m.busy {
+			m.status = busyStatus
+			return m, nil
+		}
+		m.busy = true
+		m.status = "scanning your folders…"
+		return m, m.importCmd()
+	case key.Matches(msg, m.keys.Refresh):
+		m.status = "refreshing"
+		return m, m.reloadCmd()
+	case key.Matches(msg, m.keys.Update):
+		if m.update != nil {
+			m.status = "update: " + m.update.command
+			m.update = nil
+			m.relayout()
+		}
+		return m, nil
 	}
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
@@ -262,89 +313,26 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// command runs the screen-level and server-level key bindings. handled is false
-// when the key belongs to the list (navigation, filtering), so the caller can
-// pass it on.
-func (m *model) command(msg tea.KeyMsg) (tea.Cmd, bool) {
+func (m *model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
-	case key.Matches(msg, m.keys.Quit):
-		return tea.Quit, true
-	case key.Matches(msg, m.keys.Help):
-		m.help.ShowAll = !m.help.ShowAll
+	case key.Matches(msg, m.keys.Back):
+		m.screen = screenMenu
 		m.relayout()
-		return nil, true
-	case key.Matches(msg, m.keys.Add):
-		return m.openPicker(), true
-	case key.Matches(msg, m.keys.Refresh):
-		m.status = "refreshing"
-		return m.reloadCmd(), true
-	case key.Matches(msg, m.keys.Update):
-		if m.update == nil {
-			return nil, false
-		}
-		m.status = "update: " + m.update.command
-		m.update = nil
-		m.relayout()
-		return nil, true
-	case key.Matches(msg, m.keys.Rescan):
-		if m.busy {
-			m.status = busyStatus
-			return nil, true
-		}
-		m.busy = true
-		m.status = "scanning your folders…"
-		return m.importCmd(), true
-	}
-
-	if m.busy {
-		if key.Matches(msg, m.keys.Start, m.keys.Stop, m.keys.Console, m.keys.Kill, m.keys.MarkStopped, m.keys.Patch, m.keys.Launch) {
-			m.status = busyStatus
-			return nil, true
-		}
-		return nil, false
-	}
-
-	spec, ok := m.selected()
-	if !ok {
-		return nil, false
-	}
-	switch {
-	case key.Matches(msg, m.keys.Start):
-		m.busy = true
-		m.status = "starting " + string(spec.ID) + "…"
-		return m.startCmd(spec), true
-	case key.Matches(msg, m.keys.Stop):
-		m.busy = true
-		m.status = "stopping " + string(spec.ID) + "… (up to " + m.app.Cfg.StopTimeout.Std().String() + ")"
-		return m.stopCmd(spec), true
+		return m, nil
 	case key.Matches(msg, m.keys.Console):
+		spec, ok := m.selected()
+		if !ok {
+			return m, nil
+		}
 		if m.reports[spec.ID].Derived != server.StatusRunning {
-			m.status = "console works only while the server is running"
-			return nil, true
+			m.status = "typing a command works only while the server is running"
+			return m, nil
 		}
-		return m.openConsole(spec), true
-	case key.Matches(msg, m.keys.Kill):
-		if !m.timedOut[spec.ID] {
-			m.status = "force-kill is offered only after a stop times out"
-			return nil, true
-		}
-		m.busy = true
-		m.status = "force-killing " + string(spec.ID) + "…"
-		return m.forceKillCmd(spec), true
-	case key.Matches(msg, m.keys.MarkStopped):
-		if m.reports[spec.ID].Derived != server.StatusUnknown {
-			m.status = "mark-stopped applies only to a server in Unknown"
-			return nil, true
-		}
-		m.busy = true
-		m.status = "marking " + string(spec.ID) + " stopped…"
-		return m.markStoppedCmd(spec), true
-	case key.Matches(msg, m.keys.Patch):
-		return m.planPatchCmd(spec), true
-	case key.Matches(msg, m.keys.Launch):
-		return m.openLaunch(spec), true
+		return m, m.openConsole(spec)
 	}
-	return nil, false
+	var cmd tea.Cmd
+	m.vp, cmd = m.vp.Update(msg)
+	return m, cmd
 }
 
 // --- modal input: console ---
@@ -533,10 +521,10 @@ func (m *model) relayout() {
 	bodyH = max(bodyH, 3)
 	m.bodyH = bodyH
 
-	leftW := clampInt(innerW/3, 18, 34)
-	m.list.SetSize(leftW, bodyH)
-
-	m.vp.Width = max(innerW-leftW-4, 10)
+	// Each screen owns the whole body in turn. The list reads better held to a
+	// column rather than stretched across a wide terminal.
+	m.list.SetSize(min(innerW, 72), bodyH)
+	m.vp.Width = innerW
 	m.vp.Height = max(bodyH-2, 1) // log header + rule
 	m.renderLog()
 
@@ -566,10 +554,16 @@ func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 		}
 	}
 	m.syncSelection()
+	// A server that vanished from under a drilled-in screen sends us home.
+	if _, ok := m.selected(); !ok && m.screen != screenList {
+		m.screen = screenList
+	}
+	m.clampMenuCursor()
 	m.relayout()
 
 	switch {
 	case len(m.specs) == 0:
+		m.screen = screenList
 		m.tail = nil
 		if m.transientStatus() {
 			m.status = "no servers yet"

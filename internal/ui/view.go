@@ -155,45 +155,32 @@ func (m *model) commandBar() helpSet {
 		return helpSet{short: []key.Binding{hint("enter", "apply filter"), hint("esc", "clear")}}
 	}
 
+	switch m.screen {
+	case screenMenu:
+		return helpSet{short: []key.Binding{
+			hint("↑↓", "move"), hint("enter", "choose"), m.keys.Back, m.keys.Quit,
+		}}
+	case screenConsole:
+		return helpSet{short: []key.Binding{
+			hint("↑↓", "scroll"), m.keys.Console, m.keys.Back, m.keys.Quit,
+		}}
+	}
+
+	// screenList
+	if len(m.specs) == 0 {
+		return helpSet{short: []key.Binding{m.keys.Add, m.keys.Refresh, m.keys.Quit}}
+	}
+	short := []key.Binding{m.keys.Up, m.keys.Down, m.keys.Enter, hint("/", "filter"), m.keys.Add}
+	if m.update != nil {
+		short = append(short, m.keys.Update)
+	}
+	short = append(short, m.keys.Help, m.keys.Quit)
 	full := [][]key.Binding{
-		{m.keys.Up, m.keys.Down, hint("/", "filter")},
-		{m.keys.Start, m.keys.Stop, m.keys.Console, m.keys.Kill, m.keys.MarkStopped, m.keys.Patch, m.keys.Launch},
+		{m.keys.Up, m.keys.Down, m.keys.Enter, hint("/", "filter")},
 		{m.keys.Add, m.keys.Rescan, m.keys.Refresh, m.keys.Update},
 		{m.keys.Help, m.keys.Quit},
 	}
-	return helpSet{short: m.contextBindings(), full: full}
-}
-
-func (m *model) contextBindings() []key.Binding {
-	if len(m.specs) == 0 {
-		return []key.Binding{m.keys.Add, m.keys.Refresh, m.keys.Quit}
-	}
-	b := []key.Binding{m.keys.Up, m.keys.Down}
-	if spec, ok := m.selected(); ok {
-		switch m.reports[spec.ID].Derived {
-		case server.StatusStopped:
-			b = append(b, m.keys.Start)
-		case server.StatusRunning:
-			b = append(b, m.keys.Stop, m.keys.Console)
-		case server.StatusStarting, server.StatusStopping:
-			b = append(b, m.keys.Stop)
-		case server.StatusUnknown:
-			b = append(b, m.keys.MarkStopped)
-		}
-		if m.timedOut[spec.ID] {
-			b = append(b, m.keys.Kill)
-		}
-		if !spec.Exec.Launchable() {
-			b = append(b, m.keys.Patch)
-		}
-		b = append(b, m.keys.Launch)
-	}
-	b = append(b, m.keys.Add)
-	if m.update != nil {
-		b = append(b, m.keys.Update)
-	}
-	b = append(b, m.keys.Help, m.keys.Quit)
-	return b
+	return helpSet{short: short, full: full}
 }
 
 // --- view ---
@@ -241,6 +228,11 @@ func (m *model) noticeText() string {
 	if m.pat != nil || m.pick != nil || m.launch != nil {
 		return ""
 	}
+	// The notice belongs to a specific server, so it only shows once one is
+	// open: on its menu or its console.
+	if m.screen == screenList {
+		return ""
+	}
 	spec, ok := m.selected()
 	if !ok {
 		return ""
@@ -248,9 +240,9 @@ func (m *model) noticeText() string {
 	r := m.reports[spec.ID]
 	switch {
 	case r.Derived == server.StatusUnknown && r.Warning != "":
-		return "⚠  " + r.Warning + "  Once you have checked, press m to mark it stopped."
+		return "⚠  " + r.Warning + "  Once you have checked, choose Mark stopped."
 	case !spec.Exec.Launchable():
-		return "⚠  " + string(spec.ID) + "'s start script does not hand off to Java with exec, so Beacon can't start it. Press p to see if Beacon can fix the script, or l to point it at another one."
+		return "⚠  " + string(spec.ID) + "'s start script does not hand off to Java with exec, so Beacon can't start it. Choose Fix start script, or Launch settings to point it at another one."
 	}
 	return ""
 }
@@ -274,22 +266,24 @@ func (m *model) bodyView() string {
 		content = m.pickerView()
 	case m.loaded && len(m.specs) == 0:
 		content = m.landingView()
+	case m.screen == screenMenu:
+		content = m.menuView()
+	case m.screen == screenConsole:
+		content = m.consoleView()
 	default:
-		content = m.paneView()
+		content = m.list.View()
 	}
 	return lipgloss.NewStyle().MaxWidth(m.bodyW).
 		Height(m.bodyH).MaxHeight(m.bodyH).Render(content)
 }
 
-func (m *model) paneView() string {
-	rightW := max(m.vp.Width, 1)
-	right := lipgloss.NewStyle().MaxWidth(rightW).Render(lipgloss.JoinVertical(lipgloss.Left,
+func (m *model) consoleView() string {
+	w := max(m.bodyW, 1)
+	return lipgloss.JoinVertical(lipgloss.Left,
 		m.logHeaderView(),
-		mutedStyle.Render(strings.Repeat("─", rightW)),
+		mutedStyle.Render(strings.Repeat("─", w)),
 		m.vp.View(),
-	))
-	divider := mutedStyle.Render(strings.TrimSuffix(strings.Repeat("│\n", max(m.bodyH, 1)), "\n"))
-	return lipgloss.JoinHorizontal(lipgloss.Top, m.list.View(), " ", divider, "  ", right)
+	)
 }
 
 // logHeaderView is one line: name, status, port. Anything that needs more room
