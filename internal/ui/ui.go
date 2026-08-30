@@ -544,7 +544,14 @@ func (m *model) relayout() {
 	if m.width == 0 || m.height == 0 {
 		return
 	}
-	innerW := max(m.width-2*framePadX, 20)
+	// Leave the last terminal column empty. A frame that fills the width exactly
+	// makes every rendered line full-width, and Bubble Tea then skips its
+	// erase-to-end-of-line on repaint (a full line "can't" have stale trailing
+	// cells). Some terminals, VS Code's integrated terminal among them, do leave
+	// stale cells there when a coloured log line is repainted shorter during a
+	// scroll, which showed up as the console's side rail drifting sideways.
+	// One spare column brings the erase back and pins the rail.
+	innerW := max(m.width-2*framePadX-1, 20)
 	innerH := max(m.height-2*framePadY, 8)
 	m.help.Width = innerW
 	m.bodyW = innerW

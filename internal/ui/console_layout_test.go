@@ -62,9 +62,12 @@ func TestConsoleRailStaysPutWhileScrolling(t *testing.T) {
 		if len(all) != 1 {
 			t.Fatalf("width %d: rail divider wandered across columns %v while scrolling", width, all)
 		}
+		// The frame must stop one column short of the terminal, so Bubble Tea
+		// keeps erasing each line's tail on repaint. A line that fills the width
+		// exactly is the redraw bug that made the rail drift in some terminals.
 		for _, line := range strings.Split(tm.View(), "\n") {
-			if w := lipgloss.Width(line); w > width {
-				t.Fatalf("width %d: a line ran to %d cols: %q", width, w, line)
+			if w := lipgloss.Width(line); w >= width {
+				t.Fatalf("width %d: a line filled %d cols; the frame must leave the last column empty: %q", width, w, line)
 			}
 		}
 	}
