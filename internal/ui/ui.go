@@ -17,16 +17,19 @@ import (
 	"github.com/syoopie/beacon-tui/internal/importdetect"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
+	"github.com/syoopie/beacon-tui/internal/selfupdate"
 	"github.com/syoopie/beacon-tui/internal/server"
 	"github.com/syoopie/beacon-tui/internal/supervisor"
 )
 
 // App is the wiring the UI needs, assembled by the caller.
 type App struct {
-	Dirs config.Dirs
-	Cfg  config.Config
-	Sup  supervisor.Supervisor
-	Mgr  *lifecycle.Manager
+	Dirs    config.Dirs
+	Cfg     config.Config
+	Sup     supervisor.Supervisor
+	Mgr     *lifecycle.Manager
+	Version string // running build, for the update check
+	Repo    string // "owner/name", for the update check and its install command
 }
 
 // Run starts the TUI and blocks until the operator quits.
@@ -59,6 +62,12 @@ type model struct {
 	busy   bool
 	status string
 	pat    *patchPrompt
+	update *updateNotice
+}
+
+type updateNotice struct {
+	latest  string
+	command string
 }
 
 func newModel(app App) *model {
@@ -71,7 +80,7 @@ func newModel(app App) *model {
 }
 
 func (m *model) Init() tea.Cmd {
-	return tea.Batch(m.reloadCmd(), tick())
+	return tea.Batch(m.reloadCmd(), tick(), m.updateCheckCmd())
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -138,6 +147,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pat = &patchPrompt{id: msg.id, patch: msg.patch}
 		return m, nil
 
+	case updateMsg:
+		if msg.err == nil && msg.res.Available {
+			m.update = &updateNotice{latest: msg.res.Latest, command: selfupdate.UpdateCommand(m.app.Repo)}
+			if !m.busy {
+				m.status = "beacon " + msg.res.Latest + " is out — run: " + m.update.command
+			}
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		return m.onKey(msg)
 	}
@@ -174,6 +192,12 @@ func (m *model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.busy = true
 		m.status = "scanning…"
 		return m, m.importCmd()
+	case "u":
+		if m.update != nil {
+			m.status = "update: " + m.update.command
+			m.update = nil
+			return m, nil
+		}
 	}
 
 	if m.busy {
@@ -327,6 +351,22 @@ type patchPlannedMsg struct {
 	err    error
 }
 
+type updateMsg struct {
+	res selfupdate.Result
+	err error
+}
+
+func (m *model) updateCheckCmd() tea.Cmd {
+	repo, version := m.app.Repo, m.app.Version
+	if repo == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		res, err := selfupdate.Check(context.Background(), repo, version)
+		return updateMsg{res: res, err: err}
+	}
+}
+
 func (m *model) reloadCmd() tea.Cmd {
 	dirs := m.app.Dirs
 	return func() tea.Msg {
@@ -419,6 +459,7 @@ func (m *model) markStoppedCmd(spec server.Spec) tea.Cmd {
 
 var (
 	titleStyle  = lipgloss.NewStyle().Bold(true).Padding(0, 1)
+	updateStyle = lipgloss.NewStyle().Bold(true)
 	listStyle   = lipgloss.NewStyle().Width(listWidth).Border(lipgloss.NormalBorder(), false, true, false, false)
 	selStyle    = lipgloss.NewStyle().Bold(true).Reverse(true)
 	statusStyle = lipgloss.NewStyle().Padding(0, 1)
@@ -434,7 +475,11 @@ func (m *model) View() string {
 		return m.dialogView()
 	}
 
-	title := titleStyle.Render("beacon")
+	name := "beacon"
+	if m.update != nil {
+		name += updateStyle.Render("   ⬆ " + m.update.latest + " available (press u for the command)")
+	}
+	title := titleStyle.Render(name)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, listStyle.Render(m.listView()), m.vp.View())
 	status := statusStyle.Render(m.statusLine())
 	return lipgloss.JoinVertical(lipgloss.Left, title, body, status)

@@ -14,7 +14,11 @@ import (
 	"github.com/syoopie/beacon-tui/internal/ui"
 )
 
+// version is set by the release build via -ldflags -X main.version.
 var version = "dev"
+
+// repoSlug is where beacon checks for a newer release.
+const repoSlug = "syoopie/beacon-tui"
 
 func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
@@ -59,7 +63,14 @@ func run(configDir, stateDir string) error {
 
 	sup := &tmux.Client{}
 	mgr := lifecycle.NewManager(sup, dirs, cfg.StopTimeout.Std())
-	return ui.Run(ui.App{Dirs: dirs, Cfg: cfg, Sup: sup, Mgr: mgr})
+	return ui.Run(ui.App{
+		Dirs:    dirs,
+		Cfg:     cfg,
+		Sup:     sup,
+		Mgr:     mgr,
+		Version: buildVersion(),
+		Repo:    repoSlug,
+	})
 }
 
 func buildVersion() string {

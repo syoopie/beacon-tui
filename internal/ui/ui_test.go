@@ -13,6 +13,7 @@ import (
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/selfupdate"
 	"github.com/syoopie/beacon-tui/internal/server"
 	"github.com/syoopie/beacon-tui/internal/supervisor"
 )
@@ -203,6 +204,38 @@ func TestImportKeyWritesSpecsForScannedDirs(t *testing.T) {
 	}
 	if len(specs) != 1 || specs[0].ID != "vanilla" {
 		t.Fatalf("import wrote %+v, want one spec 'vanilla'", specs)
+	}
+}
+
+func TestUpdateNoticeShowsCommandAndDismisses(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	m.app.Repo = "syoopie/beacon-tui"
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+
+	tm, _ = drive(t, tm, updateMsg{res: selfupdate.Result{Current: "v0.1.0", Latest: "v0.2.0", Available: true}})
+	view := tm.View()
+	if !strings.Contains(view, "v0.2.0 available") {
+		t.Fatalf("title missing the update banner:\n%s", view)
+	}
+	if !strings.Contains(m.status, "install.sh | bash") {
+		t.Fatalf("status = %q, want the update command", m.status)
+	}
+
+	pressRune(t, m, tm, "u")
+	if m.update != nil {
+		t.Fatal("pressing u did not dismiss the banner")
+	}
+}
+
+func TestUpdateNoticeSilentWhenCurrent(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+
+	tm, _ = drive(t, tm, updateMsg{res: selfupdate.Result{Current: "v0.2.0", Latest: "v0.2.0", Available: false}})
+	if m.update != nil || strings.Contains(tm.View(), "available") {
+		t.Fatal("showed an update notice when running the latest release")
 	}
 }
 
