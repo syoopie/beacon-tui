@@ -34,9 +34,28 @@ BEACON_VERSION=v0.1.0 BEACON_INSTALL_DIR=~/bin \
 ## First run
 
 Beacon needs at least one directory to scan for servers. It will not crawl your home
-directory. Point it at where your server trees live in
-`$(os.UserConfigDir)/beacon/config.toml` (`~/Library/Application Support/beacon` on
-macOS, `~/.config/beacon` on Linux), then run `beacon` again.
+directory. Create `config.toml` under the config directory
+(`~/Library/Application Support/beacon` on macOS, `~/.config/beacon` on Linux):
+
+```toml
+scan_roots = ["/absolute/path/to/your/servers"]
+stop_timeout = "60s"   # optional, how long a graceful stop waits before offering force-kill
+```
+
+Then run `beacon` and press `i` to import. Beacon scans each root and its immediate
+subdirectories for a `run.sh` / `start.sh` or a `server.jar` / `paper*.jar` /
+`fabric-server*.jar`, and writes one `servers/<id>.toml` per server it finds.
+
+Server state lives under the state directory
+(`$XDG_STATE_HOME/beacon` or `~/.local/state/beacon`): the tmux sessions are named
+`beacon-<id>`, and each server's log is `logs/<id>.log`.
+
+### Keys
+
+`j` / `k` move, `s` start, `x` stop, `K` force-kill (offered only after a stop times
+out), `m` mark a server stopped once you have confirmed an Unknown server is really
+down, `i` import, `p` patch a start script that does not `exec` its command, `r`
+refresh, `q` quit.
 
 ## Building from source
 
