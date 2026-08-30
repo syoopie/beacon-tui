@@ -23,6 +23,7 @@ import (
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/importdetect"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/mcprops"
 	"github.com/syoopie/beacon-tui/internal/procstat"
 	"github.com/syoopie/beacon-tui/internal/rcon"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
@@ -71,7 +72,13 @@ type model struct {
 	pick    *filepicker.Model
 	pat     *patchPrompt
 	launch  *launchPrompt
+	config  *configForm
 	update  *updateNotice
+
+	// eula caches whether each server's eula.txt says eula=true, refreshed on
+	// every registry reload. The lifecycle manager is the real gate; this just
+	// drives the notice banner and the menu row.
+	eula map[server.ID]bool
 
 	screen     screen
 	menuCursor int
@@ -131,6 +138,7 @@ func newModel(app App) *model {
 		app:      app,
 		reports:  map[server.ID]reconcile.Report{},
 		timedOut: map[server.ID]bool{},
+		eula:     map[server.ID]bool{},
 		status:   initialStatus,
 		list:     l,
 		help:     help.New(),
@@ -283,6 +291,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.launch.args = ti
 		return m, cmd
 	}
+	if m.config != nil {
+		ti, cmd := m.config.input.Update(msg)
+		m.config.input = ti
+		return m, cmd
+	}
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
 	return m, cmd
@@ -303,6 +316,8 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updatePatch(msg)
 	case m.launch != nil:
 		return m.updateLaunch(msg)
+	case m.config != nil:
+		return m.updateConfig(msg)
 	}
 
 	// Screen-independent keys.
@@ -592,6 +607,9 @@ func (m *model) relayout() {
 	if m.logSearch != nil {
 		m.logSearch.Width = max(innerW-lipgloss.Width(m.logSearch.Prompt)-2, 20)
 	}
+	if m.config != nil {
+		m.config.input.Width = max(clampInt(innerW-12, 44, 72)-18, 16)
+	}
 }
 
 func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
@@ -602,6 +620,7 @@ func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 	m.loaded = true
 	prev := m.selID
 	m.specs = msg.specs
+	m.eula = msg.eula
 	m.refreshItems()
 	if prev != "" {
 		for i, s := range m.specs {
@@ -665,6 +684,7 @@ func tick() tea.Cmd {
 
 type reloadedMsg struct {
 	specs []server.Spec
+	eula  map[server.ID]bool
 	err   error
 }
 
@@ -737,7 +757,15 @@ func (m *model) reloadCmd() tea.Cmd {
 	dirs := m.app.Dirs
 	return func() tea.Msg {
 		specs, err := config.LoadSpecs(dirs)
-		return reloadedMsg{specs: specs, err: err}
+		if err != nil {
+			return reloadedMsg{err: err}
+		}
+		eula := make(map[server.ID]bool, len(specs))
+		for _, s := range specs {
+			ok, err := mcprops.EULAAccepted(s.Dir)
+			eula[s.ID] = err == nil && ok
+		}
+		return reloadedMsg{specs: specs, eula: eula}
 	}
 }
 

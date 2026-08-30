@@ -60,6 +60,7 @@ func stubServer(t *testing.T, dirs config.Dirs, name, script string) server.Spec
 	if err := os.WriteFile(filepath.Join(dir, "run.sh"), []byte(script), 0o755); err != nil {
 		t.Fatalf("write stub: %v", err)
 	}
+	writeEULA(t, dir, true)
 	return server.Spec{
 		ID:      id,
 		Dir:     dir,

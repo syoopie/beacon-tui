@@ -83,7 +83,8 @@ for fixtures: `~/MinecraftServer/BMC4_ServerPack_v61/logs/latest.log`.
 | `internal/tmux`         | the tmux adapter and the log tailer               |
 | `internal/reconcile`    | derive status from tmux, port collision check     |
 | `internal/oplock`       | the host operation lock                           |
-| `internal/lifecycle`    | start, stop, force-kill under the lock            |
+| `internal/lifecycle`    | start, stop, force-kill, config writes under the lock |
+| `internal/mcprops`      | line-preserving editor for server.properties and eula.txt |
 | `internal/rcon`         | poll a running server for its player list         |
 | `internal/procstat`     | read a process's memory and CPU from `ps`         |
 | `internal/selfupdate`   | the startup release check                         |

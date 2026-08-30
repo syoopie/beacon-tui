@@ -8,10 +8,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/syoopie/beacon-tui/internal/config"
+	"github.com/syoopie/beacon-tui/internal/mcprops"
 	"github.com/syoopie/beacon-tui/internal/oplock"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
 	"github.com/syoopie/beacon-tui/internal/server"
@@ -96,6 +99,11 @@ func (m *Manager) Start(ctx context.Context, spec server.Spec, all []server.Spec
 	}
 	if !spec.Exec.Launchable() {
 		return spec, fmt.Errorf("%s: start script does not exec its command; re-run import to patch it", spec.ID)
+	}
+	if ok, err := mcprops.EULAAccepted(spec.Dir); err != nil {
+		return spec, fmt.Errorf("%s: reading eula.txt: %w", spec.ID, err)
+	} else if !ok {
+		return spec, fmt.Errorf("%s: the Minecraft EULA has not been accepted; open the server's menu and choose \"Accept the Minecraft EULA\"", spec.ID)
 	}
 	if block := reconcile.CheckPort(spec.Port, spec.ID, all); block.Blocked() {
 		return spec, fmt.Errorf("%s: cannot start on port %d: %s", spec.ID, spec.Port, block)
@@ -213,6 +221,62 @@ func (m *Manager) MarkStopped(spec server.Spec) (server.Spec, error) {
 	}
 	defer release()
 	return m.writeState(spec, server.StatusStopped)
+}
+
+// EditProperties writes the given key=value pairs into the server's
+// server.properties, then mirrors the port and the RCON block into the spec so
+// the rest of Beacon sees the change without a re-import. It takes the host
+// lock, like every write to a server's files.
+func (m *Manager) EditProperties(spec server.Spec, edits map[string]string) (server.Spec, error) {
+	release, err := m.hold(m.lockDir(), oplock.OpWriteConfig)
+	if err != nil {
+		return spec, err
+	}
+	defer release()
+
+	props, err := mcprops.LoadProperties(spec.Dir)
+	if err != nil {
+		return spec, fmt.Errorf("%s: reading server.properties: %w", spec.ID, err)
+	}
+	for k, v := range edits {
+		props.Set(k, v)
+	}
+	if err := props.Save(); err != nil {
+		return spec, fmt.Errorf("%s: writing server.properties: %w", spec.ID, err)
+	}
+
+	spec.Port = atoiOr(props.GetOr("server-port", ""), spec.Port)
+	spec.RCON = server.RCON{
+		Enabled: strings.EqualFold(props.GetOr("enable-rcon", "false"), "true"),
+		// 25575 is Minecraft's default when the key is absent.
+		Port:     atoiOr(props.GetOr("rcon.port", "25575"), 0),
+		Password: props.GetOr("rcon.password", ""),
+	}
+	if err := config.SaveSpec(m.dirs, spec); err != nil {
+		return spec, fmt.Errorf("%s: saving spec: %w", spec.ID, err)
+	}
+	return spec, nil
+}
+
+// AcceptEULA writes eula=true into the server's eula.txt under the host lock.
+func (m *Manager) AcceptEULA(spec server.Spec) error {
+	release, err := m.hold(m.lockDir(), oplock.OpWriteConfig)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	if err := mcprops.AcceptEULA(spec.Dir); err != nil {
+		return fmt.Errorf("%s: accepting the EULA: %w", spec.ID, err)
+	}
+	return nil
+}
+
+func atoiOr(s string, def int) int {
+	if n, err := strconv.Atoi(strings.TrimSpace(s)); err == nil {
+		return n
+	}
+	return def
 }
 
 func (m *Manager) sessionGone(ctx context.Context, s server.Session) (bool, error) {

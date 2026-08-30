@@ -29,6 +29,8 @@ const (
 	actStop
 	actForceKill
 	actMarkStopped
+	actEditConfig
+	actAcceptEULA
 	actLaunch
 	actPatch
 )
@@ -57,9 +59,13 @@ func (m *model) menuRows() []menuRow {
 	if m.timedOut[spec.ID] {
 		rows = append(rows, menuRow{"Force-kill", actForceKill})
 	}
+	if !m.eula[spec.ID] {
+		rows = append(rows, menuRow{"Accept the Minecraft EULA", actAcceptEULA})
+	}
 	if !spec.Exec.Launchable() {
 		rows = append(rows, menuRow{"Fix start script", actPatch})
 	}
+	rows = append(rows, menuRow{"Edit config", actEditConfig})
 	rows = append(rows, menuRow{"Launch settings", actLaunch})
 	return rows
 }
@@ -109,6 +115,8 @@ func (m *model) runMenuAction(act menuAction) tea.Cmd {
 		return nil
 	case actLaunch:
 		return m.openLaunch(spec)
+	case actEditConfig:
+		return m.openConfig(spec)
 	case actPatch:
 		return m.planPatchCmd(spec)
 	}
@@ -119,6 +127,9 @@ func (m *model) runMenuAction(act menuAction) tea.Cmd {
 	}
 	m.busy = true
 	switch act {
+	case actAcceptEULA:
+		m.status = "accepting the Minecraft EULA for " + string(spec.ID) + "…"
+		return m.acceptEULACmd(spec)
 	case actStart:
 		m.status = "starting " + string(spec.ID) + "…"
 		return m.startCmd(spec)

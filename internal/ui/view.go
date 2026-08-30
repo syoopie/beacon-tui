@@ -153,6 +153,8 @@ func (m *model) commandBar() helpSet {
 		return helpSet{short: []key.Binding{hint("y", "apply fix"), hint("esc", "leave unchanged")}}
 	case m.launch != nil:
 		return helpSet{short: []key.Binding{hint("↑↓", "choose"), hint("enter", "save"), hint("esc", "cancel")}}
+	case m.config != nil:
+		return helpSet{short: []key.Binding{hint("↑↓", "field"), hint("←→", "change"), hint("enter", "save"), hint("esc", "cancel")}}
 	case m.list.FilterState() == list.Filtering:
 		return helpSet{short: []key.Binding{hint("enter", "apply filter"), hint("esc", "clear")}}
 	}
@@ -238,7 +240,7 @@ func (m *model) statusView() string {
 // noticeText is the banner for the selected server when something needs the
 // operator's attention. Empty when all is well.
 func (m *model) noticeText() string {
-	if m.pat != nil || m.pick != nil || m.launch != nil {
+	if m.pat != nil || m.pick != nil || m.launch != nil || m.config != nil {
 		return ""
 	}
 	// The notice belongs to whichever server is highlighted, so it rides along
@@ -253,6 +255,8 @@ func (m *model) noticeText() string {
 		return "⚠  " + r.Warning + "  Once you have checked, choose Mark stopped."
 	case !spec.Exec.Launchable():
 		return "⚠  " + string(spec.ID) + "'s start script does not hand off to Java with exec, so Beacon can't start it. Choose Fix start script, or Launch settings to point it at another one."
+	case !m.eula[spec.ID]:
+		return "⚠  " + string(spec.ID) + " has not accepted the Minecraft EULA, so Beacon can't start it. Choose Accept the Minecraft EULA once you agree to https://aka.ms/MinecraftEULA."
 	}
 	return ""
 }
@@ -272,6 +276,8 @@ func (m *model) bodyView() string {
 		content = m.patchDialogView()
 	case m.launch != nil:
 		content = m.launchDialogView()
+	case m.config != nil:
+		content = m.configDialogView()
 	case m.pick != nil:
 		content = m.pickerView()
 	case m.loaded && len(m.specs) == 0:

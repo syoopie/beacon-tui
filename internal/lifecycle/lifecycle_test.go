@@ -3,11 +3,15 @@ package lifecycle
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/syoopie/beacon-tui/internal/config"
+	"github.com/syoopie/beacon-tui/internal/mcprops"
 	"github.com/syoopie/beacon-tui/internal/server"
 	"github.com/syoopie/beacon-tui/internal/supervisor"
 )
@@ -83,9 +87,11 @@ func testSpec(t *testing.T, dirs config.Dirs, exec server.ExecState, last server
 	if err != nil {
 		t.Fatal(err)
 	}
+	dir := t.TempDir()
+	writeEULA(t, dir, true)
 	return server.Spec{
 		ID:      id,
-		Dir:     "/srv/survival",
+		Dir:     dir,
 		Start:   "./run.sh",
 		Script:  "run.sh",
 		Port:    25565,
@@ -93,6 +99,14 @@ func testSpec(t *testing.T, dirs config.Dirs, exec server.ExecState, last server
 		LogFile: dirs.LogFile(id),
 		Exec:    exec,
 		State:   server.State{LastKnown: last},
+	}
+}
+
+func writeEULA(t *testing.T, dir string, accepted bool) {
+	t.Helper()
+	body := "#By changing the setting below to TRUE you agree to the Minecraft EULA\neula=" + strconv.FormatBool(accepted) + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "eula.txt"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -172,6 +186,65 @@ func TestStartRecordsRunning(t *testing.T) {
 	}
 	if reloaded.State.LastKnown != server.StatusRunning {
 		t.Fatalf("persisted state = %v, want running", reloaded.State.LastKnown)
+	}
+}
+
+func TestStartRefusedUntilEULAAccepted(t *testing.T) {
+	dirs := testDirs(t)
+	sup := &fakeSup{}
+	m := newManager(sup, dirs)
+
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
+	writeEULA(t, spec.Dir, false)
+
+	if _, err := m.Start(context.Background(), spec, []server.Spec{spec}); err == nil || sup.startCount != 0 {
+		t.Fatalf("Start with eula=false: err=%v startCount=%d, want refusal", err, sup.startCount)
+	}
+
+	if err := m.AcceptEULA(spec); err != nil {
+		t.Fatalf("AcceptEULA: %v", err)
+	}
+	if _, err := m.Start(context.Background(), spec, []server.Spec{spec}); err != nil {
+		t.Fatalf("Start after AcceptEULA: %v", err)
+	}
+}
+
+func TestEditPropertiesMirrorsPortAndRCONIntoTheSpec(t *testing.T) {
+	dirs := testDirs(t)
+	m := newManager(&fakeSup{}, dirs)
+
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
+	if err := config.SaveSpec(dirs, spec); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := m.EditProperties(spec, map[string]string{
+		"server-port":   "25570",
+		"enable-rcon":   "true",
+		"rcon.port":     "25575",
+		"rcon.password": "s3cret",
+		"motd":          "hello",
+	})
+	if err != nil {
+		t.Fatalf("EditProperties: %v", err)
+	}
+	if got.Port != 25570 || !got.RCON.Enabled || got.RCON.Port != 25575 || got.RCON.Password != "s3cret" {
+		t.Fatalf("spec not mirrored: port=%d rcon=%+v", got.Port, got.RCON)
+	}
+
+	props, err := mcprops.LoadProperties(spec.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := props.GetOr("motd", ""); v != "hello" {
+		t.Fatalf("server.properties motd = %q, want hello", v)
+	}
+	reloaded, err := config.LoadSpec(dirs.ServerFile(spec.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.RCON.Password != "s3cret" || reloaded.Port != 25570 {
+		t.Fatalf("persisted spec = port %d rcon %+v", reloaded.Port, reloaded.RCON)
 	}
 }
 

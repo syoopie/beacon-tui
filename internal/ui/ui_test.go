@@ -15,6 +15,7 @@ import (
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/mcprops"
 	"github.com/syoopie/beacon-tui/internal/procstat"
 	"github.com/syoopie/beacon-tui/internal/rcon"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
@@ -140,6 +141,9 @@ func writeSpec(t *testing.T, dirs config.Dirs, id string) server.Spec {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "eula.txt"), []byte("eula=true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	s := server.Spec{
 		ID:      pid,
 		Dir:     dir,
@@ -676,6 +680,114 @@ func TestLaunchSettingsSwitchesTheStartScript(t *testing.T) {
 	tm = loadRegistry(t, m, tm)
 	if !strings.Contains(tm.View(), "via start.sh") {
 		t.Fatalf("detail pane should show the new launch script:\n%s", tm.View())
+	}
+}
+
+func drainMsgs(t *testing.T, tm tea.Model, msgs []tea.Msg) tea.Model {
+	t.Helper()
+	for _, msg := range msgs {
+		tm, _ = drive(t, tm, msg)
+	}
+	return tm
+}
+
+func TestConfigEditorWritesPropertiesAndMirrorsRCON(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	if err := os.WriteFile(filepath.Join(spec.Dir, "server.properties"),
+		[]byte("#Minecraft server properties\nmotd=old\nenable-rcon=false\nrcon.password=\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tm = loadRegistry(t, m, tm)
+
+	tm = openMenu(t, m, tm)
+	tm, _ = chooseMenu(t, m, tm, "Edit config")
+	if m.config == nil {
+		t.Fatal("Edit config did not open the editor")
+	}
+
+	set := func(key, value string) {
+		t.Helper()
+		idx := -1
+		for i, f := range configFields {
+			if f.key == key {
+				idx = i
+			}
+		}
+		if idx < 0 {
+			t.Fatalf("no config field %q", key)
+		}
+		for m.config.cursor != idx {
+			k := tea.KeyDown
+			if m.config.cursor > idx {
+				k = tea.KeyUp
+			}
+			tm, _ = drive(t, tm, tea.KeyMsg{Type: k})
+		}
+		switch configFields[idx].kind {
+		case fieldText:
+			for len(m.config.input.Value()) > 0 {
+				tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyBackspace})
+			}
+			tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})
+		default:
+			for !strings.EqualFold(m.config.values[idx], value) {
+				tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRight})
+			}
+		}
+	}
+
+	set("motd", "welcome home")
+	set("rcon.password", "hunter2")
+	set("enable-rcon", "true")
+
+	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	tm = drainMsgs(t, tm, msgs)
+
+	props, err := mcprops.LoadProperties(spec.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := props.GetOr("motd", ""); v != "welcome home" {
+		t.Fatalf("motd = %q", v)
+	}
+	if !strings.Contains(string(props.Render()), "#Minecraft server properties") {
+		t.Fatalf("editor dropped the header comment:\n%s", props.Render())
+	}
+	reloaded, err := config.LoadSpec(dirs.ServerFile(spec.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reloaded.RCON.Enabled || reloaded.RCON.Password != "hunter2" || reloaded.RCON.Port != 25575 {
+		t.Fatalf("spec RCON not mirrored: %+v", reloaded.RCON)
+	}
+}
+
+func TestEulaGateBlocksStartUntilAccepted(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	if err := os.WriteFile(filepath.Join(spec.Dir, "eula.txt"), []byte("eula=false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tm = loadRegistry(t, m, tm)
+
+	if !strings.Contains(tm.View(), "has not accepted the Minecraft EULA") {
+		t.Fatalf("EULA notice not shown:\n%s", tm.View())
+	}
+	tm = openMenu(t, m, tm)
+	if !hasMenuRow(m, "Accept the Minecraft EULA") {
+		t.Fatalf("menu missing the EULA row: %v", menuLabels(m))
+	}
+
+	tm, msgs := chooseMenu(t, m, tm, "Accept the Minecraft EULA")
+	tm = drainMsgs(t, tm, msgs)
+
+	if ok, _ := mcprops.EULAAccepted(spec.Dir); !ok {
+		t.Fatal("eula.txt still not accepted after the action")
+	}
+	tm = loadRegistry(t, m, tm)
+	if strings.Contains(tm.View(), "has not accepted the Minecraft EULA") {
+		t.Fatalf("EULA notice still shown after accepting:\n%s", tm.View())
 	}
 }
 

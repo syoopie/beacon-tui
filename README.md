@@ -18,6 +18,7 @@ server half-dead.
     ○ creative      stopped  │
     ◆ skyblock      unknown  │    Open console
                              │    Stop
+                             │    Edit config
                              │    Launch settings
                              │
                              │  →  act on this server
@@ -72,11 +73,13 @@ The first run opens on a welcome screen because you have no servers yet.
 2. Your server shows up in the list. Move the highlight with `↑` and `↓`; the
    panel on the right updates to match.
 3. Press `→` to step into that panel. It holds the actions that make sense right
-   now (start, stop, open console, launch settings). Pick one with `↑` `↓` and
-   `enter`; `←` steps back to the list.
+   now (start, stop, open console, edit config, launch settings). Pick one with
+   `↑` `↓` and `enter`; `←` steps back to the list.
 4. "Open console" is a full screen: the server log, scrollable. Press `c` there
    to type a command straight to the server.
-5. Have many servers? Press `/` to filter the list by name.
+5. "Edit config" opens the common `server.properties` settings (port, MOTD,
+   difficulty, max players, RCON). Beacon writes only the keys you change.
+6. Have many servers? Press `/` to filter the list by name.
 
 Have several servers, each in its own folder? Add each one with `a`. Or point
 Beacon at a folder that contains all of them and it picks up every server inside.
@@ -103,8 +106,14 @@ On the list:
 | `q`     | quit (your servers keep running)     |
 
 In the action panel: `↑` `↓` move, `enter` runs the row, `←` or `esc` goes back
-to the list. The rows depend on status: start, stop, open console, mark stopped,
-force-kill (only after a stop hangs), fix start script, launch settings.
+to the list. The rows depend on status: start, stop, open console, edit config,
+mark stopped, force-kill (only after a stop hangs), accept the Minecraft EULA
+(until you have), fix start script, launch settings.
+
+In the config editor: `↑` `↓` move between fields, `←` `→` change a choice or
+toggle, type into a text field, `enter` saves, `esc` cancels. Turning RCON on
+writes its port and password too, and mirrors them into Beacon so the player
+list works without a re-import.
 
 In the console screen: `↑` `↓` scroll, `c` types a command to the server, `←` or
 `esc` goes back. `tab` switches between the server log and a Chat view that shows
@@ -114,9 +123,13 @@ worth reading stand out. `/` searches the current view, narrowing it to matching
 lines until you clear it with `esc`.
 
 On wide terminals a rail on the right shows who is online and the server
-process's memory and CPU. The player list needs RCON: set `enable-rcon=true` and
-an `rcon.password` in `server.properties`. The memory and CPU figures come from
-`ps` and need nothing configured.
+process's memory and CPU. The player list needs RCON, which the "Edit config"
+action turns on for you. The memory and CPU figures come from `ps` and need
+nothing configured.
+
+Beacon will not start a server whose `eula.txt` does not say `eula=true`. The
+"Accept the Minecraft EULA" action writes it once you agree to
+<https://aka.ms/MinecraftEULA>.
 
 ## Questions
 
