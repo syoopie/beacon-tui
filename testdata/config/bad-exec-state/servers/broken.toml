@@ -1,0 +1,12 @@
+id = "broken"
+dir = "/srv/minecraft/broken"
+start = "./run.sh"
+script = "run.sh"
+port = 25568
+session = "beacon-broken"
+log_file = "/srv/minecraft/broken/logs/beacon.log"
+exec_state = "sorta"
+
+[state]
+last_known = "stopped"
+pid = 0

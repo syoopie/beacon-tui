@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -40,8 +41,21 @@ func run(configDir, stateDir string) error {
 		dirs.State = stateDir
 	}
 
+	if _, err := config.Load(dirs); err != nil {
+		if errors.Is(err, config.ErrNoConfig) {
+			return fmt.Errorf("no config at %s: create it with scan_roots = [\"/absolute/path/to/your/servers\"]", dirs.ConfigFile())
+		}
+		return err
+	}
+
+	specs, err := config.LoadSpecs(dirs)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("config dir: %s\n", dirs.Config)
 	fmt.Printf("state dir:  %s\n", dirs.State)
+	fmt.Printf("specs:      %d\n", len(specs))
 	return nil
 }
 

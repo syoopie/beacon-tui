@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/sunyupei/beacon-tui/internal/server"
 )
 
 // Dirs are the resolved on-disk locations beacon reads and writes.
@@ -39,4 +41,12 @@ func (d Dirs) ConfigFile() string { return filepath.Join(d.Config, "config.toml"
 
 func (d Dirs) ServersDir() string { return filepath.Join(d.Config, "servers") }
 
+func (d Dirs) ServerFile(id server.ID) string {
+	return filepath.Join(d.ServersDir(), id.String()+".toml")
+}
+
 func (d Dirs) LogsDir() string { return filepath.Join(d.State, "logs") }
+
+func (d Dirs) LogFile(id server.ID) string {
+	return filepath.Join(d.LogsDir(), id.String()+".log")
+}

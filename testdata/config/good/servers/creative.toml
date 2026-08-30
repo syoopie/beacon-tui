@@ -1,0 +1,18 @@
+id = "creative"
+dir = "/srv/minecraft/creative"
+start = "java -Xmx2G -jar paper.jar nogui"
+script = ""
+port = 25566
+session = "beacon-creative"
+log_file = "/srv/minecraft/creative/logs/beacon.log"
+exec_state = "missing"
+
+[rcon]
+enabled = false
+port = 0
+password = ""
+
+[state]
+last_known = "unknown"
+pid = 4711
+updated_at = 2026-08-29T23:15:30Z

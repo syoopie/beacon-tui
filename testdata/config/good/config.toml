@@ -1,0 +1,2 @@
+scan_roots = ["/srv/minecraft", "/opt/minecraft"]
+stop_timeout = "90s"

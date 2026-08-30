@@ -46,7 +46,9 @@ func TestDirsPaths(t *testing.T) {
 	}{
 		{"ConfigFile", d.ConfigFile(), "/cfg/beacon/config.toml"},
 		{"ServersDir", d.ServersDir(), "/cfg/beacon/servers"},
+		{"ServerFile", d.ServerFile("survival"), "/cfg/beacon/servers/survival.toml"},
 		{"LogsDir", d.LogsDir(), "/state/beacon/logs"},
+		{"LogFile", d.LogFile("survival"), "/state/beacon/logs/survival.log"},
 	}
 	for _, tt := range tests {
 		if tt.got != tt.want {
