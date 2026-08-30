@@ -6,6 +6,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/importdetect"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/rcon"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
 	"github.com/syoopie/beacon-tui/internal/selfupdate"
 	"github.com/syoopie/beacon-tui/internal/server"
@@ -46,6 +48,7 @@ func Run(app App) error {
 
 const (
 	refreshEvery  = time.Second
+	rconEvery     = 3 * time.Second
 	maxLogLines   = 5000
 	initialStatus = "loading…"
 	busyStatus    = "an operation is already running"
@@ -77,6 +80,12 @@ type model struct {
 	logFull   bool
 	logQuery  string
 	logSearch *textinput.Model
+	railW     int
+
+	rconSnap     rcon.Snapshot
+	rconErr      string
+	rconAt       time.Time
+	rconInFlight bool
 
 	ready         bool
 	loaded        bool
@@ -139,7 +148,23 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		return m, tea.Batch(m.reloadCmd(), m.tailCmd(), tick())
+		cmds := []tea.Cmd{m.reloadCmd(), m.tailCmd(), tick()}
+		if c := m.rconPollCmd(); c != nil {
+			cmds = append(cmds, c)
+		}
+		return m, tea.Batch(cmds...)
+
+	case rconMsg:
+		m.rconInFlight = false
+		if msg.id != m.selID {
+			return m, nil
+		}
+		if msg.err != nil {
+			m.rconErr = "can't reach RCON"
+		} else {
+			m.rconSnap, m.rconErr = msg.snap, ""
+		}
+		return m, nil
 
 	case reloadedMsg:
 		return m, m.applyReload(msg)
@@ -452,6 +477,9 @@ func (m *model) syncSelection() {
 	m.tail = newFollower(it.spec.LogFile)
 	m.logQuery = ""
 	m.logSearch = nil
+	m.rconSnap = rcon.Snapshot{}
+	m.rconErr = ""
+	m.rconAt = time.Time{}
 	m.vp.SetContent("")
 	m.vp.GotoTop()
 	m.relayout() // the notice banner depends on which server is selected
@@ -515,7 +543,16 @@ func (m *model) relayout() {
 	// detail panel beside it gets the room.
 	m.listW = clampInt(innerW*2/5, 24, 34)
 	m.list.SetSize(m.listW, bodyH)
-	m.vp.Width = innerW
+
+	// The console screen carries a player and resource rail on the right, but
+	// only when the terminal is wide enough to spare the columns.
+	m.railW = 0
+	logW := innerW
+	if m.screen == screenConsole && innerW >= 64 {
+		m.railW = 24
+		logW = innerW - m.railW - 3
+	}
+	m.vp.Width = max(logW, 20)
 	m.vp.Height = max(bodyH-3, 1) // log header + tab bar + rule
 	m.renderLog()
 
@@ -703,6 +740,35 @@ func (m *model) tailCmd() tea.Cmd {
 			return logMsg{id: id, lines: []string{"[log error] " + err.Error()}}
 		}
 		return logMsg{id: id, lines: lines}
+	}
+}
+
+type rconMsg struct {
+	id   server.ID
+	snap rcon.Snapshot
+	err  error
+}
+
+// rconPollCmd asks the selected server who is online, but only while its console
+// is open, it is running, RCON is configured, and the last poll has aged out.
+func (m *model) rconPollCmd() tea.Cmd {
+	if m.screen != screenConsole || m.rconInFlight || time.Since(m.rconAt) < rconEvery {
+		return nil
+	}
+	spec, ok := m.selected()
+	if !ok || !spec.RCON.Enabled || spec.RCON.Port == 0 {
+		return nil
+	}
+	if m.reports[spec.ID].Derived != server.StatusRunning {
+		return nil
+	}
+	m.rconInFlight = true
+	m.rconAt = time.Now()
+	addr := fmt.Sprintf("127.0.0.1:%d", spec.RCON.Port)
+	pw, id := spec.RCON.Password, spec.ID
+	return func() tea.Msg {
+		snap, err := rcon.Poll(addr, pw)
+		return rconMsg{id: id, snap: snap, err: err}
 	}
 }
 

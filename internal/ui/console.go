@@ -3,14 +3,26 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/syoopie/beacon-tui/internal/rcon"
 	"github.com/syoopie/beacon-tui/internal/server"
 )
+
+// openConsoleScreen switches to the full-screen console and clears the player
+// rail so the first poll after arriving is a fresh one.
+func (m *model) openConsoleScreen() {
+	m.screen = screenConsole
+	m.rconSnap = rcon.Snapshot{}
+	m.rconErr = ""
+	m.rconAt = time.Time{}
+	m.relayout()
+}
 
 // consoleTab is the console screen's top-level split: the raw server log, or
 // just player activity. The log is the default because that is what the console
@@ -163,29 +175,66 @@ func styleLogLine(e logEntry, tab consoleTab) string {
 }
 
 func (m *model) consoleView() string {
-	w := max(m.bodyW, 1)
-	return lipgloss.JoinVertical(lipgloss.Left,
-		m.logHeaderView(),
+	w := max(m.vp.Width, 1)
+	logCol := lipgloss.JoinVertical(lipgloss.Left,
+		m.logHeaderView(w),
 		m.tabBarView(w),
 		mutedStyle.Render(strings.Repeat("─", w)),
 		m.vp.View(),
 	)
+	if m.railW == 0 {
+		return logCol
+	}
+	rail := lipgloss.NewStyle().
+		Width(m.railW).Height(m.bodyH).
+		BorderStyle(lipgloss.NormalBorder()).BorderLeft(true).BorderForeground(mutedColor).
+		MarginLeft(1).PaddingLeft(1).
+		Render(m.railView())
+	return lipgloss.JoinHorizontal(lipgloss.Top, logCol, rail)
 }
 
 // logHeaderView is one line: name, status, port, launch method. Anything that
 // needs more room goes to the notice banner instead.
-func (m *model) logHeaderView() string {
+func (m *model) logHeaderView(w int) string {
 	spec, ok := m.selected()
 	if !ok {
 		return sectionStyle.Render("Log")
 	}
 	r := m.reports[spec.ID]
-	return strings.Join([]string{
+	line := strings.Join([]string{
 		sectionStyle.Render(string(spec.ID)),
 		lipgloss.NewStyle().Foreground(statusColor(r.Derived)).Render(r.Derived.String()),
 		mutedStyle.Render(fmt.Sprintf("port %d", spec.Port)),
 		mutedStyle.Render("via " + launchSummary(spec)),
 	}, mutedStyle.Render("   ·   "))
+	return lipgloss.NewStyle().MaxWidth(max(w, 1)).Render(line)
+}
+
+// railView is the console's right column: who is online, and (phase 2c) the
+// server process's memory and CPU.
+func (m *model) railView() string {
+	spec, ok := m.selected()
+	if !ok {
+		return ""
+	}
+	rows := []string{sectionStyle.Render("Players")}
+	switch {
+	case !spec.RCON.Enabled || spec.RCON.Port == 0:
+		rows = append(rows, mutedStyle.Render("RCON is off. Turn on enable-rcon in server.properties."))
+	case m.reports[spec.ID].Derived != server.StatusRunning:
+		rows = append(rows, mutedStyle.Render("server not running"))
+	case m.rconErr != "":
+		rows = append(rows, mutedStyle.Render(m.rconErr))
+	default:
+		rows = append(rows, mutedStyle.Render(fmt.Sprintf("%d / %d online", m.rconSnap.Online, m.rconSnap.Max)))
+		if len(m.rconSnap.Players) == 0 {
+			rows = append(rows, mutedStyle.Render("nobody yet"))
+		}
+		for _, p := range m.rconSnap.Players {
+			rows = append(rows, "• "+p)
+		}
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
 func (m *model) tabBarView(w int) string {

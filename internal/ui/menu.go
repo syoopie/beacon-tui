@@ -105,8 +105,7 @@ func (m *model) runMenuAction(act menuAction) tea.Cmd {
 	}
 	switch act {
 	case actConsole:
-		m.screen = screenConsole
-		m.relayout()
+		m.openConsoleScreen()
 		return nil
 	case actLaunch:
 		return m.openLaunch(spec)

@@ -227,6 +227,30 @@ func TestScanJarPrecedence(t *testing.T) {
 	}
 }
 
+func TestScanReadsRCONFromProperties(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "srv")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "server.jar"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	props := "server-port=25580\nenable-rcon=true\nrcon.port=25581\nrcon.password=hunter2\n"
+	if err := os.WriteFile(filepath.Join(dir, "server.properties"), []byte(props), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Scan([]string{root})
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	want := server.RCON{Enabled: true, Port: 25581, Password: "hunter2"}
+	if len(got) != 1 || got[0].RCON != want || got[0].Port != 25580 {
+		t.Fatalf("Scan RCON = %+v (port %d), want %+v (port 25580)", got[0].RCON, got[0].Port, want)
+	}
+}
+
 func TestLaunchOptionsListsEveryMethodScriptsFirst(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, body string) {

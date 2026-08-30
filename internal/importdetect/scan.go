@@ -22,6 +22,7 @@ type Candidate struct {
 	Script string    // start script relative to Dir, empty when a jar is launched directly
 	Exec   server.ExecState
 	Port   int
+	RCON   server.RCON
 }
 
 const defaultPort = 25565
@@ -105,9 +106,11 @@ func inspectDir(dir string) (Candidate, bool) {
 	// stops the server opening its own Swing console window; Beacon is the
 	// console.
 	o := opts[0]
+	props := readProps(dir)
 	return Candidate{
-		Dir: dir, Base: base, Port: readPort(dir),
+		Dir: dir, Base: base, Port: portFrom(props),
 		Script: o.Script, Exec: o.Exec, Start: o.Command("nogui"),
+		RCON: rconFrom(props),
 	}, true
 }
 
@@ -177,24 +180,44 @@ func jarsIn(dir string) []string {
 	return jars
 }
 
-// readPort is deliberately not a properties parser: phase 9's internal/mcprops
-// owns the file, and import only needs a port to show the operator.
-func readPort(dir string) int {
-	path := filepath.Join(dir, "server.properties")
-	data, err := os.ReadFile(path)
+// readProps is a minimal server.properties reader. Phase 9's internal/mcprops
+// will own the file properly; import only needs a handful of keys to seed a
+// spec. Unreadable or missing file yields an empty map, and the callers below
+// fall back to their defaults.
+func readProps(dir string) map[string]string {
+	data, err := os.ReadFile(filepath.Join(dir, "server.properties"))
 	if err != nil {
-		return defaultPort
+		return nil
 	}
+	props := map[string]string{}
 	for _, line := range strings.Split(string(data), "\n") {
-		value, ok := strings.CutPrefix(strings.TrimSpace(line), "server-port=")
-		if !ok {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		port, err := strconv.Atoi(value)
-		if err != nil || port < 1 || port > 65535 {
-			return defaultPort
+		if k, v, ok := strings.Cut(line, "="); ok {
+			props[strings.TrimSpace(k)] = strings.TrimSpace(v)
 		}
-		return port
+	}
+	return props
+}
+
+func portFrom(props map[string]string) int {
+	if p, err := strconv.Atoi(props["server-port"]); err == nil && p >= 1 && p <= 65535 {
+		return p
 	}
 	return defaultPort
+}
+
+// rconFrom reads the RCON block. The password lands in the spec file, which is
+// why those are written 0600.
+func rconFrom(props map[string]string) server.RCON {
+	r := server.RCON{
+		Enabled:  props["enable-rcon"] == "true",
+		Password: props["rcon.password"],
+	}
+	if p, err := strconv.Atoi(props["rcon.port"]); err == nil && p >= 1 && p <= 65535 {
+		r.Port = p
+	}
+	return r
 }

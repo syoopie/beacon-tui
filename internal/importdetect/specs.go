@@ -21,6 +21,7 @@ func BuildSpecs(dirs config.Dirs, cands []Candidate, taken map[server.ID]bool) [
 		specs = append(specs, server.Spec{
 			ID: id, Dir: c.Dir, Start: c.Start, Script: c.Script, Port: c.Port,
 			Session: server.SessionFor(id), LogFile: dirs.LogFile(id), Exec: c.Exec,
+			RCON:  c.RCON,
 			State: server.State{LastKnown: server.StatusStopped},
 		})
 	}

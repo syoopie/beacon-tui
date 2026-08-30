@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/rcon"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
 	"github.com/syoopie/beacon-tui/internal/selfupdate"
 	"github.com/syoopie/beacon-tui/internal/server"
@@ -519,6 +521,37 @@ func TestConsoleLogTabsFilterAndSearch(t *testing.T) {
 	}
 	if !strings.Contains(m.logBody(), "Starting minecraft server") {
 		t.Fatal("clearing the search should restore the full tab")
+	}
+}
+
+func TestConsolePlayerRail(t *testing.T) {
+	m, tm, sup, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+	tm = openConsole(t, m, tm)
+
+	if !strings.Contains(tm.View(), "RCON is off") {
+		t.Fatalf("rail should explain RCON is off when the spec has no RCON:\n%s", tm.View())
+	}
+
+	for i := range m.specs {
+		m.specs[i].RCON = server.RCON{Enabled: true, Port: 25575, Password: "x"}
+	}
+	sup.present[spec.Session] = true
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
+
+	snap := rcon.Snapshot{Online: 3, Max: 20, Players: []string{"Steve", "Alex", "Herobrine"}}
+	tm, _ = drive(t, tm, rconMsg{id: spec.ID, snap: snap})
+	view := tm.View()
+	for _, want := range []string{"3 / 20 online", "Steve", "Herobrine"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("rail missing %q:\n%s", want, view)
+		}
+	}
+
+	tm, _ = drive(t, tm, rconMsg{id: spec.ID, err: errors.New("boom")})
+	if !strings.Contains(tm.View(), "can't reach RCON") {
+		t.Fatalf("a poll error should show in the rail:\n%s", tm.View())
 	}
 }
 
