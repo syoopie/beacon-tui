@@ -11,18 +11,18 @@ sitting in front of it) is how you reach beacon.
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/sunyupei/beacon-tui/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/syoopie/beacon-tui/main/install.sh | bash
 ```
 
 This downloads a prebuilt binary for your OS and architecture from the latest
-[release](https://github.com/sunyupei/beacon-tui/releases) and puts it in
+[release](https://github.com/syoopie/beacon-tui/releases) and puts it in
 `/usr/local/bin` (or `~/.local/bin` if that is not writable).
 
 Pin a version or change the target directory:
 
 ```sh
 BEACON_VERSION=v0.1.0 BEACON_INSTALL_DIR=~/bin \
-  curl -fsSL https://raw.githubusercontent.com/sunyupei/beacon-tui/main/install.sh | bash
+  curl -fsSL https://raw.githubusercontent.com/syoopie/beacon-tui/main/install.sh | bash
 ```
 
 ### Prerequisites

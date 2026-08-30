@@ -4,7 +4,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/sunyupei/beacon-tui/internal/server"
+	"github.com/syoopie/beacon-tui/internal/server"
 )
 
 func TestCheckPortDetectsOSListener(t *testing.T) {

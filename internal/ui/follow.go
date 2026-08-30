@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/sunyupei/beacon-tui/internal/tmux"
+import "github.com/syoopie/beacon-tui/internal/tmux"
 
 // logFollower pairs a file tailer with the lines it has yielded so far, so the
 // viewport can be redrawn from a bounded buffer.

@@ -11,7 +11,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/sunyupei/beacon-tui/internal/server"
+	"github.com/syoopie/beacon-tui/internal/server"
 )
 
 // LoadSpecs reads every servers/*.toml, sorted by ID. A missing servers dir is

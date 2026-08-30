@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sunyupei/beacon-tui/internal/server"
+	"github.com/syoopie/beacon-tui/internal/server"
 )
 
 // Candidate is a directory that looks like a Minecraft server, before IDs are

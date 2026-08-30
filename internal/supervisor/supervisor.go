@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sunyupei/beacon-tui/internal/server"
+	"github.com/syoopie/beacon-tui/internal/server"
 )
 
 // Launch is everything needed to bring one server up under a supervisor.

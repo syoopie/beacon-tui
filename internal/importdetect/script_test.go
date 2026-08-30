@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sunyupei/beacon-tui/internal/server"
+	"github.com/syoopie/beacon-tui/internal/server"
 )
 
 func writeScript(t *testing.T, body string) string {

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sunyupei/beacon-tui/internal/config"
-	"github.com/sunyupei/beacon-tui/internal/server"
-	"github.com/sunyupei/beacon-tui/internal/supervisor"
+	"github.com/syoopie/beacon-tui/internal/config"
+	"github.com/syoopie/beacon-tui/internal/server"
+	"github.com/syoopie/beacon-tui/internal/supervisor"
 )
 
 type fakeSup struct {

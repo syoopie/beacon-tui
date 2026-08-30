@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/sunyupei/beacon-tui/internal/server"
+	"github.com/syoopie/beacon-tui/internal/server"
 )
 
 // PortBlock is why a port cannot be used for a start.

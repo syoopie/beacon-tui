@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sunyupei/beacon-tui/internal/server"
+	"github.com/syoopie/beacon-tui/internal/server"
 )
 
 func TestLoadSpecsGoodFixture(t *testing.T) {

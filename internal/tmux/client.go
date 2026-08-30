@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sunyupei/beacon-tui/internal/server"
-	"github.com/sunyupei/beacon-tui/internal/supervisor"
+	"github.com/syoopie/beacon-tui/internal/server"
+	"github.com/syoopie/beacon-tui/internal/supervisor"
 )
 
 // Client drives the tmux CLI.

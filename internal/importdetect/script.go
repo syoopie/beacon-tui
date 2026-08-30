@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/sunyupei/beacon-tui/internal/config"
-	"github.com/sunyupei/beacon-tui/internal/server"
+	"github.com/syoopie/beacon-tui/internal/config"
+	"github.com/syoopie/beacon-tui/internal/server"
 )
 
 // ExecCheck is the result of inspecting a start script's last effective command.

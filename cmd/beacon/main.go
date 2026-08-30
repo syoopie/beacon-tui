@@ -8,10 +8,10 @@ import (
 	"os/exec"
 	"runtime/debug"
 
-	"github.com/sunyupei/beacon-tui/internal/config"
-	"github.com/sunyupei/beacon-tui/internal/lifecycle"
-	"github.com/sunyupei/beacon-tui/internal/tmux"
-	"github.com/sunyupei/beacon-tui/internal/ui"
+	"github.com/syoopie/beacon-tui/internal/config"
+	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/tmux"
+	"github.com/syoopie/beacon-tui/internal/ui"
 )
 
 var version = "dev"

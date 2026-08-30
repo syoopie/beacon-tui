@@ -13,12 +13,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/sunyupei/beacon-tui/internal/config"
-	"github.com/sunyupei/beacon-tui/internal/importdetect"
-	"github.com/sunyupei/beacon-tui/internal/lifecycle"
-	"github.com/sunyupei/beacon-tui/internal/reconcile"
-	"github.com/sunyupei/beacon-tui/internal/server"
-	"github.com/sunyupei/beacon-tui/internal/supervisor"
+	"github.com/syoopie/beacon-tui/internal/config"
+	"github.com/syoopie/beacon-tui/internal/importdetect"
+	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/reconcile"
+	"github.com/syoopie/beacon-tui/internal/server"
+	"github.com/syoopie/beacon-tui/internal/supervisor"
 )
 
 // App is the wiring the UI needs, assembled by the caller.

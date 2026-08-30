@@ -1,7 +1,7 @@
 #!/bin/sh
 # Install beacon: a TUI for running Java Minecraft servers under tmux.
 #
-#   curl -fsSL https://raw.githubusercontent.com/sunyupei/beacon-tui/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/syoopie/beacon-tui/main/install.sh | bash
 #
 # Env overrides:
 #   BEACON_VERSION   release tag to install (default: latest)
@@ -9,7 +9,7 @@
 
 set -eu
 
-REPO="sunyupei/beacon-tui"
+REPO="syoopie/beacon-tui"
 BINARY="beacon"
 VERSION="${BEACON_VERSION:-latest}"
 

@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/sunyupei/beacon-tui/internal/config"
-	"github.com/sunyupei/beacon-tui/internal/oplock"
-	"github.com/sunyupei/beacon-tui/internal/server"
-	"github.com/sunyupei/beacon-tui/internal/tmux"
+	"github.com/syoopie/beacon-tui/internal/config"
+	"github.com/syoopie/beacon-tui/internal/oplock"
+	"github.com/syoopie/beacon-tui/internal/server"
+	"github.com/syoopie/beacon-tui/internal/tmux"
 )
 
 const stopsOnStop = `#!/bin/sh

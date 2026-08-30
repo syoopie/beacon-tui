@@ -1,4 +1,4 @@
-module github.com/sunyupei/beacon-tui
+module github.com/syoopie/beacon-tui
 
 go 1.24.2
 
