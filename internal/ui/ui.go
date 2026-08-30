@@ -7,10 +7,11 @@ package ui
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -65,8 +66,8 @@ type model struct {
 	status string
 	pat    *patchPrompt
 	update *updateNotice
-	// addRoot is non-nil while the operator is typing a folder to scan.
-	addRoot *textinput.Model
+	// pick is non-nil while the operator is browsing for a server folder.
+	pick *filepicker.Model
 }
 
 type updateNotice struct {
@@ -88,6 +89,9 @@ func (m *model) Init() tea.Cmd {
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.pick != nil {
+		return m.updatePicker(msg)
+	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -177,29 +181,49 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.addRoot != nil {
-		switch msg.String() {
-		case "enter":
-			dir := strings.TrimSpace(m.addRoot.Value())
-			m.addRoot = nil
-			if dir == "" {
-				m.status = "add cancelled"
-				return m, nil
-			}
-			m.busy = true
-			m.status = "adding " + dir + "…"
-			return m, m.addRootCmd(dir)
-		case "esc", "ctrl+c":
-			m.addRoot = nil
-			m.status = "add cancelled"
-			return m, nil
-		}
-		ti, cmd := m.addRoot.Update(msg)
-		m.addRoot = &ti
-		return m, cmd
+// openPicker starts the folder browser at the operator's home directory.
+func (m *model) openPicker() tea.Cmd {
+	fp := filepicker.New()
+	fp.DirAllowed = true
+	fp.FileAllowed = false
+	if home, err := os.UserHomeDir(); err == nil {
+		fp.CurrentDirectory = home
+	}
+	fp.AutoHeight = false
+	fp.SetHeight(max(m.height-4, 5))
+	m.pick = &fp
+	m.status = "→ open folder · ← up · enter choose this folder · esc cancel"
+	return fp.Init()
+}
+
+func (m *model) updatePicker(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if k, ok := msg.(tea.KeyMsg); ok && (k.String() == "esc" || k.String() == "ctrl+c") {
+		m.pick = nil
+		m.status = "add cancelled"
+		return m, nil
+	}
+	if sz, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width, m.height = sz.Width, sz.Height
+		m.pick.SetHeight(max(sz.Height-4, 5))
 	}
 
+	fp, cmd := m.pick.Update(msg)
+	m.pick = &fp
+
+	if ok, path := fp.DidSelectFile(msg); ok {
+		m.pick = nil
+		m.busy = true
+		m.status = "adding " + path + "…"
+		return m, m.addRootCmd(path)
+	}
+	if ok, path := fp.DidSelectDisabledFile(msg); ok {
+		m.status = path + " can't be added (not a folder)"
+		return m, nil
+	}
+	return m, cmd
+}
+
+func (m *model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.pat != nil {
 		switch msg.String() {
 		case "y":
@@ -230,13 +254,7 @@ func (m *model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.status = "scanning…"
 		return m, m.importCmd()
 	case "a":
-		ti := textinput.New()
-		ti.Placeholder = "/absolute/path/to/your/servers"
-		ti.Prompt = "scan folder: "
-		ti.Focus()
-		m.addRoot = &ti
-		m.status = "type a folder to scan, enter to confirm, esc to cancel"
-		return m, textinput.Blink
+		return m, m.openPicker()
 	case "u":
 		if m.update != nil {
 			m.status = "update: " + m.update.command
@@ -335,7 +353,7 @@ func (m *model) point(id server.ID) {
 
 func (m *model) appendLogs(lines []string) {
 	cur := m.tail.append(lines, maxLogLines)
-	m.vp.SetContent(joinLines(cur))
+	m.vp.SetContent(strings.Join(cur, "\n"))
 }
 
 func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
@@ -544,13 +562,14 @@ func (m *model) View() string {
 		name += updateStyle.Render("   ⬆ " + m.update.latest + " available (press u for the command)")
 	}
 	title := titleStyle.Render(name)
-	body := lipgloss.JoinHorizontal(lipgloss.Top, listStyle.Render(m.listView()), m.vp.View())
 
-	bottom := m.statusLine()
-	if m.addRoot != nil {
-		bottom = m.addRoot.View() + "\n" + m.status
+	var body string
+	if m.pick != nil {
+		body = titleStyle.Render("add a server — "+m.pick.CurrentDirectory) + "\n" + m.pick.View()
+	} else {
+		body = lipgloss.JoinHorizontal(lipgloss.Top, listStyle.Render(m.listView()), m.vp.View())
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, title, body, statusStyle.Render(bottom))
+	return lipgloss.JoinVertical(lipgloss.Left, title, body, statusStyle.Render(m.statusLine()))
 }
 
 func (m *model) listView() string {
@@ -566,10 +585,13 @@ func (m *model) listView() string {
 		}
 		lines = append(lines, row)
 	}
-	return joinLines(lines)
+	return strings.Join(lines, "\n")
 }
 
 func (m *model) statusLine() string {
+	if m.pick != nil {
+		return m.status
+	}
 	spec, ok := m.selected()
 	if !ok {
 		return m.status
@@ -614,15 +636,4 @@ func truncate(s string, n int) string {
 		return "…"
 	}
 	return s[:n-1] + "…"
-}
-
-func joinLines(lines []string) string {
-	out := ""
-	for i, l := range lines {
-		if i > 0 {
-			out += "\n"
-		}
-		out += l
-	}
-	return out
 }

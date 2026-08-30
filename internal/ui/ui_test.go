@@ -207,24 +207,38 @@ func TestImportKeyWritesSpecsForScannedDirs(t *testing.T) {
 	}
 }
 
-func TestAddFolderKeyWritesConfigAndScans(t *testing.T) {
+func TestAddKeyOpensAndEscapesTheFolderPicker(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	if m.pick == nil {
+		t.Fatal("pressing a did not open the folder picker")
+	}
+	if !strings.Contains(tm.View(), "add a server") {
+		t.Fatalf("picker view not shown:\n%s", tm.View())
+	}
+
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyEsc})
+	if m.pick != nil {
+		t.Fatal("esc did not close the picker")
+	}
+}
+
+func TestPickedFolderIsAddedAndScanned(t *testing.T) {
 	m, tm, _, dirs, root := bootModel(t)
-	// Start with no scan roots, the true first-run state.
 	m.app.Cfg = config.Config{StopTimeout: config.Duration(time.Minute)}
 	tm = loadRegistry(t, m, tm)
 
-	servers := filepath.Join(root, "servers")
-	if err := writeRunScript(t, filepath.Join(servers, "vanilla")); err != nil {
+	server := filepath.Join(root, "survival")
+	if err := writeRunScript(t, server); err != nil {
 		t.Fatal(err)
 	}
 
-	drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
-	if m.addRoot == nil {
-		t.Fatal("pressing a did not open the folder input")
-	}
-	m.addRoot.SetValue(servers)
-
-	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	// The filepicker's own selection handling is its concern; drive the message
+	// it would emit and assert beacon's glue writes config and re-scans.
+	_, msgs := drive(t, tm, runCmd(t, m.addRootCmd(server))[0])
 	for _, msg := range msgs {
 		tm, _ = drive(t, tm, msg)
 	}
@@ -233,15 +247,15 @@ func TestAddFolderKeyWritesConfigAndScans(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if len(cfg.ScanRoots) != 1 || cfg.ScanRoots[0] != servers {
-		t.Fatalf("config scan roots = %v, want [%s]", cfg.ScanRoots, servers)
+	if len(cfg.ScanRoots) != 1 || cfg.ScanRoots[0] != server {
+		t.Fatalf("config scan roots = %v, want [%s]", cfg.ScanRoots, server)
 	}
 	specs, err := config.LoadSpecs(dirs)
 	if err != nil {
 		t.Fatalf("LoadSpecs: %v", err)
 	}
-	if len(specs) != 1 || specs[0].ID != "vanilla" {
-		t.Fatalf("import after add-folder wrote %+v, want one spec 'vanilla'", specs)
+	if len(specs) != 1 || specs[0].ID != "survival" {
+		t.Fatalf("import after add wrote %+v, want one spec 'survival'", specs)
 	}
 }
 
