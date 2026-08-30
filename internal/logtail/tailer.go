@@ -1,4 +1,4 @@
-package tmux
+package logtail
 
 import (
 	"bytes"

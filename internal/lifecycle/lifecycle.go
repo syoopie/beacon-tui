@@ -8,12 +8,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/syoopie/beacon-tui/internal/config"
+	"github.com/syoopie/beacon-tui/internal/importdetect"
 	"github.com/syoopie/beacon-tui/internal/mcprops"
 	"github.com/syoopie/beacon-tui/internal/oplock"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
@@ -245,13 +244,48 @@ func (m *Manager) EditProperties(spec server.Spec, edits map[string]string) (ser
 		return spec, fmt.Errorf("%s: writing server.properties: %w", spec.ID, err)
 	}
 
-	spec.Port = atoiOr(props.GetOr("server-port", ""), spec.Port)
-	spec.RCON = server.RCON{
-		Enabled: strings.EqualFold(props.GetOr("enable-rcon", "false"), "true"),
-		// 25575 is Minecraft's default when the key is absent.
-		Port:     atoiOr(props.GetOr("rcon.port", "25575"), 0),
-		Password: props.GetOr("rcon.password", ""),
+	spec.Port = props.Port()
+	spec.RCON = props.RCON()
+	if err := config.SaveSpec(m.dirs, spec); err != nil {
+		return spec, fmt.Errorf("%s: saving spec: %w", spec.ID, err)
 	}
+	return spec, nil
+}
+
+// SaveSpec persists an edited spec under the host lock. The UI uses it for the
+// launch-settings edit, which rewrites the spec file the same way a config edit
+// does and so must serialize with every other mutating op.
+func (m *Manager) SaveSpec(spec server.Spec) (server.Spec, error) {
+	release, err := m.hold(m.lockDir(), oplock.OpWriteConfig)
+	if err != nil {
+		return spec, err
+	}
+	defer release()
+
+	if err := config.SaveSpec(m.dirs, spec); err != nil {
+		return spec, fmt.Errorf("%s: saving spec: %w", spec.ID, err)
+	}
+	return spec, nil
+}
+
+// ApplyScriptPatch runs the exec patch on a server's start script, re-inspects
+// it, and records the new exec state in the spec, all under the host lock so it
+// cannot race a start.
+func (m *Manager) ApplyScriptPatch(spec server.Spec, patch importdetect.Patch) (server.Spec, error) {
+	release, err := m.hold(m.lockDir(), oplock.OpPatchScript)
+	if err != nil {
+		return spec, err
+	}
+	defer release()
+
+	if err := importdetect.Apply(patch); err != nil {
+		return spec, fmt.Errorf("%s: patching the start script: %w", spec.ID, err)
+	}
+	check, err := importdetect.InspectScript(patch.Path)
+	if err != nil {
+		return spec, fmt.Errorf("%s: re-inspecting the start script: %w", spec.ID, err)
+	}
+	spec.Exec = check.State
 	if err := config.SaveSpec(m.dirs, spec); err != nil {
 		return spec, fmt.Errorf("%s: saving spec: %w", spec.ID, err)
 	}
@@ -270,13 +304,6 @@ func (m *Manager) AcceptEULA(spec server.Spec) error {
 		return fmt.Errorf("%s: accepting the EULA: %w", spec.ID, err)
 	}
 	return nil
-}
-
-func atoiOr(s string, def int) int {
-	if n, err := strconv.Atoi(strings.TrimSpace(s)); err == nil {
-		return n
-	}
-	return def
 }
 
 func (m *Manager) sessionGone(ctx context.Context, s server.Session) (bool, error) {

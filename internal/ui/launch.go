@@ -7,7 +7,6 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/importdetect"
 	"github.com/syoopie/beacon-tui/internal/server"
 )
@@ -88,9 +87,9 @@ func (m *model) updateLaunch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // applyLaunchCmd rewrites the selected server's launch command, start script and
-// exec state, then saves the spec.
+// exec state, then saves the spec through the manager's host lock.
 func (m *model) applyLaunchCmd(id server.ID, opt importdetect.LaunchOption, args string) tea.Cmd {
-	dirs, specs := m.app.Dirs, m.specs
+	mgr, specs := m.app.Mgr, m.specs
 	return func() tea.Msg {
 		var target server.Spec
 		found := false
@@ -107,7 +106,7 @@ func (m *model) applyLaunchCmd(id server.ID, opt importdetect.LaunchOption, args
 		target.Script = opt.Script
 		target.Start = opt.Command(args)
 		target.Exec = opt.Exec
-		if err := config.SaveSpec(dirs, target); err != nil {
+		if _, err := mgr.SaveSpec(target); err != nil {
 			return opDoneMsg{id: id, label: "launch settings", err: err}
 		}
 		return opDoneMsg{id: id, label: string(id) + " now starts with  " + target.Start}

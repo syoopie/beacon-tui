@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
+	"github.com/syoopie/beacon-tui/internal/mcprops"
 	"github.com/syoopie/beacon-tui/internal/server"
 )
 
@@ -24,8 +24,6 @@ type Candidate struct {
 	Port   int
 	RCON   server.RCON
 }
-
-const defaultPort = 25565
 
 var scriptNames = []string{"run.sh", "start.sh"}
 
@@ -106,11 +104,14 @@ func inspectDir(dir string) (Candidate, bool) {
 	// stops the server opening its own Swing console window; Beacon is the
 	// console.
 	o := opts[0]
-	props := readProps(dir)
+	props, err := mcprops.LoadProperties(dir)
+	if err != nil {
+		props = mcprops.Empty()
+	}
 	return Candidate{
-		Dir: dir, Base: base, Port: portFrom(props),
+		Dir: dir, Base: base, Port: props.Port(),
 		Script: o.Script, Exec: o.Exec, Start: o.Command("nogui"),
-		RCON: rconFrom(props),
+		RCON: props.RCON(),
 	}, true
 }
 
@@ -178,46 +179,4 @@ func jarsIn(dir string) []string {
 		}
 	}
 	return jars
-}
-
-// readProps is a minimal server.properties reader. Phase 9's internal/mcprops
-// will own the file properly; import only needs a handful of keys to seed a
-// spec. Unreadable or missing file yields an empty map, and the callers below
-// fall back to their defaults.
-func readProps(dir string) map[string]string {
-	data, err := os.ReadFile(filepath.Join(dir, "server.properties"))
-	if err != nil {
-		return nil
-	}
-	props := map[string]string{}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		if k, v, ok := strings.Cut(line, "="); ok {
-			props[strings.TrimSpace(k)] = strings.TrimSpace(v)
-		}
-	}
-	return props
-}
-
-func portFrom(props map[string]string) int {
-	if p, err := strconv.Atoi(props["server-port"]); err == nil && p >= 1 && p <= 65535 {
-		return p
-	}
-	return defaultPort
-}
-
-// rconFrom reads the RCON block. The password lands in the spec file, which is
-// why those are written 0600.
-func rconFrom(props map[string]string) server.RCON {
-	r := server.RCON{
-		Enabled:  props["enable-rcon"] == "true",
-		Password: props["rcon.password"],
-	}
-	if p, err := strconv.Atoi(props["rcon.port"]); err == nil && p >= 1 && p <= 65535 {
-		r.Port = p
-	}
-	return r
 }

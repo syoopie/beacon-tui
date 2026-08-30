@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/syoopie/beacon-tui/internal/config"
+	"github.com/syoopie/beacon-tui/internal/server"
 )
 
 // Properties is a parsed key=value file that remembers its original layout.
@@ -27,6 +29,10 @@ type Properties struct {
 func LoadProperties(serverDir string) (*Properties, error) {
 	return load(filepath.Join(serverDir, "server.properties"))
 }
+
+// Empty is a Properties with nothing in it, for callers that want the defaults
+// when the real file cannot be read.
+func Empty() *Properties { return &Properties{index: map[string]int{}} }
 
 func load(path string) (*Properties, error) {
 	p := &Properties{path: path, index: map[string]int{}}
@@ -96,6 +102,37 @@ func (p *Properties) Set(key, value string) {
 	}
 	p.lines = append(p.lines, line)
 	p.index[key] = len(p.lines) - 1
+}
+
+// Int returns the integer value for key, or def when it is absent or not a
+// number.
+func (p *Properties) Int(key string, def int) int {
+	if v, ok := p.Get(key); ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			return n
+		}
+	}
+	return def
+}
+
+// Bool returns whether key is present and set to "true".
+func (p *Properties) Bool(key string) bool {
+	return strings.EqualFold(strings.TrimSpace(p.GetOr(key, "")), "true")
+}
+
+// Port is the server's listen port. Minecraft defaults to 25565 when the key is
+// absent.
+func (p *Properties) Port() int { return p.Int("server-port", 25565) }
+
+// RCON reads the enable-rcon / rcon.port / rcon.password block, verbatim: an
+// absent rcon.port stays 0. Minecraft's own default is 25575, which the config
+// editor writes explicitly whenever it turns RCON on.
+func (p *Properties) RCON() server.RCON {
+	return server.RCON{
+		Enabled:  p.Bool("enable-rcon"),
+		Port:     p.Int("rcon.port", 0),
+		Password: p.GetOr("rcon.password", ""),
+	}
 }
 
 // Render returns the file's bytes with a trailing newline.

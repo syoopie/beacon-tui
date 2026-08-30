@@ -108,6 +108,33 @@ func TestLoadMissingFileThenSaveCreatesIt(t *testing.T) {
 	}
 }
 
+func TestTypedAccessors(t *testing.T) {
+	p, err := LoadProperties(writeProps(t, sample))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Port() != 25565 {
+		t.Fatalf("Port() = %d", p.Port())
+	}
+	if p.Int("max-players", 0) != 20 {
+		t.Fatalf("Int(max-players) = %d", p.Int("max-players", 0))
+	}
+	if r := p.RCON(); r.Enabled || r.Port != 0 || r.Password != "" {
+		t.Fatalf("RCON() = %+v, want the disabled zero value", r)
+	}
+
+	p.Set("enable-rcon", "true")
+	p.Set("rcon.port", "25999")
+	p.Set("rcon.password", "pw")
+	if r := p.RCON(); !r.Enabled || r.Port != 25999 || r.Password != "pw" {
+		t.Fatalf("RCON() after Set = %+v", r)
+	}
+
+	if Empty().Port() != 25565 {
+		t.Fatalf("Empty().Port() = %d, want the Minecraft default", Empty().Port())
+	}
+}
+
 func TestEULA(t *testing.T) {
 	dir := t.TempDir()
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/syoopie/beacon-tui/internal/tmux"
+	"github.com/syoopie/beacon-tui/internal/logtail"
 )
 
 // tabStop is how many columns a tab in a log line becomes. Minecraft indents
@@ -53,12 +53,12 @@ type logEntry struct {
 // logFollower pairs a file tailer with the classified lines it has yielded so
 // far, so the console can redraw either tab from a bounded buffer.
 type logFollower struct {
-	t       *tmux.Tailer
+	t       *logtail.Tailer
 	entries []logEntry
 }
 
 func newFollower(path string) *logFollower {
-	return &logFollower{t: tmux.NewTailer(path)}
+	return &logFollower{t: logtail.NewTailer(path)}
 }
 
 func (f *logFollower) read() ([]string, error) {

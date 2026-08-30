@@ -76,26 +76,18 @@ func (m *model) planPatchCmd(spec server.Spec) tea.Cmd {
 }
 
 func (m *model) applyPatchCmd(patch importdetect.Patch) tea.Cmd {
-	dirs := m.app.Dirs
-	specs := m.specs
+	mgr, specs := m.app.Mgr, m.specs
 	return func() tea.Msg {
-		if err := importdetect.Apply(patch); err != nil {
-			return opDoneMsg{label: "patch", err: err}
-		}
 		for _, s := range specs {
 			if s.Script == "" || filepath.Join(s.Dir, s.Script) != patch.Path {
 				continue
 			}
-			check, err := importdetect.InspectScript(patch.Path)
+			patched, err := mgr.ApplyScriptPatch(s, patch)
 			if err != nil {
-				return opDoneMsg{id: s.ID, label: "patch: re-inspect", err: err}
+				return opDoneMsg{id: s.ID, label: "patch", err: err}
 			}
-			s.Exec = check.State
-			if err := config.SaveSpec(dirs, s); err != nil {
-				return opDoneMsg{id: s.ID, label: "patch: save", err: err}
-			}
-			return opDoneMsg{id: s.ID, label: string(s.ID) + " patched (" + check.State.String() + ")"}
+			return opDoneMsg{id: s.ID, label: string(s.ID) + " patched (" + patched.Exec.String() + ")"}
 		}
-		return opDoneMsg{label: "patched"}
+		return opDoneMsg{label: "patch: no server uses that script"}
 	}
 }

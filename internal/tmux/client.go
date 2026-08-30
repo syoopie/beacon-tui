@@ -157,6 +157,11 @@ func (c *Client) PID(ctx context.Context, s server.Session) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	// A session that vanishes between Exists and here can still exit 0 with an
+	// empty pane_pid. Treat that as gone, not as a parse error.
+	if strings.TrimSpace(out) == "" {
+		return 0, nil
+	}
 	pid, err := strconv.Atoi(strings.TrimSpace(out))
 	if err != nil {
 		return 0, fmt.Errorf("tmux display-message: pane_pid %q: %w", strings.TrimSpace(out), err)

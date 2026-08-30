@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/syoopie/beacon-tui/internal/logtail"
 	"github.com/syoopie/beacon-tui/internal/server"
 	"github.com/syoopie/beacon-tui/internal/supervisor"
 )
@@ -83,7 +84,7 @@ func processName(t *testing.T, pid int) string {
 	return filepath.Base(strings.TrimSpace(string(out)))
 }
 
-func waitForLine(t *testing.T, tl *Tailer, want string) {
+func waitForLine(t *testing.T, tl *logtail.Tailer, want string) {
 	t.Helper()
 	var seen []string
 	deadline := time.Now().Add(5 * time.Second)
@@ -127,7 +128,7 @@ func TestClientEndToEnd(t *testing.T) {
 		t.Fatal("Exists = false immediately after Start returned")
 	}
 
-	tl := newTestTailer(t, l.LogFile)
+	tl := logtail.NewTailer(l.LogFile)
 	waitForLine(t, tl, bootLine)
 
 	pid := panePID(t, c, s)
