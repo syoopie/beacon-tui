@@ -138,35 +138,42 @@ func (m *model) updateLogSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // logBody is the console viewport's content: the buffered lines kept by the
-// active tab and filter, hard-wrapped to the column width with a two-column
-// gutter. The gutter, not colour, is how a notable line stands out: the log
-// column is kept plain text so no styled cell can linger under it when a line
-// repaints shorter during a scroll.
+// active tab and filter, hard-wrapped to the column width. Word wrap alone is
+// not enough, because a stack frame's class name is one unbreakable token wider
+// than the column.
 func (m *model) logBody() string {
 	if m.tail == nil {
 		return ""
 	}
-	w := max(m.vp.Width-2, 1) // two columns reserved for the gutter
+	w := max(m.vp.Width, 1)
 	q := strings.ToLower(strings.TrimSpace(m.logQuery))
-	var b strings.Builder
-	first := true
+	var rows []string
 	for _, e := range m.tail.entries {
 		if !m.lineVisible(e, q) {
 			continue
 		}
-		gutter := "  "
-		if m.logTab == tabServer && e.kind == kindNotable {
-			gutter = "▏ "
-		}
+		style := m.logLineStyle(e.kind)
 		for _, seg := range strings.Split(ansi.Wrap(e.raw, w, ""), "\n") {
-			if !first {
-				b.WriteByte('\n')
-			}
-			first = false
-			b.WriteString(gutter + seg)
+			rows = append(rows, style.Render(seg))
 		}
 	}
-	return b.String()
+	return strings.Join(rows, "\n")
+}
+
+// logLineStyle picks out the lines worth noticing on the server-log tab:
+// warnings and errors in the warning colour, dimmed noise when the filter is
+// off. The chat tab is uniform, since every line there already matters.
+func (m *model) logLineStyle(k logKind) lipgloss.Style {
+	if m.logTab == tabChat {
+		return lipgloss.NewStyle()
+	}
+	switch k {
+	case kindNotable:
+		return lipgloss.NewStyle().Foreground(warnColor)
+	case kindNoise:
+		return mutedStyle
+	}
+	return lipgloss.NewStyle()
 }
 
 func (m *model) lineVisible(e logEntry, lowerQuery string) bool {
@@ -186,51 +193,30 @@ func (m *model) lineVisible(e logEntry, lowerQuery string) bool {
 	return true
 }
 
-// railGap is the plain-space gutter between the log column and the rail. It is
-// deliberately whitespace: no border character and no colour anywhere on the
-// boundary, so nothing that a partial repaint can smear as the log scrolls.
-const railGap = "    "
+// railChrome is what the rail spends on its left border and the breathing room
+// either side of it. relayout reserves it out of railW so the rail's text gets
+// the remainder.
+const railChrome = 5
 
 func (m *model) consoleView() string {
 	w := max(m.vp.Width, 1)
-	logBlock := lipgloss.JoinVertical(lipgloss.Left,
-		m.logHeaderView(w),
-		m.tabBarView(w),
-		mutedStyle.Render(strings.Repeat("─", w)),
-		m.vp.View(),
-	)
-	logRows := padBlock(logBlock, w, m.bodyH)
+	logBlock := lipgloss.NewStyle().Width(w).MaxWidth(w).Height(m.bodyH).Render(
+		lipgloss.JoinVertical(lipgloss.Left,
+			m.logHeaderView(w),
+			m.tabBarView(w),
+			mutedStyle.Render(strings.Repeat("─", w)),
+			m.vp.View(),
+		))
 	if m.railW == 0 {
-		return strings.Join(logRows, "\n")
+		return logBlock
 	}
-	railRows := padBlock(m.railView(), m.railW, m.bodyH)
-	rows := make([]string, m.bodyH)
-	for i := range rows {
-		rows[i] = logRows[i] + railGap + railRows[i]
-	}
-	return strings.Join(rows, "\n")
-}
-
-// padBlock splits s into exactly h rows, each exactly w display columns: short
-// rows are space-padded, long rows truncated, missing rows blank. Composing the
-// two console columns row by row from these keeps every boundary at a fixed
-// column no matter what any inner view does.
-func padBlock(s string, w, h int) []string {
-	src := strings.Split(s, "\n")
-	out := make([]string, h)
-	for i := range out {
-		line := ""
-		if i < len(src) {
-			line = src[i]
-		}
-		if lw := lipgloss.Width(line); lw > w {
-			line = ansi.Truncate(line, w, "")
-		} else {
-			line += strings.Repeat(" ", w-lw)
-		}
-		out[i] = line
-	}
-	return out
+	railW := max(m.railW-railChrome, 8)
+	rail := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).BorderLeft(true).BorderForeground(mutedColor).
+		MarginLeft(2).PaddingLeft(2).
+		Width(railW).MaxWidth(railW).Height(m.bodyH).
+		Render(m.railView())
+	return lipgloss.JoinHorizontal(lipgloss.Top, logBlock, rail)
 }
 
 // logHeaderView is one line: name, status, port, launch method. Anything that

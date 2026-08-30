@@ -42,23 +42,24 @@ Model tests (`internal/ui/*_test.go` driving `tea.Model`) do **not** reproduce
 terminal rendering bugs. lipgloss disables colour when it sees no TTY, so styled
 output never runs, and `tm.View()` is not what a terminal actually paints.
 
-For anything about layout, redraw, scrolling, or colour, drive the real binary:
+For anything about layout, redraw, scrolling, or colour, use the
+[`verify-beacon`](.claude/skills/verify-beacon/SKILL.md) skill. It runs the real
+binary on a PTY, feeds its bytes through a VT emulator, and hands back the grid
+of cells. `check_console.py` there is the regression check for the console.
 
-```sh
-go build -o /tmp/beacon ./cmd/beacon
-tmux new-session -d -s drv -x 123 -y 40 "env TERM=xterm-256color COLORTERM=truecolor /tmp/beacon --config-dir=C --state-dir=S <serverdir>"
-tmux send-keys -t drv ...          # navigate
-tmux capture-pane -p -t drv        # what the cells actually show
-tmux pipe-pane -o -t drv 'cat >> raw.bin'   # the raw bytes Bubble Tea emits
-```
+Two rules the log screen depends on:
 
-A real Minecraft log for fixtures:
-`~/MinecraftServer/BMC4_ServerPack_v61/logs/latest.log`. Note that VS Code's
-integrated terminal (xterm.js) and iTerm/tmux render Bubble Tea output
-differently; a fix that looks right under tmux can still be wrong in VS Code.
-Keep the frame one column short of the terminal width so Bubble Tea emits its
-erase-to-end-of-line, and keep colour and box-drawing characters out of any
-area that repaints during a scroll.
+- **Sanitize anything from outside the program before measuring it.** A tab is
+  one column to `ansi.StringWidth` and up to eight on screen, so an unsanitized
+  log line is drawn wider than it was laid out for. `sanitize` in
+  `internal/ui/follow.go` is the single place that happens.
+- **Wrap once.** Content already wrapped by `ansi.Wrap` must not be passed
+  through a lipgloss `Width` style, which wraps again and leaves ragged
+  fragments.
+
+Read captured grids with a script, never by eye: a proportional font makes
+aligned columns look ragged and ragged ones look aligned. Real Minecraft logs
+for fixtures: `~/MinecraftServer/BMC4_ServerPack_v61/logs/latest.log`.
 
 ## Architecture
 
