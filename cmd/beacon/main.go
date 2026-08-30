@@ -5,9 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"runtime/debug"
 
 	"github.com/sunyupei/beacon-tui/internal/config"
+	"github.com/sunyupei/beacon-tui/internal/lifecycle"
+	"github.com/sunyupei/beacon-tui/internal/tmux"
+	"github.com/sunyupei/beacon-tui/internal/ui"
 )
 
 var version = "dev"
@@ -41,22 +45,21 @@ func run(configDir, stateDir string) error {
 		dirs.State = stateDir
 	}
 
-	if _, err := config.Load(dirs); err != nil {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		return errors.New("tmux is not on PATH; install it (brew install tmux, or apt-get install tmux)")
+	}
+
+	cfg, err := config.Load(dirs)
+	if err != nil {
 		if errors.Is(err, config.ErrNoConfig) {
 			return fmt.Errorf("no config at %s: create it with scan_roots = [\"/absolute/path/to/your/servers\"]", dirs.ConfigFile())
 		}
 		return err
 	}
 
-	specs, err := config.LoadSpecs(dirs)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("config dir: %s\n", dirs.Config)
-	fmt.Printf("state dir:  %s\n", dirs.State)
-	fmt.Printf("specs:      %d\n", len(specs))
-	return nil
+	sup := &tmux.Client{}
+	mgr := lifecycle.NewManager(sup, dirs, cfg.StopTimeout.Std())
+	return ui.Run(ui.App{Dirs: dirs, Cfg: cfg, Sup: sup, Mgr: mgr})
 }
 
 func buildVersion() string {
