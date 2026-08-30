@@ -1,0 +1,4 @@
+/dist/
+/beacon
+*.bak
+.DS_Store
