@@ -18,8 +18,8 @@ import (
 	"github.com/syoopie/beacon-tui/internal/server"
 )
 
-// openConsoleScreen switches to the full-screen console and clears the player
-// rail so the first poll after arriving is a fresh one.
+// openConsoleScreen switches to the full-screen console, clears the player rail
+// so the first poll after arriving is fresh, and drops to the newest log line.
 func (m *model) openConsoleScreen() {
 	m.screen = screenConsole
 	m.rconSnap = rcon.Snapshot{}
@@ -29,6 +29,7 @@ func (m *model) openConsoleScreen() {
 	m.procErr = ""
 	m.procAt = time.Time{}
 	m.relayout()
+	m.vp.GotoBottom()
 }
 
 // consoleTab is the console screen's top-level split: the raw server log, or
@@ -48,8 +49,6 @@ const logScrollStep = 3
 var (
 	tabActiveStyle   = lipgloss.NewStyle().Bold(true).Foreground(accentColor)
 	tabInactiveStyle = mutedStyle
-	noiseLineStyle   = mutedStyle
-	notableLineStyle = lipgloss.NewStyle().Foreground(accentColor)
 )
 
 // handleConsoleKey drives the full-screen console: tab switch, the noise-filter
@@ -139,15 +138,15 @@ func (m *model) updateLogSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // logBody is the console viewport's content: the buffered lines kept by the
-// active tab and filter, hard-wrapped to the column width and styled by tier.
-// Wrapping here rather than leaving it to the viewport is what keeps an
-// over-long unbreakable token (a stack-trace class name, a path) from widening
-// the column and shoving the rail sideways.
+// active tab and filter, hard-wrapped to the column width with a two-column
+// gutter. The gutter, not colour, is how a notable line stands out: the log
+// column is kept plain text so no styled cell can linger under it when a line
+// repaints shorter during a scroll.
 func (m *model) logBody() string {
 	if m.tail == nil {
 		return ""
 	}
-	w := max(m.vp.Width, 1)
+	w := max(m.vp.Width-2, 1) // two columns reserved for the gutter
 	q := strings.ToLower(strings.TrimSpace(m.logQuery))
 	var b strings.Builder
 	first := true
@@ -155,12 +154,16 @@ func (m *model) logBody() string {
 		if !m.lineVisible(e, q) {
 			continue
 		}
+		gutter := "  "
+		if m.logTab == tabServer && e.kind == kindNotable {
+			gutter = "▏ "
+		}
 		for _, seg := range strings.Split(ansi.Wrap(e.raw, w, ""), "\n") {
 			if !first {
 				b.WriteByte('\n')
 			}
 			first = false
-			b.WriteString(styleLogSegment(seg, e.kind, m.logTab))
+			b.WriteString(gutter + seg)
 		}
 	}
 	return b.String()
@@ -183,41 +186,51 @@ func (m *model) lineVisible(e logEntry, lowerQuery string) bool {
 	return true
 }
 
-func styleLogSegment(seg string, kind logKind, tab consoleTab) string {
-	if tab != tabServer {
-		return seg
-	}
-	switch kind {
-	case kindNoise:
-		return noiseLineStyle.Render(seg)
-	case kindNotable:
-		return notableLineStyle.Render(seg)
-	default:
-		return seg
-	}
-}
+// railGap is the plain-space gutter between the log column and the rail. It is
+// deliberately whitespace: no border character and no colour anywhere on the
+// boundary, so nothing that a partial repaint can smear as the log scrolls.
+const railGap = "    "
 
 func (m *model) consoleView() string {
 	w := max(m.vp.Width, 1)
-	// Pin the log column to exactly w and bodyH. Without this a single visible
-	// line wider than w (a long unbroken token, an over-long header) would widen
-	// the whole column and shove the rail sideways as it scrolled in and out.
-	logCol := lipgloss.NewStyle().Width(w).MaxWidth(w).Height(m.bodyH).MaxHeight(m.bodyH).
-		Render(lipgloss.JoinVertical(lipgloss.Left,
-			m.logHeaderView(w),
-			m.tabBarView(w),
-			mutedStyle.Render(strings.Repeat("─", w)),
-			m.vp.View(),
-		))
+	logBlock := lipgloss.JoinVertical(lipgloss.Left,
+		m.logHeaderView(w),
+		m.tabBarView(w),
+		mutedStyle.Render(strings.Repeat("─", w)),
+		m.vp.View(),
+	)
+	logRows := padBlock(logBlock, w, m.bodyH)
 	if m.railW == 0 {
-		return logCol
+		return strings.Join(logRows, "\n")
 	}
-	rail := lipgloss.NewStyle().
-		Width(m.railW).Height(m.bodyH).MaxHeight(m.bodyH).
-		BorderStyle(lipgloss.NormalBorder()).BorderLeft(true).BorderForeground(mutedColor).
-		MarginLeft(1).PaddingLeft(1).
-		Render(m.railView())
-	return lipgloss.JoinHorizontal(lipgloss.Top, logCol, rail)
+	railRows := padBlock(m.railView(), m.railW, m.bodyH)
+	rows := make([]string, m.bodyH)
+	for i := range rows {
+		rows[i] = logRows[i] + railGap + railRows[i]
+	}
+	return strings.Join(rows, "\n")
+}
+
+// padBlock splits s into exactly h rows, each exactly w display columns: short
+// rows are space-padded, long rows truncated, missing rows blank. Composing the
+// two console columns row by row from these keeps every boundary at a fixed
+// column no matter what any inner view does.
+func padBlock(s string, w, h int) []string {
+	src := strings.Split(s, "\n")
+	out := make([]string, h)
+	for i := range out {
+		line := ""
+		if i < len(src) {
+			line = src[i]
+		}
+		if lw := lipgloss.Width(line); lw > w {
+			line = ansi.Truncate(line, w, "")
+		} else {
+			line += strings.Repeat(" ", w-lw)
+		}
+		out[i] = line
+	}
+	return out
 }
 
 // logHeaderView is one line: name, status, port, launch method. Anything that

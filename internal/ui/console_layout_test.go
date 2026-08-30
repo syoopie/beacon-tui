@@ -10,12 +10,12 @@ import (
 	"github.com/syoopie/beacon-tui/internal/server"
 )
 
-// dividerColumns returns the distinct display columns the rail divider sits at
-// across a rendered frame. A stable rail is exactly one column.
-func dividerColumns(view string) map[int]bool {
+// railColumns returns the distinct display columns the rail's "Players" header
+// starts at across a rendered frame. A stable rail is exactly one column.
+func railColumns(view string) map[int]bool {
 	cols := map[int]bool{}
 	for _, line := range strings.Split(view, "\n") {
-		if i := strings.IndexRune(line, '│'); i >= 0 {
+		if i := strings.Index(line, "Players"); i >= 0 {
 			cols[lipgloss.Width(line[:i])] = true
 		}
 	}
@@ -54,13 +54,22 @@ func TestConsoleRailStaysPutWhileScrolling(t *testing.T) {
 
 		all := map[int]bool{}
 		for step := 0; step < 25; step++ {
-			for c := range dividerColumns(tm.View()) {
+			for c := range railColumns(tm.View()) {
 				all[c] = true
+			}
+			// Every row of the composed console body must be the same width, or
+			// a row is ragged and the rail is misaligned on it.
+			seen := map[int]bool{}
+			for _, row := range strings.Split(m.consoleView(), "\n") {
+				seen[lipgloss.Width(row)] = true
+			}
+			if len(seen) != 1 {
+				t.Fatalf("width %d, step %d: console rows have uneven widths %v", width, step, seen)
 			}
 			tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyUp})
 		}
 		if len(all) != 1 {
-			t.Fatalf("width %d: rail divider wandered across columns %v while scrolling", width, all)
+			t.Fatalf("width %d: the rail shifted across columns %v while scrolling", width, all)
 		}
 		// The frame must stop one column short of the terminal, so Bubble Tea
 		// keeps erasing each line's tail on repaint. A line that fills the width

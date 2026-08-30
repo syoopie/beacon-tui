@@ -581,7 +581,7 @@ func (m *model) relayout() {
 	logW := innerW
 	if m.screen == screenConsole && innerW >= 64 {
 		m.railW = 24
-		logW = innerW - m.railW - 3
+		logW = innerW - m.railW - len(railGap)
 	}
 	m.vp.Width = max(logW, 20)
 	m.vp.Height = max(bodyH-3, 1) // log header + tab bar + rule
