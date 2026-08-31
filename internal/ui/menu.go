@@ -180,7 +180,7 @@ func (m *model) detailView() string {
 	}
 	actions := lipgloss.JoinVertical(lipgloss.Left, rows...)
 	if !focused {
-		actions = mutedStyle.Render(actions) + "\n\n" + mutedStyle.Render("→  act on this server")
+		actions = mutedStyle.Render(actions) + "\n\n" + m.hintBar(hint("→", "act on this server"))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, head, "", actions)
 }

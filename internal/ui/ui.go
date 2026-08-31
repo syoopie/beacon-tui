@@ -163,6 +163,13 @@ func newHelp() help.Model {
 	return h
 }
 
+// hintBar renders a one-line "press x to y" hint through the same styled help
+// component as the top command bar. Every such line in the app goes through
+// here, so they all read the same way: bright bold key, grey label, faint dot.
+func (m *model) hintBar(bindings ...key.Binding) string {
+	return m.help.ShortHelpView(bindings)
+}
+
 func (m *model) Init() tea.Cmd {
 	return tea.Batch(m.reloadCmd(), tick(), m.updateCheckCmd())
 }

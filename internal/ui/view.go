@@ -379,7 +379,7 @@ func (m *model) patchDialogView() string {
 		code.Foreground(warnColor).Render("- "+p.patch.Old),
 		code.Foreground(runColor).Render("+ "+p.patch.New),
 		"",
-		mutedStyle.Render("y  apply the fix        esc  leave it unchanged"),
+		m.hintBar(hint("y", "apply the fix"), hint("esc", "leave it unchanged")),
 	)
 	return lipgloss.Place(m.bodyW, m.bodyH, lipgloss.Center, lipgloss.Center, dialogStyle.Render(inner))
 }
@@ -410,7 +410,7 @@ func (m *model) launchDialogView() string {
 		"",
 		lp.args.View(),
 		"",
-		mutedStyle.Render("↑↓  choose        enter  save        esc  cancel"),
+		m.hintBar(hint("↑↓", "choose"), hint("enter", "save"), hint("esc", "cancel")),
 	)
 	inner := lipgloss.NewStyle().Width(width).Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
 	return lipgloss.Place(m.bodyW, m.bodyH, lipgloss.Center, lipgloss.Center, dialogStyle.Render(inner))

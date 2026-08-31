@@ -304,9 +304,9 @@ func (m *model) tabBarView(w int) string {
 	case m.logTab == tabChat:
 		right = mutedStyle.Render("player activity")
 	case m.logFull:
-		right = mutedStyle.Render("full log · f to filter noise")
+		right = mutedStyle.Render("full log") + mutedStyle.Render("  ·  ") + m.hintBar(hint("f", "filter noise"))
 	default:
-		right = mutedStyle.Render("noise filtered · f for full log")
+		right = mutedStyle.Render("noise filtered") + mutedStyle.Render("  ·  ") + m.hintBar(hint("f", "full log"))
 	}
 	if q := strings.TrimSpace(m.logQuery); q != "" {
 		right = mutedStyle.Render("search: "+q) + mutedStyle.Render("   ·   ") + right

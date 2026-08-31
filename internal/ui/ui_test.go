@@ -260,7 +260,7 @@ func TestListStaysVisibleBesideTheActionPanel(t *testing.T) {
 	writeSpec(t, dirs, "creative")
 	tm = loadRegistry(t, m, tm)
 
-	if !strings.Contains(tm.View(), "creative") || !strings.Contains(tm.View(), "→  act on this server") {
+	if !strings.Contains(tm.View(), "creative") || !strings.Contains(tm.View(), "act on this server") {
 		t.Fatalf("list screen should show both the list and the passive action panel:\n%s", tm.View())
 	}
 
