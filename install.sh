@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install beacon: a TUI for running Java Minecraft servers under tmux.
+# Install beacon: a TUI for running Java Minecraft servers.
 #
 #   curl -fsSL https://raw.githubusercontent.com/syoopie/beacon-tui/main/install.sh | bash
 #
@@ -87,11 +87,35 @@ case ":${PATH}:" in
   *) echo ""; echo "Note: ${dir} is not on your PATH. Add this to your shell profile:"; echo "  export PATH=\"${dir}:\$PATH\"" ;;
 esac
 
+# beacon runs each server under tmux. Pull it in so a first-time user never has
+# to think about it; fall back to printing the one command on any failure.
+install_tmux() {
+  sudo=""
+  if [ "$(id -u)" != 0 ] && have sudo; then sudo="sudo"; fi
+  if [ "$os" = "darwin" ]; then
+    have brew && { brew install tmux; return; }
+  elif have apt-get; then
+    $sudo apt-get update -qq && $sudo apt-get install -y tmux && return
+  elif have dnf; then
+    $sudo dnf install -y tmux && return
+  elif have pacman; then
+    $sudo pacman -Sy --noconfirm tmux && return
+  elif have apk; then
+    $sudo apk add tmux && return
+  fi
+  return 1
+}
+
 if have tmux; then
   echo "Run: ${BINARY}"
 else
   echo ""
-  echo "beacon needs tmux on PATH. Install it with:"
-  echo "  macOS:  brew install tmux"
-  echo "  Debian: sudo apt-get install -y tmux"
+  echo "Installing tmux (beacon runs your servers under it)..."
+  if install_tmux && have tmux; then
+    echo "Run: ${BINARY}"
+  else
+    echo "Could not install tmux automatically. Install it, then run ${BINARY}:"
+    echo "  macOS:  brew install tmux"
+    echo "  Debian: sudo apt-get install -y tmux"
+  fi
 fi
