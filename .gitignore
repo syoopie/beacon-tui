@@ -2,3 +2,5 @@
 /beacon
 *.bak
 .DS_Store
+docs/demo/out.gif
+docs/*.jpg

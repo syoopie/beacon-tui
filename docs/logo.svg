@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" shape-rendering="crispEdges">
-  <title>Beacon</title>
-  <rect x="10" y="0" width="4" height="11" fill="#8ad5ff"/>
-  <rect x="11" y="0" width="2" height="11" fill="#d6f0ff"/>
-  <polygon points="12,5 21,10 12,15 3,10" fill="#40b8f2"/>
-  <polygon points="3,10 12,15 12,24 3,19" fill="#1b76ac"/>
-  <polygon points="21,10 12,15 12,24 21,19" fill="#12557e"/>
-</svg>

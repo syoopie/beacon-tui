@@ -1,8 +1,6 @@
-<p align="center">
-  <img src="docs/logo.svg" alt="" width="76" height="76">
-</p>
-
-<h1 align="center">Beacon</h1>
+<h1 align="center">
+  <img src="docs/beacon-wordmark.svg" alt="Beacon" width="380">
+</h1>
 
 <p align="center">
 Run your Minecraft servers from one clean terminal screen. Start them, stop
