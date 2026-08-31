@@ -1,49 +1,57 @@
 # Beacon
 
 Run your Minecraft servers from one clean terminal screen. Start them, stop them,
-watch their logs, all without hunting for the right `screen` session or leaving a
+watch their logs, all without hunting for the right `tmux` session or leaving a
 server half-dead.
 
 [![CI](https://github.com/syoopie/beacon-tui/actions/workflows/ci.yml/badge.svg)](https://github.com/syoopie/beacon-tui/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/syoopie/beacon-tui?sort=semver)](https://github.com/syoopie/beacon-tui/releases)
 [![License](https://img.shields.io/github/license/syoopie/beacon-tui)](LICENSE)
 
-```text
-  Beacon                                         ↑ v0.2.0 available
-  ↑ up • ↓ down • → console • ctrl+r scan folders • esc quit
+## The list
 
-  ╭──────────────────────────────────────────────────
-  │ ⌕ Search…
-  ╰──────────────────────────────────────────────────
+Beacon opens here. One aligned row per server.
 
-    +  Add a server
+![Beacon's server list, with a search box, an add row and one aligned row per server](docs/demo/list.png)
 
-      NAME               STATUS    PORT      DETAIL
-  ────────────────────────────────────────────────────
-  ▎ ● survival            running   25565 ●   4h12m · 3.1G · 42%
-    ○ creative            stopped   25566     run.sh
-    ◆ skyblock            unknown   25567     session lost
+Running servers sort to the top. Their DETAIL column carries uptime, memory and
+CPU, and a health dot sits after the port, green once players can join and amber
+while the server is still opening it. A stopped server shows its launcher, a lost
+one shows `session lost` with the full warning in the banner. The search box is
+always on, so start typing to filter by name. `+ Add a server` opens a folder
+picker. On a narrow terminal the columns drop from the right, and below about 55
+they collapse to one loose line.
 
-  ready
-```
+## The console
 
-The list is a view, one aligned row per server. Running servers sort to the top
-and their DETAIL column shows uptime, memory and CPU; a stopped server shows its
-launcher; a lost one shows a short token, with the full warning in the banner.
-The health dot after the port is green once players can join, amber while the
-server is still opening it.
+Press `→` on a server to open its console. Everything else happens here.
 
-The search box is always on, so just start typing to filter by name. The
-`+ Add a server` row opens the folder picker; `ctrl+r` re-scans the folders
-Beacon already watches. On a narrow terminal the columns drop from the right,
-and below about 55 they collapse to a single loose line.
+![The console for one server, log on the left with events and warnings coloured, a details rail on the right](docs/demo/console.png)
 
-Press `→` on a server to open its console, and everything happens from there:
-`s` starts or stops it, `a` opens the rest of the actions (edit config, launch
-settings, and the pre-start chores), `c` types a command to a running server.
-`←` steps back to the list. `esc` on the list clears the search, or quits when
-it is already empty. The bar under the title always shows the keys that work
-right now.
+`s` starts or stops the server, `c` types a command to it, `tab` swaps the log
+for a Chat view of player activity, `f` toggles the full log against an
+important-only view of events, warnings and errors, `/` searches. On a wide
+terminal the rail on the right always carries the server's details, and adds who
+is online plus uptime, memory and CPU while it runs.
+
+## The actions overlay
+
+`a` opens the rest of the actions.
+
+![The actions overlay open over the console, offering Edit config and Launch settings](docs/demo/actions.png)
+
+The rows that show depend on the server. A vanished one offers Mark stopped, a
+script that does not hand off to Java offers Fix start script, a server that has
+not accepted the EULA offers Accept the Minecraft EULA. Edit config and Launch
+settings are always there.
+
+Edit config opens the common `server.properties` settings.
+
+![The config editor showing port, MOTD, difficulty, max players and the RCON block](docs/demo/config.png)
+
+Turning RCON on here is what makes the player list work. Beacon writes its port
+and password and mirrors them into its own record, so nothing needs re-importing.
+`esc` steps back to the actions overlay, `esc` again to the console.
 
 ## Why Beacon
 
@@ -71,38 +79,26 @@ You also need `tmux`:
 
 That is it. Beacon runs on macOS and Linux. Windows is not supported.
 
-## Getting started
+## First run
 
-Run it:
+Run `beacon`. It opens on a welcome screen because you have no servers yet.
 
-```sh
-beacon
-```
+1. Press `a` and browse to the folder your server lives in. No path typing.
+2. It shows up in the list. Beacon has already worked out how to launch it.
+3. Press `→` to open its console, then `s` to start it.
 
-The first run opens on a welcome screen because you have no servers yet.
+Point Beacon at a folder that holds several server folders and it picks up every
+one. Add more later from the `+ Add a server` row.
 
-1. Press `a` and pick the folder your server lives in. Beacon browses your
-   folders, so you do not need to type a path.
-2. Your server shows up in the list. Move the highlight with `↑` and `↓`.
-3. Press `→` to open that server's console. This is where everything happens:
-   `s` starts or stops it (stopping asks you to confirm), `a` opens the other
-   actions, `c` types a command to a running server. `←` steps back to the list.
-4. `a` on the console holds "Edit config": the common `server.properties`
-   settings (port, MOTD, difficulty, max players, RCON). Beacon writes only the
-   keys you change.
-5. Have many servers? The search bar above the list is always on, so just start
-   typing to filter by name.
-
-Have several servers, each in its own folder? Add each one from the
-`+ Add a server` row at the top of the list. Or point Beacon at a folder that
-contains all of them and it picks up every server inside.
-
-The console header shows which script or jar Beacon starts each server with
-(`via run.sh`). A pack that ships more than one launcher, such as a `run.sh` and
-a `start.sh`, defaults to `run.sh`; the "Launch settings" action switches it or
+A pack that ships more than one launcher, such as a `run.sh` and a `start.sh`,
+defaults to `run.sh`. Launch settings in the actions overlay switches that or
 sets the arguments passed to it.
 
-### Keys
+Beacon will not start a server whose `eula.txt` does not say `eula=true`. Accept
+the Minecraft EULA in the actions overlay writes it once you agree to
+<https://aka.ms/MinecraftEULA>.
+
+## Keys
 
 On the list:
 
@@ -115,44 +111,35 @@ On the list:
 | `ctrl+r` | re-scan your folders for new servers              |
 | `esc`    | clear the search, or quit when it is already empty |
 
+In the console:
+
+| Key        | What it does                                                  |
+| ---------- | ----------------------------------------------------------- |
+| `↑` `↓`    | scroll the log                                              |
+| `s`        | start, stop (after a confirm), or mark a vanished server stopped |
+| `K`        | force-kill, offered only after a stop has hung              |
+| `a`        | the actions overlay                                         |
+| `c`        | type a command to a running server                          |
+| `tab`      | switch between the server log and Chat                      |
+| `f`        | full log, or important only (events, warnings, errors)      |
+| `/`        | search the whole log, `esc` clears it                       |
+| `←` `esc`  | back to the list                                            |
+
 The list refreshes itself every second, so there is no refresh key. `ctrl+c`
-also quits from anywhere. Your servers keep running either way.
+quits from anywhere. Your servers keep running either way.
 
-In the console: `s` starts a stopped server, stops a running one (after a
-confirm), or marks a vanished one stopped. `K` force-kills, and is offered only
-after a stop has hung. `a` opens the rest of the actions: edit config, launch
-settings, accept the Minecraft EULA (until you have), fix start script. `↑` `↓`
-move in that overlay, `enter` runs the row, `esc` closes it.
-
-In the config editor: `↑` `↓` move between fields, `←` `→` change a choice or
-toggle, type into a text field, `enter` saves, `esc` cancels. Turning RCON on
-writes its port and password too, and mirrors them into Beacon so the player
-list works without a re-import.
-
-In the console screen: `↑` `↓` scroll, `c` types a command to the server, `←` or
-`esc` goes back. `tab` switches between the server log and a Chat view that shows
-player activity. On the server log, `f` switches between the full log and an
-important-only view that keeps just the events, warnings, and errors. In the
-full log those same lines are coloured and everything else is dimmed, so a busy
-log still reads. `/` searches the current view, and search looks through the
-whole log, not just the current filter, until you clear it with `esc`.
-
-On wide terminals a rail on the right carries the server's details always (port
-and health, RCON state, EULA state, launch command, folder) and, while it runs,
-who is online and its uptime, memory and CPU. The player list needs RCON, which
-the "Edit config" action turns on for you. The uptime, memory and CPU figures
-come from `ps` and need nothing configured; the same numbers show in the
-server's row on the list. On a narrow terminal the rail's facts fold into one
-line under the tab bar.
+In the full log, event, warning and error lines are coloured and everything else
+is dimmed, so a busy modded log still reads. Search looks through the whole log,
+not just the current filter, until you clear it.
 
 Next to the port, Beacon shows whether that port is accepting connections.
 `starting` means the process is up but has not opened its port yet, the normal
 state for the first half minute of a boot. `ready` means players can join. A
 server that sits on `starting` while its log has gone quiet is wedged.
 
-Beacon will not start a server whose `eula.txt` does not say `eula=true`. The
-"Accept the Minecraft EULA" action writes it once you agree to
-<https://aka.ms/MinecraftEULA>.
+The rail's uptime, memory and CPU come from `ps` and need nothing configured; the
+same numbers show in the server's row on the list. On a narrow terminal the
+rail's facts fold into one line under the tab bar.
 
 ## Questions
 
@@ -175,6 +162,9 @@ sitting in front of it) is how you use Beacon.
 session has vanished. It will not guess that the server is safely off, because
 guessing wrong is how you get two servers fighting over one port. Check the box,
 then open the console and press `s` to mark it stopped.
+
+**Can I rename a server?** Not yet. The name is taken from the folder when you
+add it, lowercased with odd characters turned to `-`.
 
 **Does it keep itself updated?** It tells you when a new version is out and shows
 the command to run. Updating is re-running the install line above.
