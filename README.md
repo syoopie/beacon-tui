@@ -68,6 +68,28 @@ curl -fsSL https://raw.githubusercontent.com/syoopie/beacon-tui/main/install.sh 
 Beacon runs on macOS and Linux. The installer pulls in `tmux` if you do not have
 it. Windows is not supported.
 
+## Uninstall
+
+Stop your servers from inside Beacon first, so nothing is left running under
+tmux. Then:
+
+```sh
+# 1. the binary (wherever the installer put it)
+rm -f "$(command -v beacon)"
+
+# 2. settings and logs
+rm -rf ~/.config/beacon ~/.local/state/beacon                  # Linux
+rm -rf ~/Library/Application\ Support/beacon ~/.local/state/beacon   # macOS
+```
+
+That removes everything Beacon wrote. Your server folders, worlds, and jars are
+yours and are never touched.
+
+If a server is still running, Beacon left a `beacon-<id>` tmux session behind.
+`tmux ls` lists them and `tmux kill-session -t beacon-<id>` stops one, which also
+stops that server. The installer may have installed `tmux` itself; remove it with
+your package manager if you want it gone.
+
 ## First run
 
 Run `beacon`. It opens on a welcome screen because you have no servers yet.

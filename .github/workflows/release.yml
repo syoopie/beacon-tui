@@ -46,10 +46,11 @@ jobs:
               -o "$out" ./cmd/beacon
           done
           cd dist
-          for f in beacon_*; do
+          bins="beacon_darwin_amd64 beacon_darwin_arm64 beacon_linux_amd64 beacon_linux_arm64"
+          for f in $bins; do
             sha256sum "$f" | tee "${f}.sha256"
           done
-          sha256sum beacon_* > SHA256SUMS
+          sha256sum $bins > SHA256SUMS
 
       - name: Create tag
         env:
