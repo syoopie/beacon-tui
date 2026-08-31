@@ -40,7 +40,7 @@ func setCommands(t *testing.T, dirs config.Dirs, s server.Spec, c server.Command
 	}
 }
 
-// runningConsoleInput boots a running server, opens its console, and presses c
+// runningConsoleInput boots a running server, opens its console, and presses /
 // to focus the command input.
 func runningConsoleInput(t *testing.T, cmds server.Commands) (*model, tea.Model) {
 	t.Helper()
@@ -53,9 +53,9 @@ func runningConsoleInput(t *testing.T, cmds server.Commands) (*model, tea.Model)
 	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
 
 	tm = openConsole(t, m, tm)
-	tm, _ = pressRune(t, m, tm, "c")
+	tm, _ = pressRune(t, m, tm, "/")
 	if m.console == nil {
-		t.Fatal("pressing c did not open the command input")
+		t.Fatal("pressing / did not open the command input")
 	}
 	return m, tm
 }
@@ -102,6 +102,33 @@ func TestConsoleCompletionSuggestsAndTabCycles(t *testing.T) {
 	}
 }
 
+func TestConsoleCompletionArrowsCycleWhenTyping(t *testing.T) {
+	m, tm := runningConsoleInput(t, server.Commands{MCVersion: "1.20.1"})
+
+	tm = typeRunes(t, tm, "ga")
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyDown})
+	if m.console.Value() != "gamemode" {
+		t.Fatalf("down put %q in the input, want gamemode", m.console.Value())
+	}
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyDown})
+	if m.console.Value() != "gamerule" {
+		t.Fatalf("second down put %q in the input, want gamerule", m.console.Value())
+	}
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyUp})
+	if m.console.Value() != "gamemode" {
+		t.Fatalf("up put %q in the input, want gamemode", m.console.Value())
+	}
+
+	// On an empty line the same arrows walk history instead.
+	m.console.SetValue("")
+	m.onConsoleEdit()
+	m.history.Add("seed")
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyUp})
+	if m.console.Value() != "seed" {
+		t.Fatalf("up on an empty line = %q, want the last command", m.console.Value())
+	}
+}
+
 func TestConsoleCompletionUsageHintForArguments(t *testing.T) {
 	m, tm := runningConsoleInput(t, server.Commands{MCVersion: "1.20.1"})
 
@@ -120,6 +147,10 @@ func TestConsoleCompletionOffWithoutVersion(t *testing.T) {
 	}
 	if !strings.Contains(m.cmp.Degraded, "could not detect") {
 		t.Fatalf("Degraded = %q, want it to explain the missing version", m.cmp.Degraded)
+	}
+	// The panel points the operator at the field that fixes it.
+	if panel := m.completionPanelView(80); !strings.Contains(panel, "Launch settings") {
+		t.Fatalf("completion panel = %q, want it to name Launch settings", panel)
 	}
 }
 
@@ -175,7 +206,7 @@ func TestConsoleHistoryPersistsAcrossReopen(t *testing.T) {
 	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
 
 	tm = openConsole(t, m, tm)
-	tm, _ = pressRune(t, m, tm, "c")
+	tm, _ = pressRune(t, m, tm, "/")
 	tm = typeRunes(t, tm, "seed")
 	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
 	for _, msg := range msgs {
@@ -188,7 +219,7 @@ func TestConsoleHistoryPersistsAcrossReopen(t *testing.T) {
 	tm2 = loadRegistry(t, m2, tm2)
 	m2.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
 	tm2 = openConsole(t, m2, tm2)
-	pressRune(t, m2, tm2, "c")
+	pressRune(t, m2, tm2, "/")
 
 	if m2.history == nil || len(m2.history.All()) != 1 || m2.history.All()[0] != "seed" {
 		t.Fatalf("reopened history = %v, want [seed]", historyLines(m2))
@@ -224,7 +255,7 @@ func TestConsoleCompletionBackfillsMissingVersion(t *testing.T) {
 
 	// The completion engine now works without the operator touching a file.
 	tm = openConsole(t, m, tm)
-	tm, _ = pressRune(t, m, tm, "c")
+	tm, _ = pressRune(t, m, tm, "/")
 	typeRunes(t, tm, "ga")
 	if len(m.cmp.Suggestions) < 2 || m.cmp.Degraded != "" {
 		t.Fatalf("completion still degraded after backfill: %d suggestions, %q", len(m.cmp.Suggestions), m.cmp.Degraded)

@@ -289,8 +289,11 @@ func (m *model) commandBar() helpSet {
 	switch {
 	case m.console != nil:
 		short := []key.Binding{hint("enter", "send")}
-		if m.completer != nil {
-			short = append(short, hint("tab", "complete"), hint("↑↓", "history"))
+		switch {
+		case m.completer != nil:
+			short = append(short, hint("↑↓", "complete · history"))
+		case m.history != nil:
+			short = append(short, hint("↑↓", "history"))
 		}
 		return helpSet{short: append(short, hint("esc", "close console"))}
 	case m.logSearch != nil:
@@ -325,8 +328,8 @@ func (m *model) commandBar() helpSet {
 			}
 		}
 		short := []key.Binding{
-			power, m.keys.Actions, hint("c", "command"),
-			hint("tab", "tabs"), hint("/", "search"), hint("esc", "back"), m.keys.Help,
+			power, m.keys.Actions, m.keys.Console,
+			hint("tab", "tabs"), m.keys.LogSearch, hint("esc", "back"), m.keys.Help,
 		}
 		full := [][]key.Binding{
 			{power, m.keys.Actions, m.keys.Console},
@@ -390,7 +393,7 @@ func (m *model) breadcrumb() string {
 	if spec, ok := m.selected(); ok && m.screen == screenConsole {
 		segs = append(segs, string(spec.ID))
 		if m.actions != nil {
-			segs = append(segs, "actions")
+			segs = append(segs, "settings")
 		}
 		switch {
 		case m.pat != nil:
@@ -659,22 +662,35 @@ func (m *model) launchDialogView() string {
 	}
 	for i, o := range lp.opts {
 		marker := "  "
-		label := o.Label
 		if i == lp.cursor {
 			marker = "▸ "
+		}
+		radio := "( ) "
+		label := o.Label
+		if i == lp.chosen {
+			radio = "(•) "
 			label = selectedRow.Render(label)
 		}
 		note := o.Base
 		if o.Script != "" && !o.Exec.Launchable() {
 			note += "   (not exec java; press p after saving to try to fix it)"
 		}
-		rows = append(rows, marker+label, mutedStyle.Render("    "+note))
+		rows = append(rows, marker+radio+label, mutedStyle.Render("      "+note))
+	}
+
+	field := func(row int, view string) string {
+		if lp.cursor == row {
+			return "▸ " + view
+		}
+		return "  " + view
 	}
 	rows = append(rows,
 		"",
-		lp.args.View(),
+		field(lp.argsRow(), lp.args.View()),
+		field(lp.versionRow(), lp.version.View()),
+		mutedStyle.Render("      the Minecraft version, for console command help"),
 		"",
-		m.hintBar(hint("↑↓", "choose"), hint("enter", "save"), hint("esc", "cancel")),
+		m.hintBar(hint("↑↓", "move"), hint("space", "pick method"), hint("enter", "save"), hint("esc", "cancel")),
 	)
 	inner := lipgloss.NewStyle().Width(width).Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
 	return lipgloss.Place(m.bodyW, m.bodyH, lipgloss.Center, lipgloss.Center, dialogStyle.Render(inner))

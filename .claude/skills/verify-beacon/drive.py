@@ -44,6 +44,8 @@ KEYS = {
     "tab": "\t",
     "space": " ",
     "bs": "\x7f",
+    "ctrl+f": "\x06",
+    "ctrl+r": "\x12",
 }
 
 SETTLE = 0.35

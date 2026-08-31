@@ -90,6 +90,30 @@ func (m *model) onConsoleEdit() {
 	m.recomputeCompletion()
 }
 
+// consoleUp is the up (delta -1) and down (delta +1) arrows in the command
+// input. What they do depends on where the operator is:
+//
+//   - already walking history, or mid tab-cycle: keep doing that.
+//   - a line with text and a suggestion list: step through the list, the way
+//     the arrows move a selection in any completion menu. This is the
+//     discoverable path; tab and shift+tab still do the same thing.
+//   - otherwise (empty line, or nothing to suggest): recall history, the shell
+//     convention.
+func (m *model) consoleUp(delta int) {
+	if m.console == nil {
+		return
+	}
+	if m.cmpCycle { // mid-cycle: keep stepping the pinned list
+		m.cycleSuggestion(delta)
+		return
+	}
+	if m.histIdx >= 0 || strings.TrimSpace(m.console.Value()) == "" || len(m.cmp.Suggestions) == 0 {
+		m.recallHistory(delta)
+		return
+	}
+	m.cycleSuggestion(delta)
+}
+
 // cycleSuggestion is tab (delta +1) and shift+tab (delta -1): it steps the
 // highlight through the suggestion list and rewrites the token being completed
 // to match, the way the vanilla client's tab key works. The first press starts
@@ -199,14 +223,28 @@ func (m *model) completionPanelView(w int) string {
 	// switched-off or mismatched tree is the only thing worth saying. An empty
 	// engine never emits a hint, so its fix-it note always shows.
 	status := m.cmp.Hint
+	cta := ""
 	if status == "" {
 		status = m.cmp.Degraded
+		// When the note is "could not detect the version", point at the field
+		// that fixes it rather than leaving the operator to guess. Its own line,
+		// so a narrow terminal does not truncate it away.
+		if spec, ok := m.selected(); ok && status != "" && spec.Commands.MCVersion == "" {
+			cta = "set it with  a → Launch settings"
+		}
 	}
 	if status != "" {
 		lines[0] = mutedStyle.Render(ansi.Truncate(status, max(w, 1), "…"))
 	}
+	if cta != "" {
+		lines[1] = mutedStyle.Render(ansi.Truncate(cta, max(w, 1), "…"))
+	}
 
-	rows := completionPanelH - 1 // suggestion rows below the status line
+	base := 1 // first row below the status line
+	if cta != "" {
+		base = 2
+	}
+	rows := completionPanelH - base // suggestion rows below the status line
 	sugs := m.cmp.Suggestions
 	start := 0
 	if len(sugs) > rows {
@@ -229,7 +267,7 @@ func (m *model) completionPanelView(w int) string {
 				text += "  " + mutedStyle.Render(s.Detail)
 			}
 		}
-		lines[1+i] = ansi.Truncate(marker+text, max(w, 1), "…")
+		lines[base+i] = ansi.Truncate(marker+text, max(w, 1), "…")
 	}
 
 	return strings.Join(lines, "\n")

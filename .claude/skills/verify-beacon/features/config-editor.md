@@ -24,13 +24,13 @@ port and RCON block into the spec.
   `rcon.password` with it, even when they still hold the shown values, and the
   save is refused if the password is empty.
 - **Save** (`enter`) writes and returns to the console. **Cancel** (`esc`)
-  steps back to the actions overlay with nothing written.
+  steps back to the settings overlay with nothing written.
 
 ## How to get to it (user POV)
 
 From the list: `→` to focus the detail column, `enter` on **Open console**, `a`
-for the actions overlay, `enter` on **Edit config** (it is the first row).
-`esc` backs out one level at a time: editor, then actions, then console.
+for the settings overlay, `enter` on **Edit config** (it is the first row).
+`esc` backs out one level at a time: editor, then settings, then console.
 
 ## Driving it with drive.py
 

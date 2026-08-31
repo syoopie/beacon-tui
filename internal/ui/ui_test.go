@@ -376,16 +376,16 @@ func TestBreadcrumbTracksWhereYouAre(t *testing.T) {
 	}
 
 	tm, _ = chooseAction(t, m, tm, "Edit config")
-	if got := m.breadcrumb(); !strings.Contains(got, "survival") || !strings.Contains(got, "actions") || !strings.Contains(got, "edit config") {
-		t.Fatalf("dialog breadcrumb should nest actions › edit config, got %q", got)
+	if got := m.breadcrumb(); !strings.Contains(got, "survival") || !strings.Contains(got, "settings") || !strings.Contains(got, "edit config") {
+		t.Fatalf("dialog breadcrumb should nest settings › edit config, got %q", got)
 	}
 
 	drive(t, tm, tea.KeyMsg{Type: tea.KeyEsc})
 	if m.config != nil || m.actions == nil {
-		t.Fatal("esc in the config editor should step back to the actions overlay")
+		t.Fatal("esc in the config editor should step back to the settings overlay")
 	}
-	if got := m.breadcrumb(); !strings.Contains(got, "actions") || strings.Contains(got, "edit config") {
-		t.Fatalf("breadcrumb should be back at actions, got %q", got)
+	if got := m.breadcrumb(); !strings.Contains(got, "settings") || strings.Contains(got, "edit config") {
+		t.Fatalf("breadcrumb should be back at settings, got %q", got)
 	}
 }
 
@@ -653,9 +653,9 @@ func TestConsoleSendsTypedLineToRunningServer(t *testing.T) {
 	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
 
 	tm = openConsole(t, m, tm)
-	tm, _ = pressRune(t, m, tm, "c")
+	tm, _ = pressRune(t, m, tm, "/")
 	if m.console == nil {
-		t.Fatal("pressing c in the console view did not open the input")
+		t.Fatal("pressing / in the console view did not open the input")
 	}
 
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("say hi")})
@@ -723,9 +723,9 @@ func TestConsoleLogTabsFilterAndSearch(t *testing.T) {
 	}
 
 	drive(t, tm, tea.KeyMsg{Type: tea.KeyTab}) // back to Server log
-	pressRune(t, m, tm, "/")
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyCtrlF})
 	if m.logSearch == nil {
-		t.Fatal("/ did not open the log search")
+		t.Fatal("ctrl+f did not open the log search")
 	}
 	drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("chunk")})
 	found := m.logBody()
@@ -831,7 +831,7 @@ func TestConsoleRefusedUnlessServerIsRunning(t *testing.T) {
 	tm = loadRegistry(t, m, tm)
 
 	tm = openConsole(t, m, tm)
-	pressRune(t, m, tm, "c")
+	pressRune(t, m, tm, "/")
 	if m.console != nil {
 		t.Fatal("console input opened for a server that is not running")
 	}
@@ -1115,7 +1115,9 @@ func TestLaunchSettingsEditsTheArguments(t *testing.T) {
 
 	tm = openConsole(t, m, tm)
 	tm, _ = chooseAction(t, m, tm, "Launch settings")
-	// The args field defaults to "nogui"; clear it and type a custom set.
+	// Step off the launch-method row down to the arguments field, which
+	// defaults to "nogui"; clear it and type a custom set.
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyDown})
 	for range "nogui" {
 		tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyBackspace})
 	}
@@ -1131,5 +1133,45 @@ func TestLaunchSettingsEditsTheArguments(t *testing.T) {
 	}
 	if reloaded.Start != "./run.sh nogui --world lobby" {
 		t.Fatalf("Start = %q, want ./run.sh nogui --world lobby", reloaded.Start)
+	}
+}
+
+func TestLaunchSettingsSetsTheMinecraftVersion(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	if err := os.WriteFile(filepath.Join(spec.Dir, "run.sh"),
+		[]byte("#!/bin/sh\nexec java -jar server.jar \"$@\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tm = loadRegistry(t, m, tm)
+
+	tm = openConsole(t, m, tm)
+	tm, _ = chooseAction(t, m, tm, "Launch settings")
+	// Down past the launch method and the arguments field to the version field.
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyDown})
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyDown})
+
+	// A malformed version is refused, the dialog stays open.
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("nonsense")})
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.launch == nil {
+		t.Fatal("a bad version closed the dialog; it should have been refused")
+	}
+
+	for range "nonsense" {
+		tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyBackspace})
+	}
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1.20.1")})
+	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	for _, msg := range msgs {
+		tm, _ = drive(t, tm, msg)
+	}
+
+	reloaded, err := config.LoadSpec(dirs.ServerFile(spec.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Commands.MCVersion != "1.20.1" {
+		t.Fatalf("Commands.MCVersion = %q, want 1.20.1", reloaded.Commands.MCVersion)
 	}
 }

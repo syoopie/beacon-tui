@@ -389,9 +389,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	if m.launch != nil {
-		ti, cmd := m.launch.args.Update(msg)
+		ti, ac := m.launch.args.Update(msg)
 		m.launch.args = ti
-		return m, cmd
+		vi, vc := m.launch.version.Update(msg)
+		m.launch.version = vi
+		return m, tea.Batch(ac, vc)
 	}
 	if m.config != nil {
 		ti, cmd := m.config.input.Update(msg)
@@ -568,17 +570,17 @@ func (m *model) updateConsole(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return m.closeConsole("console closed")
+	case "up":
+		m.consoleUp(-1)
+		return m, nil
+	case "down":
+		m.consoleUp(1)
+		return m, nil
 	case "tab":
 		m.cycleSuggestion(1)
 		return m, nil
 	case "shift+tab":
 		m.cycleSuggestion(-1)
-		return m, nil
-	case "up":
-		m.recallHistory(-1)
-		return m, nil
-	case "down":
-		m.recallHistory(1)
 		return m, nil
 	case "enter":
 		line := strings.TrimSpace(m.console.Value())

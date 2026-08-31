@@ -63,6 +63,11 @@ func (c Commands) validate() error {
 // for this server. It is off only when the operator set it so.
 func (c Commands) CompletionEnabled() bool { return c.Completion != "off" }
 
+// ValidMCVersion reports whether s is a Minecraft version string Beacon accepts,
+// like "1.20" or "1.20.1". The empty string is not valid here; callers that
+// allow "unset" check for that themselves.
+func ValidMCVersion(s string) bool { return mcVersionRe.MatchString(s) }
+
 // RCON mirrors server.properties. The password is plaintext on disk, which is
 // why spec files are 0600.
 type RCON struct {

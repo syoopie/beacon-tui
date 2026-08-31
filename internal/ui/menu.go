@@ -173,7 +173,7 @@ func (m *model) actionsDialogView() string {
 		return ""
 	}
 	m.clampActionsCursor()
-	rows := []string{sectionStyle.Render(string(spec.ID) + "  ·  actions"), ""}
+	rows := []string{sectionStyle.Render(string(spec.ID) + "  ·  settings"), ""}
 	for i, row := range m.consoleActions() {
 		marker := "  "
 		label := row.label
