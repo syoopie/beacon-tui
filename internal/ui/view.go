@@ -165,12 +165,10 @@ func (m *model) commandBar() helpSet {
 			hint("→", "open folder"), hint("←", "up a level"),
 			hint("enter", "choose this folder"), hint("esc", "cancel"),
 		}}
-	case m.pat != nil:
-		return helpSet{short: []key.Binding{hint("y", "apply fix"), hint("esc", "leave unchanged")}}
-	case m.launch != nil:
-		return helpSet{short: []key.Binding{hint("↑↓", "choose"), hint("enter", "save"), hint("esc", "cancel")}}
-	case m.config != nil:
-		return helpSet{short: []key.Binding{hint("↑↓", "field"), hint("←→", "change"), hint("enter", "save"), hint("esc", "cancel")}}
+	case m.pat != nil, m.launch != nil, m.config != nil:
+		// These are centred dialogs that carry their own key hints in a footer,
+		// right under the fields. Repeating them up here just adds noise.
+		return helpSet{}
 	case m.list.FilterState() == list.Filtering:
 		return helpSet{short: []key.Binding{hint("enter", "apply filter"), hint("esc", "clear")}}
 	}
