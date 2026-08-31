@@ -25,6 +25,7 @@ import (
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/importdetect"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/mccmd"
 	"github.com/syoopie/beacon-tui/internal/mcprops"
 	"github.com/syoopie/beacon-tui/internal/procstat"
 	"github.com/syoopie/beacon-tui/internal/rcon"
@@ -100,6 +101,27 @@ type model struct {
 	logQuery         string
 	logSearch        *textinput.Model
 	railW            int
+
+	// Console command completion, live while the command input is open.
+	// completer is nil when the selected server has completion turned off or
+	// its build failed; cmpKey guards a rebuild to when the spec's [commands]
+	// block actually changed. history is that server's recall ring.
+	completer mccmd.Completer
+	cmpKey    string
+	cmp       mccmd.Result
+	cmpSel    int // highlighted suggestion, and the cursor while tab-cycling
+
+	// tab-cycle state: while cmpCycle is set, tab and shift+tab step cmpSel
+	// through cmpList, rewriting the token that starts at byte cmpAnchor. Any
+	// other key ends the cycle.
+	cmpCycle  bool
+	cmpList   []mccmd.Suggestion
+	cmpAnchor int
+
+	history   *mccmd.History
+	histID    server.ID // server the loaded history belongs to
+	histIdx   int       // -1 when on the live line, else an index into history
+	histStash string    // the live line, kept while recalling
 
 	rconSnap     rcon.Snapshot
 	rconErr      string
@@ -505,6 +527,9 @@ func (m *model) openConsole(spec server.Spec) tea.Cmd {
 	ti.Focus()
 	m.console = &ti
 	m.status = "console open"
+	m.ensureConsoleData()
+	m.resetCompletionState()
+	m.recomputeCompletion()
 	m.relayout()
 	return textinput.Blink
 }
@@ -512,6 +537,7 @@ func (m *model) openConsole(spec server.Spec) tea.Cmd {
 func (m *model) closeConsole(reason string) (tea.Model, tea.Cmd) {
 	m.console = nil
 	m.status = reason
+	m.resetCompletionState()
 	m.relayout()
 	return m, nil
 }
@@ -520,6 +546,18 @@ func (m *model) updateConsole(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return m.closeConsole("console closed")
+	case "tab":
+		m.cycleSuggestion(1)
+		return m, nil
+	case "shift+tab":
+		m.cycleSuggestion(-1)
+		return m, nil
+	case "up":
+		m.recallHistory(-1)
+		return m, nil
+	case "down":
+		m.recallHistory(1)
+		return m, nil
 	case "enter":
 		line := strings.TrimSpace(m.console.Value())
 		if line == "" {
@@ -530,10 +568,19 @@ func (m *model) updateConsole(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.closeConsole("console closed (no server selected)")
 		}
 		m.console.SetValue("")
-		return m, m.consoleCmd(spec, line)
+		var save tea.Cmd
+		if m.history != nil {
+			m.history.Add(line)
+			save = m.consoleHistoryCmd(spec.ID)
+		}
+		m.resetCompletionState()
+		m.recomputeCompletion()
+		return m, tea.Batch(m.consoleCmd(spec, line), save)
 	}
+
 	ti, cmd := m.console.Update(msg)
 	m.console = &ti
+	m.onConsoleEdit()
 	return m, cmd
 }
 
@@ -747,8 +794,11 @@ func (m *model) relayout() {
 	}
 	// rows: header(1) + help(helpH) + spacer(1) + [notice + spacer] + body + spacer(1) + status(1)
 	bodyH := innerH - helpH - noticeH - 4
-	if m.console != nil || m.logSearch != nil {
+	if m.logSearch != nil {
 		bodyH -= 2 // spacer + input bar
+	}
+	if m.console != nil {
+		bodyH -= 2 + completionPanelH // spacer + completion panel + input bar
 	}
 	bodyH = max(bodyH, 3)
 	m.bodyH = bodyH

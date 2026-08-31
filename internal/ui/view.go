@@ -288,7 +288,11 @@ func humanShortDuration(d time.Duration) string {
 func (m *model) commandBar() helpSet {
 	switch {
 	case m.console != nil:
-		return helpSet{short: []key.Binding{hint("enter", "send"), hint("esc", "close console")}}
+		short := []key.Binding{hint("enter", "send")}
+		if m.completer != nil {
+			short = append(short, hint("tab", "complete"), hint("↑↓", "history"))
+		}
+		return helpSet{short: append(short, hint("esc", "close console"))}
 	case m.logSearch != nil:
 		return helpSet{short: []key.Binding{hint("enter", "keep filter"), hint("esc", "clear search")}}
 	case m.pat != nil, m.launch != nil, m.config != nil:
@@ -370,7 +374,7 @@ func (m *model) View() string {
 	rows = append(rows, m.bodyView())
 	switch {
 	case m.console != nil:
-		rows = append(rows, "", consoleBarStyle.Render(m.console.View()))
+		rows = append(rows, "", m.completionPanelView(m.bodyW), consoleBarStyle.Render(m.console.View()))
 	case m.logSearch != nil:
 		rows = append(rows, "", consoleBarStyle.Render(m.logSearch.View()))
 	}

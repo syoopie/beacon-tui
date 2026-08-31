@@ -79,6 +79,11 @@ func (e *Engine) Degraded() string { return e.degraded }
 // cursor is ignored, the way a shell completes.
 func (e *Engine) Complete(line string, cursor int) Result {
 	res := Result{Degraded: e.degraded}
+	if len(e.root.Children) == 0 {
+		// Nothing was contributed: no suggestions, and no per-keystroke hint to
+		// distract from the Degraded note that says how to fix it.
+		return res
+	}
 	if cursor < 0 || cursor > len(line) {
 		cursor = len(line)
 	}
@@ -108,8 +113,13 @@ func (e *Engine) Complete(line string, cursor int) Result {
 		} else {
 			res.Hint = "unexpected: " + partial
 		}
-	case pos.Kind != KindRoot:
-		res.Hint = formatUsage(e.root, pos, usageBudget)
+	case pos.argChild() != nil || pos.Executable:
+		// Show a usage hint only when it says something the suggestion list
+		// cannot: an argument to type, or that the command may already end
+		// here. A plain branch of literal children is already the list.
+		if pos.Kind != KindRoot {
+			res.Hint = formatUsage(e.root, pos, usageBudget)
+		}
 	}
 	return res
 }

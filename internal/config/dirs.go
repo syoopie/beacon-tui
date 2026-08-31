@@ -50,3 +50,10 @@ func (d Dirs) LogsDir() string { return filepath.Join(d.State, "logs") }
 func (d Dirs) LogFile(id server.ID) string {
 	return filepath.Join(d.LogsDir(), id.String()+".log")
 }
+
+func (d Dirs) HistoryDir() string { return filepath.Join(d.State, "history") }
+
+// HistoryFile is where a server's console command recall is persisted.
+func (d Dirs) HistoryFile(id server.ID) string {
+	return filepath.Join(d.HistoryDir(), id.String()+".txt")
+}

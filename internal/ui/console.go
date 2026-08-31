@@ -25,6 +25,7 @@ func (m *model) openConsoleScreen() {
 	m.rconSnap = rcon.Snapshot{}
 	m.rconErr = ""
 	m.rconAt = time.Time{}
+	m.ensureConsoleData()
 	m.relayout()
 	m.vp.GotoBottom()
 }
