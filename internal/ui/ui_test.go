@@ -931,6 +931,40 @@ func drainMsgs(t *testing.T, tm tea.Model, msgs []tea.Msg) tea.Model {
 	return tm
 }
 
+// setConfigField drives the open config editor the way an operator would: arrow
+// the cursor onto the field, then retype it or cycle it to the wanted value.
+func setConfigField(t *testing.T, m *model, tm tea.Model, key, value string) tea.Model {
+	t.Helper()
+	idx := -1
+	for i, f := range configFields {
+		if f.key == key {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		t.Fatalf("no config field %q", key)
+	}
+	for m.config.cursor != idx {
+		k := tea.KeyDown
+		if m.config.cursor > idx {
+			k = tea.KeyUp
+		}
+		tm, _ = drive(t, tm, tea.KeyMsg{Type: k})
+	}
+	switch configFields[idx].kind {
+	case fieldText:
+		for len(m.config.input.Value()) > 0 {
+			tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyBackspace})
+		}
+		tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})
+	default:
+		for !strings.EqualFold(m.config.values[idx], value) {
+			tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRight})
+		}
+	}
+	return tm
+}
+
 func TestConfigEditorWritesPropertiesAndMirrorsRCON(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	spec := writeSpec(t, dirs, "survival")
@@ -946,43 +980,12 @@ func TestConfigEditorWritesPropertiesAndMirrorsRCON(t *testing.T) {
 		t.Fatal("Edit config did not open the editor")
 	}
 
-	set := func(key, value string) {
-		t.Helper()
-		idx := -1
-		for i, f := range configFields {
-			if f.key == key {
-				idx = i
-			}
-		}
-		if idx < 0 {
-			t.Fatalf("no config field %q", key)
-		}
-		for m.config.cursor != idx {
-			k := tea.KeyDown
-			if m.config.cursor > idx {
-				k = tea.KeyUp
-			}
-			tm, _ = drive(t, tm, tea.KeyMsg{Type: k})
-		}
-		switch configFields[idx].kind {
-		case fieldText:
-			for len(m.config.input.Value()) > 0 {
-				tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyBackspace})
-			}
-			tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)})
-		default:
-			for !strings.EqualFold(m.config.values[idx], value) {
-				tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRight})
-			}
-		}
-	}
-
-	set("motd", "welcome home")
-	set("rcon.password", "hunter2")
-	set("enable-rcon", "true")
+	tm = setConfigField(t, m, tm, "motd", "welcome home")
+	tm = setConfigField(t, m, tm, "rcon.password", "hunter2")
+	tm = setConfigField(t, m, tm, "enable-rcon", "true")
 
 	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
-	tm = drainMsgs(t, tm, msgs)
+	drainMsgs(t, tm, msgs)
 
 	props, err := mcprops.LoadProperties(spec.Dir)
 	if err != nil {
@@ -1000,6 +1003,76 @@ func TestConfigEditorWritesPropertiesAndMirrorsRCON(t *testing.T) {
 	}
 	if !reloaded.RCON.Enabled || reloaded.RCON.Password != "hunter2" || reloaded.RCON.Port != 25575 {
 		t.Fatalf("spec RCON not mirrored: %+v", reloaded.RCON)
+	}
+}
+
+// openConfigEditor boots a server with the given server.properties and opens the
+// editor on it.
+func openConfigEditor(t *testing.T, props string) (*model, tea.Model, server.Spec) {
+	t.Helper()
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	if err := os.WriteFile(filepath.Join(spec.Dir, "server.properties"), []byte(props), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tm = loadRegistry(t, m, tm)
+	tm = openConsole(t, m, tm)
+	tm, _ = chooseAction(t, m, tm, "Edit config")
+	if m.config == nil {
+		t.Fatal("Edit config did not open the editor")
+	}
+	return m, tm, spec
+}
+
+func TestConfigEditorWritesExpandedKeys(t *testing.T) {
+	m, tm, spec := openConfigEditor(t, "#Minecraft server properties\nmotd=old\n")
+
+	tm = setConfigField(t, m, tm, "gamemode", "creative")
+	tm = setConfigField(t, m, tm, "hardcore", "true")
+	tm = setConfigField(t, m, tm, "view-distance", "16")
+
+	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	drainMsgs(t, tm, msgs)
+
+	props, err := mcprops.LoadProperties(spec.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{
+		"gamemode":      "creative",
+		"hardcore":      "true",
+		"view-distance": "16",
+		"motd":          "old",
+	} {
+		if got := props.GetOr(key, ""); got != want {
+			t.Errorf("%s = %q, want %q", key, got, want)
+		}
+	}
+	if !strings.Contains(string(props.Render()), "#Minecraft server properties") {
+		t.Fatalf("editor dropped the header comment:\n%s", props.Render())
+	}
+}
+
+func TestConfigEditorRejectsOutOfRange(t *testing.T) {
+	const original = "#Minecraft server properties\nmotd=old\n"
+	m, tm, spec := openConfigEditor(t, original)
+
+	tm = setConfigField(t, m, tm, "view-distance", "99")
+	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	drainMsgs(t, tm, msgs)
+
+	if m.config == nil {
+		t.Fatal("out-of-range view distance closed the editor")
+	}
+	if !strings.Contains(m.status, "between 3 and 32") {
+		t.Fatalf("status = %q, want the view-distance range", m.status)
+	}
+	after, err := os.ReadFile(filepath.Join(spec.Dir, "server.properties"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != original {
+		t.Fatalf("server.properties was written:\n%s", after)
 	}
 }
 
