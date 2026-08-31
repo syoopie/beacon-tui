@@ -113,17 +113,16 @@ func (m *model) updateActions(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(msg, m.keys.Enter):
 		if m.actions.cursor < len(rows) {
-			act := rows[m.actions.cursor].act
-			m.actions = nil
-			m.relayout()
-			return m, m.runAction(act)
+			return m, m.runAction(rows[m.actions.cursor].act)
 		}
 	}
 	return m, nil
 }
 
-// runAction fires an action. Actions that mutate a server take the busy path;
-// opening a modal does not.
+// runAction fires an action. Opening a modal keeps the actions overlay behind
+// it, so its breadcrumb nests one level deeper and esc in the modal steps back
+// to the overlay rather than the console. Every other action leaves the overlay
+// and takes the busy path.
 func (m *model) runAction(act menuAction) tea.Cmd {
 	spec, ok := m.selected()
 	if !ok {
@@ -137,6 +136,9 @@ func (m *model) runAction(act menuAction) tea.Cmd {
 	case actPatch:
 		return m.planPatchCmd(spec)
 	}
+
+	m.actions = nil
+	m.relayout()
 
 	if m.busy {
 		m.status = busyStatus

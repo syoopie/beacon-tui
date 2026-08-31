@@ -76,6 +76,7 @@ func (m *model) updateLaunch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		opt := lp.opts[lp.cursor]
 		args := strings.TrimSpace(lp.args.Value())
 		m.launch = nil
+		m.actions = nil
 		m.busy = true
 		m.status = "saving launch settings…"
 		m.relayout()

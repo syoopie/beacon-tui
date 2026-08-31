@@ -584,6 +584,7 @@ func (m *model) updatePatch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "y":
 		p := m.pat.patch
 		m.pat = nil
+		m.actions = nil
 		m.busy = true
 		m.status = "patching…"
 		m.relayout()

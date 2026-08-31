@@ -198,6 +198,7 @@ func (m *model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		id := cf.id
 		m.config = nil
+		m.actions = nil
 		m.relayout()
 		if len(edits) == 0 {
 			m.status = string(id) + ": no changes"

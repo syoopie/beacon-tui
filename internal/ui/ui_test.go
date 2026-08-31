@@ -375,9 +375,17 @@ func TestBreadcrumbTracksWhereYouAre(t *testing.T) {
 		t.Fatalf("console breadcrumb should read Beacon › survival, got %q", got)
 	}
 
-	chooseAction(t, m, tm, "Edit config")
-	if got := m.breadcrumb(); !strings.Contains(got, "survival") || !strings.Contains(got, "edit config") {
-		t.Fatalf("dialog breadcrumb should extend to edit config, got %q", got)
+	tm, _ = chooseAction(t, m, tm, "Edit config")
+	if got := m.breadcrumb(); !strings.Contains(got, "survival") || !strings.Contains(got, "actions") || !strings.Contains(got, "edit config") {
+		t.Fatalf("dialog breadcrumb should nest actions › edit config, got %q", got)
+	}
+
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyEsc})
+	if m.config != nil || m.actions == nil {
+		t.Fatal("esc in the config editor should step back to the actions overlay")
+	}
+	if got := m.breadcrumb(); !strings.Contains(got, "actions") || strings.Contains(got, "edit config") {
+		t.Fatalf("breadcrumb should be back at actions, got %q", got)
 	}
 }
 

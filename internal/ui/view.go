@@ -291,6 +291,11 @@ func (m *model) commandBar() helpSet {
 		return helpSet{short: []key.Binding{hint("enter", "send"), hint("esc", "close console")}}
 	case m.logSearch != nil:
 		return helpSet{short: []key.Binding{hint("enter", "keep filter"), hint("esc", "clear search")}}
+	case m.pat != nil, m.launch != nil, m.config != nil:
+		// These are centred dialogs that carry their own key hints in a footer,
+		// right under the fields. Repeating them up here just adds noise. They
+		// can sit on top of the actions overlay, so this case comes first.
+		return helpSet{}
 	case m.actions != nil:
 		return helpSet{short: []key.Binding{hint("↑↓", "move"), hint("enter", "run"), hint("esc", "close")}}
 	case m.pick != nil:
@@ -298,10 +303,6 @@ func (m *model) commandBar() helpSet {
 			hint("→", "open folder"), hint("←", "up a level"),
 			hint("enter", "choose this folder"), hint("esc", "cancel"),
 		}}
-	case m.pat != nil, m.launch != nil, m.config != nil:
-		// These are centred dialogs that carry their own key hints in a footer,
-		// right under the fields. Repeating them up here just adds noise.
-		return helpSet{}
 	}
 
 	if m.screen == screenConsole {
@@ -382,19 +383,18 @@ func (m *model) View() string {
 // colour, the separators are faint, and the last segment reads in normal weight.
 func (m *model) breadcrumb() string {
 	segs := []string{"Beacon"}
-	if spec, ok := m.selected(); ok {
-		id := string(spec.ID)
+	if spec, ok := m.selected(); ok && m.screen == screenConsole {
+		segs = append(segs, string(spec.ID))
+		if m.actions != nil {
+			segs = append(segs, "actions")
+		}
 		switch {
 		case m.pat != nil:
-			segs = append(segs, id, "fix start script")
+			segs = append(segs, "fix start script")
 		case m.launch != nil:
-			segs = append(segs, id, "launch settings")
+			segs = append(segs, "launch settings")
 		case m.config != nil:
-			segs = append(segs, id, "edit config")
-		case m.actions != nil:
-			segs = append(segs, id, "actions")
-		case m.screen == screenConsole:
-			segs = append(segs, id)
+			segs = append(segs, "edit config")
 		}
 	}
 	if m.pick != nil {
