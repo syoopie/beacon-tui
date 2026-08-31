@@ -12,30 +12,31 @@ server half-dead.
   Beacon                                         ↑ v0.2.0 available
   ↑ up • ↓ down • → console • ctrl+r scan folders • esc quit
 
-  search  type to filter servers
+  ╭──────────────────────────────────────────────────
+  │ ⌕ Search…
+  ╰──────────────────────────────────────────────────
 
     +  Add a server
 
-  running
-  ▎ ● survival  ·  running  ·  :25565 ready
-      up 4h12m  ·  mem 3.1 GiB  ·  cpu 42%
-
-  stopped
-    ○ creative  ·  stopped  ·  :25566
-      via run.sh
-
-  unknown
-    ◆ skyblock  ·  unknown  ·  :25567
-      session vanished; open the console and press s to mark it stopped
+      NAME               STATUS    PORT      DETAIL
+  ────────────────────────────────────────────────────
+  ▎ ● survival            running   25565 ●   4h12m · 3.1G · 42%
+    ○ creative            stopped   25566     run.sh
+    ◆ skyblock            unknown   25567     session lost
 
   ready
 ```
 
-The list is a view. Servers are grouped by state, live ones first, and each card
-carries a second line: how a running server is doing, or what starts a stopped
-one. The search bar above the list is always on, so just start typing to filter
-by name. The `+ Add a server` row at the top opens the folder picker; `ctrl+r`
-re-scans the folders Beacon already watches.
+The list is a view, one aligned row per server. Running servers sort to the top
+and their DETAIL column shows uptime, memory and CPU; a stopped server shows its
+launcher; a lost one shows a short token, with the full warning in the banner.
+The health dot after the port is green once players can join, amber while the
+server is still opening it.
+
+The search box is always on, so just start typing to filter by name. The
+`+ Add a server` row opens the folder picker; `ctrl+r` re-scans the folders
+Beacon already watches. On a narrow terminal the columns drop from the right,
+and below about 55 they collapse to a single loose line.
 
 Press `→` on a server to open its console, and everything happens from there:
 `s` starts or stops it, `a` opens the rest of the actions (edit config, launch
@@ -140,8 +141,8 @@ On wide terminals a rail on the right carries the server's details always (port
 and health, RCON state, EULA state, launch command, folder) and, while it runs,
 who is online and its uptime, memory and CPU. The player list needs RCON, which
 the "Edit config" action turns on for you. The uptime, memory and CPU figures
-come from `ps` and need nothing configured; the same numbers show on the
-server's card in the list. On a narrow terminal the rail's facts fold into one
+come from `ps` and need nothing configured; the same numbers show in the
+server's row on the list. On a narrow terminal the rail's facts fold into one
 line under the tab bar.
 
 Next to the port, Beacon shows whether that port is accepting connections.

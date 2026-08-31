@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/dustin/go-humanize"
 
@@ -104,15 +105,8 @@ type serverItem struct {
 
 func (i serverItem) FilterValue() string { return string(i.spec.ID) }
 
-// addRow is the single action row above the server groups. Selecting it opens
-// the folder picker. Its empty FilterValue drops it from the list the moment
-// the search has text, so a query only ever shows matching servers.
-type addRow struct{}
-
-func (addRow) FilterValue() string { return "" }
-
-// statusGroup buckets a status for the list: live servers first, then stopped,
-// then the ones Beacon has lost track of.
+// statusGroup buckets a status for the list sort: live servers first, then
+// stopped, then the ones Beacon has lost track of.
 func statusGroup(s server.Status) int {
 	switch s {
 	case server.StatusRunning, server.StatusStarting, server.StatusStopping:
@@ -124,123 +118,151 @@ func statusGroup(s server.Status) int {
 	}
 }
 
-func groupLabel(g int) string {
-	switch g {
-	case 0:
-		return "running"
-	case 1:
-		return "stopped"
+// listCols is the set of columns a given list width can carry. name == 0 means
+// the width is too small for a table at all, and the row falls back to one
+// loose line. Columns drop right to left as the terminal narrows.
+type listCols struct {
+	name   int // name column width, 0 for the compact fallback
+	status bool
+	port   bool
+	dot    bool // the port-health dot
+	detail bool
+}
+
+func columnsFor(width int) listCols {
+	switch {
+	case width < 55:
+		return listCols{}
+	case width < 66:
+		return listCols{name: 16, status: true}
+	case width < 82:
+		return listCols{name: 16, status: true, port: true}
+	case width < 120:
+		return listCols{name: 20, status: true, port: true, dot: true, detail: true}
 	default:
-		return "unknown"
+		return listCols{name: 28, status: true, port: true, dot: true, detail: true}
 	}
 }
 
-// serverDelegate draws each server as a two-line card: a status line, then a
-// dimmed detail line. compact drops the detail line on a narrow terminal. A
-// group label rides above the first card of each group.
-type serverDelegate struct{ compact bool }
-
-func (d serverDelegate) Height() int {
-	if d.compact {
-		return 2
+// portHealthDot is the compact form of portHealthLabel for the list: a filled
+// dot after the port, green once the port accepts connections, amber while the
+// session is up but the port has not opened, nothing for a stopped server.
+func portHealthDot(h reconcile.PortHealth) (string, lipgloss.TerminalColor) {
+	switch h {
+	case reconcile.PortOpen:
+		return "●", runColor
+	case reconcile.PortClosed:
+		return "●", transColor
+	default:
+		return " ", mutedColor
 	}
-	return 3
 }
+
+// serverDelegate draws each server as one aligned row. cols is the column set
+// the current width can fit; blurred suppresses the cursor row while focus is
+// on the add row above the list.
+type serverDelegate struct {
+	cols    listCols
+	blurred bool
+}
+
+func (serverDelegate) Height() int                         { return 1 }
 func (serverDelegate) Spacing() int                        { return 0 }
 func (serverDelegate) Update(tea.Msg, *list.Model) tea.Cmd { return nil }
 
 func (d serverDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	si, ok := item.(serverItem)
+	if !ok {
+		return
+	}
 	width := max(m.Width(), 12)
-	selected := index == m.Index()
-	clip := func(s string) string { return lipgloss.NewStyle().MaxWidth(width).Render(s) }
+	selected := index == m.Index() && !d.blurred
+	sc := lipgloss.NewStyle().Foreground(statusColor(si.status))
 
 	bar := "  "
 	if selected {
 		bar = markerStyle.Render("▎ ")
 	}
+	name := string(si.spec.ID)
 
-	if _, ok := item.(addRow); ok {
-		label := "+  Add a server"
+	if d.cols.name == 0 { // too narrow for a table
 		if selected {
-			label = selectedRow.Render(label)
-		} else {
-			label = mutedStyle.Render(label)
+			name = selectedRow.Render(name)
 		}
-		rows := []string{"", clip(bar + label)}
-		for len(rows) < d.Height() {
-			rows = append(rows, "")
-		}
-		_, _ = fmt.Fprint(w, strings.Join(rows, "\n"))
+		line := bar + sc.Render(statusGlyph(si.status)) + " " + name +
+			mutedStyle.Render("  ·  ") + sc.Render(si.status.String())
+		_, _ = fmt.Fprint(w, lipgloss.NewStyle().MaxWidth(width).Render(line))
 		return
 	}
 
-	si, ok := item.(serverItem)
-	if !ok {
-		return
-	}
-
-	label := ""
-	vis := m.VisibleItems()
-	if index == 0 {
-		label = mutedStyle.Render(groupLabel(statusGroup(si.status)))
-	} else if prev, ok := vis[index-1].(serverItem); !ok || statusGroup(prev.status) != statusGroup(si.status) {
-		label = mutedStyle.Render(groupLabel(statusGroup(si.status)))
-	}
-
-	name := lipgloss.NewStyle().Render(string(si.spec.ID))
+	nameCell := ansi.Truncate(name, d.cols.name, "…")
+	nameCell = nameCell + strings.Repeat(" ", max(d.cols.name-ansi.StringWidth(nameCell), 0))
 	if selected {
-		name = selectedRow.Render(string(si.spec.ID))
+		nameCell = selectedRow.Render(nameCell)
 	}
-
-	color := lipgloss.NewStyle().Foreground(statusColor(si.status))
-	dot := mutedStyle.Render("  ·  ")
-	head := color.Render(statusGlyph(si.status)) + " " + name +
-		dot + color.Render(si.status.String())
-	if si.spec.Port > 0 {
-		head += dot + mutedStyle.Render(fmt.Sprintf(":%d", si.spec.Port))
-		if word, hc := portHealthLabel(si.health); word != "" {
-			head += " " + lipgloss.NewStyle().Foreground(hc).Render(word)
+	line := bar + sc.Render(statusGlyph(si.status)) + " " + nameCell
+	line += "  " + sc.Render(pad(si.status.String(), statusColW))
+	if d.cols.port {
+		cell := strings.Repeat(" ", portColW)
+		if si.spec.Port > 0 {
+			cell = fmt.Sprintf("%-5d", si.spec.Port)
+			if d.cols.dot {
+				g, gc := portHealthDot(si.health)
+				cell += " " + lipgloss.NewStyle().Foreground(gc).Render(g)
+			}
+		}
+		line += "  " + mutedStyle.Render(cell)
+	}
+	if d.cols.detail {
+		avail := width - ansi.StringWidth(line) - 2
+		if avail > 4 {
+			ds := mutedStyle
+			if selected {
+				ds = lipgloss.NewStyle()
+			}
+			line += "  " + ds.Render(ansi.Truncate(rowDetail(si), avail, "…"))
 		}
 	}
-
-	// The first row is the group label at a group boundary, one blank line as a
-	// separator mid-group, and nothing for the very first card.
-	top := ""
-	if label != "" {
-		top = label
-	} else if index > 0 {
-		top = " "
-	}
-	rows := []string{top, clip(bar + head)}
-	if !d.compact {
-		rows = append(rows, clip("  "+mutedStyle.Render(cardDetail(si))))
-	}
-	for len(rows) < d.Height() {
-		rows = append(rows, "")
-	}
-	_, _ = fmt.Fprint(w, strings.Join(rows, "\n"))
+	_, _ = fmt.Fprint(w, lipgloss.NewStyle().MaxWidth(width).Render(line))
 }
 
-// cardDetail is the dimmed second line: how a running server is doing, or what
-// starts a stopped one, or why a vanished one needs a look.
-func cardDetail(si serverItem) string {
+const (
+	statusColW = 8
+	portColW   = 7
+)
+
+// pad right-pads s with spaces to display width n.
+func pad(s string, n int) string {
+	if gap := n - ansi.StringWidth(s); gap > 0 {
+		return s + strings.Repeat(" ", gap)
+	}
+	return s
+}
+
+// rowDetail is the abbreviated last column: how a running server is doing, what
+// starts a stopped one, or a short token for one Beacon has lost. The full text
+// lives in the console and, for the lost case, the notice banner.
+func rowDetail(si serverItem) string {
 	switch statusGroup(si.status) {
 	case 0:
 		if si.hasProc {
-			return fmt.Sprintf("up %s  ·  mem %s  ·  cpu %.0f%%",
+			return fmt.Sprintf("%s · %s · %.0f%%",
 				humanShortDuration(si.proc.Uptime),
-				humanize.IBytes(uint64(si.proc.RSS)),
+				shortIBytes(si.proc.RSS),
 				si.proc.CPUPercent)
 		}
-		return "via " + launchSummary(si.spec)
+		return launchSummary(si.spec)
 	case 2:
-		if si.warn != "" {
-			return si.warn
-		}
-		return "session vanished; open the console and press s to mark it stopped"
+		return "session lost"
 	default:
-		return "via " + launchSummary(si.spec)
+		return launchSummary(si.spec)
 	}
+}
+
+// shortIBytes is humanize.IBytes with the unit clipped to one letter: "3.1G".
+func shortIBytes(n int64) string {
+	s := strings.TrimSuffix(humanize.IBytes(uint64(n)), "iB")
+	return strings.ReplaceAll(s, " ", "")
 }
 
 // humanShortDuration is a compact "4h12m" style age, for a card that has one
@@ -320,8 +342,12 @@ func (m *model) commandBar() helpSet {
 	if m.list.FilterInput.Value() != "" {
 		back = hint("esc", "clear search")
 	}
+	act := m.keys.Act
+	if m.onAddRow {
+		act = hint("enter", "add server")
+	}
 	short := []key.Binding{
-		m.keys.Up, m.keys.Down, m.keys.Act, m.keys.Rescan, back,
+		m.keys.Up, m.keys.Down, act, m.keys.Rescan, back,
 	}
 	return helpSet{short: short}
 }
@@ -460,29 +486,99 @@ func (m *model) bodyView() string {
 		Height(m.bodyH).MaxHeight(m.bodyH).Render(content)
 }
 
-// listView is the home screen: an always-on search bar over a full-width,
-// view-only list of servers. Every action is a step in from here, on the
-// console, save for the add row at the top of the list.
+// listView is the home screen: a bordered search box, the add row, a column
+// header, then the aligned, view-only list of servers.
 func (m *model) listView() string {
-	body := lipgloss.JoinVertical(lipgloss.Left, m.searchBarView(), "", m.list.View())
+	parts := []string{m.searchBoxView(), ""}
+	if m.addRowVisible() {
+		parts = append(parts, m.addRowLine(), "")
+	}
+	if columnsFor(m.listW).name > 0 {
+		parts = append(parts,
+			m.columnHeaderView(),
+			mutedStyle.Render(strings.Repeat("─", max(m.listW-1, 1))))
+	}
+	parts = append(parts, m.list.View())
+	body := lipgloss.JoinVertical(lipgloss.Left, parts...)
 	return lipgloss.NewStyle().Width(m.bodyW).MaxWidth(m.bodyW).Render(body)
 }
 
-// searchBarView is the persistent filter line above the list. It shows the
-// current query, or a prompt when empty, plus how many servers match.
-func (m *model) searchBarView() string {
-	q := m.list.FilterInput.Value()
-	if q == "" {
-		return mutedStyle.Render("search  ") + mutedStyle.Render("type to filter servers")
-	}
-	shown := 0
+// addRowVisible reports whether the add row is on screen: there is a list to
+// sit above, and no search is narrowing it.
+func (m *model) addRowVisible() bool {
+	return len(m.specs) > 0 && m.list.FilterInput.Value() == ""
+}
+
+func (m *model) matchCount() int {
+	n := 0
 	for _, it := range m.list.VisibleItems() {
 		if _, ok := it.(serverItem); ok {
-			shown++
+			n++
 		}
 	}
-	tail := mutedStyle.Render(fmt.Sprintf("   %d shown", shown))
-	return mutedStyle.Render("search  ") + lipgloss.NewStyle().MaxWidth(max(m.bodyW-20, 8)).Render(q) + tail
+	return n
+}
+
+// searchBoxView is the persistent filter, a rounded border open on the right.
+// The border is muted until the search has text, then accent, so an active
+// filter reads at a glance.
+func (m *model) searchBoxView() string {
+	q := m.list.FilterInput.Value()
+	line := "⌕ "
+	if q == "" {
+		line += mutedStyle.Render("Search…")
+	} else {
+		line += q
+	}
+	innerW := max(m.bodyW-2, 12) // border box content width
+	textW := innerW - 1          // minus the left padding
+	if q != "" {
+		count := mutedStyle.Render(fmt.Sprintf("%d shown", m.matchCount()))
+		line = ansi.Truncate(line, textW-ansi.StringWidth(count)-2, "…")
+		gap := textW - ansi.StringWidth(line) - ansi.StringWidth(count)
+		if gap < 2 {
+			gap = 2
+		}
+		line += strings.Repeat(" ", gap) + count
+	}
+	var col lipgloss.TerminalColor = mutedColor
+	if q != "" {
+		col = accentColor
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder(), true, false, true, true).
+		BorderForeground(col).
+		PaddingLeft(1).
+		Width(innerW).MaxWidth(m.bodyW).
+		Render(ansi.Truncate(line, textW, "…"))
+}
+
+func (m *model) addRowLine() string {
+	bar, label := "  ", "+  Add a server"
+	if m.onAddRow {
+		bar = markerStyle.Render("▎ ")
+		label = selectedRow.Render(label)
+	} else {
+		label = mutedStyle.Render(label)
+	}
+	return bar + label
+}
+
+// columnHeaderView labels the row columns, aligned to the delegate's layout:
+// two for the cursor bar, two for the status glyph, then the columns.
+func (m *model) columnHeaderView() string {
+	c := columnsFor(m.listW)
+	h := "    " + mutedStyle.Render(pad("NAME", c.name))
+	if c.status {
+		h += "  " + mutedStyle.Render(pad("STATUS", statusColW))
+	}
+	if c.port {
+		h += "  " + mutedStyle.Render(pad("PORT", portColW))
+	}
+	if c.detail {
+		h += "  " + mutedStyle.Render("DETAIL")
+	}
+	return h
 }
 
 // launchSummary names what starts the server: the start script, or the jar

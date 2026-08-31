@@ -419,7 +419,7 @@ func (m *model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.openPicker()
 
 	case key.Matches(msg, m.keys.Act): // enter or right
-		if _, ok := m.list.SelectedItem().(addRow); ok {
+		if m.onAddRow {
 			return m, m.openPicker()
 		}
 		if _, ok := m.selected(); ok {
@@ -430,15 +430,36 @@ func (m *model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case msg.String() == "esc":
 		if m.list.FilterInput.Value() != "" {
 			m.list.ResetFilter()
+			m.onAddRow = false
 			m.syncSelection()
 			return m, nil
 		}
 		return m, tea.Quit
 	}
 
-	// Cursor keys go to the list's own browsing handler.
+	// The add row sits above the list. Up from the first server steps onto it,
+	// down steps back; every other cursor key goes to the list's own handler.
+	switch msg.String() {
+	case "up":
+		if m.onAddRow {
+			return m, nil
+		}
+		if m.list.Index() == 0 && m.addRowVisible() {
+			m.onAddRow = true
+			m.syncSelection()
+			return m, nil
+		}
+	case "down":
+		if m.onAddRow {
+			m.onAddRow = false
+			m.list.Select(0)
+			m.syncSelection()
+			return m, nil
+		}
+	}
 	switch msg.String() {
 	case "up", "down", "pgup", "pgdown", "home", "end":
+		m.onAddRow = false
 		var cmd tea.Cmd
 		m.list, cmd = m.list.Update(msg)
 		m.syncSelection()
@@ -457,6 +478,7 @@ func (m *model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	default:
 		return m, nil
 	}
+	m.onAddRow = false
 	before := m.list.FilterInput.Value()
 	var cmd tea.Cmd
 	m.list.FilterInput, cmd = m.list.FilterInput.Update(msg)
@@ -589,15 +611,12 @@ func (m *model) selected() (server.Spec, bool) {
 // syncSelection follows the list cursor: it points the log follower at the
 // newly selected server and clears the viewport.
 func (m *model) syncSelection() {
-	sel := m.list.SelectedItem()
-	if _, isAdd := sel.(addRow); isAdd {
-		m.onAddRow = true
+	if m.onAddRow {
 		m.selID = ""
 		m.tail = nil
 		return
 	}
-	m.onAddRow = false
-	it, ok := sel.(serverItem)
+	it, ok := m.list.SelectedItem().(serverItem)
 	if !ok {
 		m.selID = ""
 		m.tail = nil
@@ -627,10 +646,7 @@ func (m *model) refreshItems() {
 		}
 		return strings.ToLower(string(ordered[a].ID)) < strings.ToLower(string(ordered[b].ID))
 	})
-	// The add row rides at the top of the list. It filters out the moment the
-	// search has any text, so a query only ever shows matching servers.
-	items := make([]list.Item, 0, len(ordered)+1)
-	items = append(items, addRow{})
+	items := make([]list.Item, 0, len(ordered))
 	for _, s := range ordered {
 		r := m.reports[s.ID]
 		p, ok := m.procByID[s.ID]
@@ -638,30 +654,28 @@ func (m *model) refreshItems() {
 	}
 	m.setListItems(items)
 
-	// The sort and the filter can move the selection, so re-point the cursor:
-	// to the add row if that is where it was, else to the selected server by ID,
-	// else to the first server (never leave a fresh list parked on the add row).
+	// A search that just hid the add row drops the focus back onto the list.
+	if m.onAddRow && !m.addRowVisible() {
+		m.onAddRow = false
+	}
+	// The sort and the filter can move the selected server, so re-point the
+	// cursor at it by ID, failing that at the first row.
 	vis := m.list.VisibleItems()
-	addIdx, firstServer, byID := -1, -1, -1
+	target, first := -1, -1
 	for i, it := range vis {
-		switch s := it.(type) {
-		case addRow:
-			addIdx = i
-		case serverItem:
-			if firstServer < 0 {
-				firstServer = i
-			}
-			if m.selID != "" && s.spec.ID == m.selID {
-				byID = i
-			}
+		s, ok := it.(serverItem)
+		if !ok {
+			continue
+		}
+		if first < 0 {
+			first = i
+		}
+		if m.selID != "" && s.spec.ID == m.selID {
+			target = i
 		}
 	}
-	target := firstServer
-	switch {
-	case m.onAddRow && addIdx >= 0:
-		target = addIdx
-	case byID >= 0:
-		target = byID
+	if target < 0 {
+		target = first
 	}
 	if target >= 0 {
 		m.list.Select(target)
@@ -739,11 +753,19 @@ func (m *model) relayout() {
 	m.bodyH = bodyH
 
 	// The list screen is view only and takes the whole width; the console
-	// screen does too, minus its rail. Below 55 columns the cards drop their
-	// dimmed detail line.
+	// screen does too, minus its rail. The search box, add row and column
+	// header sit above the list and eat into its height.
 	m.listW = innerW
-	m.list.SetDelegate(serverDelegate{compact: innerW < 55})
-	m.list.SetSize(innerW, max(bodyH-2, 3)) // the search bar and its spacer sit above
+	cols := columnsFor(innerW)
+	m.list.SetDelegate(serverDelegate{cols: cols, blurred: m.onAddRow})
+	listChrome := 4 // search box (3) + spacer (1)
+	if m.addRowVisible() {
+		listChrome += 2 // add row + spacer
+	}
+	if cols.name > 0 {
+		listChrome += 2 // column header + rule
+	}
+	m.list.SetSize(innerW, max(bodyH-listChrome, 3))
 
 	// The console screen carries a details, player and resource rail on the
 	// right, but only when the terminal is wide enough to spare the columns.

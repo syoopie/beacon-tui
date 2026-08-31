@@ -259,8 +259,8 @@ func TestStartFromConsoleDrivesLifecycleAndClearsBusy(t *testing.T) {
 	}
 }
 
-func TestServerCardsGroupAndShowDetail(t *testing.T) {
-	m, tm, _, dirs, _ := bootModel(t) // 100x30, non-compact
+func TestServerRowsAreColumnarAndSorted(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t) // 100x30, every column fits
 	sp := writeSpec(t, dirs, "survival")
 	writeSpec(t, dirs, "creative")
 	tm = loadRegistry(t, m, tm)
@@ -270,16 +270,15 @@ func TestServerCardsGroupAndShowDetail(t *testing.T) {
 	m.refreshItems()
 
 	view := tm.View()
-	for _, want := range []string{"running", "stopped", "ready", "up 4h12m", "mem 3.0 GiB", "cpu 42%", "via run.sh"} {
+	for _, want := range []string{"NAME", "STATUS", "PORT", "DETAIL", "running", "4h12m", "3.0G", "42%", "run.sh"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("list view missing %q:\n%s", want, view)
 		}
 	}
 
-	// The running group sorts above the stopped one.
-	rIdx, sIdx := strings.Index(view, "running"), strings.Index(view, "stopped")
-	if rIdx < 0 || sIdx < 0 || rIdx > sIdx {
-		t.Fatalf("running group should come before stopped:\n%s", view)
+	// Running sorts above stopped.
+	if a, b := strings.Index(view, "survival"), strings.Index(view, "creative"); a < 0 || b < 0 || a > b {
+		t.Fatalf("the running server should come before the stopped one:\n%s", view)
 	}
 }
 
@@ -289,28 +288,22 @@ func TestListSearchFiltersAndEscClearsThenQuits(t *testing.T) {
 	writeSpec(t, dirs, "creative")
 	tm = loadRegistry(t, m, tm)
 
-	// The add row is always at the top and the search bar is always shown.
-	if _, ok := m.list.Items()[0].(addRow); !ok {
-		t.Fatalf("first list item should be the add row, got %T", m.list.Items()[0])
+	// The add row and the search box are both shown with no query.
+	if !m.addRowVisible() {
+		t.Fatal("add row should be visible with an empty search")
 	}
-	if !strings.Contains(tm.View(), "type to filter servers") {
-		t.Fatalf("search prompt not shown:\n%s", tm.View())
+	if v := tm.View(); !strings.Contains(v, "Search…") || !strings.Contains(v, "Add a server") {
+		t.Fatalf("search box or add row not shown:\n%s", v)
 	}
 
 	// Typing filters live and drops the add row.
 	for _, r := range "sur" {
 		tm, _ = pressRune(t, m, tm, string(r))
 	}
-	shown := 0
-	for _, it := range m.list.VisibleItems() {
-		if _, ok := it.(serverItem); ok {
-			shown++
-		}
+	if m.matchCount() != 1 || m.selID != "survival" {
+		t.Fatalf("query \"sur\": matches=%d selID=%q, want 1 / survival", m.matchCount(), m.selID)
 	}
-	if shown != 1 || m.selID != "survival" {
-		t.Fatalf("query \"sur\": shown=%d selID=%q, want 1 / survival", shown, m.selID)
-	}
-	if _, ok := m.list.SelectedItem().(addRow); ok {
+	if m.addRowVisible() {
 		t.Fatal("add row should filter out once the search has text")
 	}
 
@@ -332,14 +325,14 @@ func TestAddRowStaysSelectedAcrossRefreshTicks(t *testing.T) {
 	tm = loadRegistry(t, m, tm)
 
 	drive(t, tm, tea.KeyMsg{Type: tea.KeyUp}) // first server -> add row
-	if _, ok := m.list.SelectedItem().(addRow); !ok {
-		t.Fatalf("up should land on the add row, got %T", m.list.SelectedItem())
+	if !m.onAddRow {
+		t.Fatal("up from the first server should focus the add row")
 	}
 
-	// A reconcile tick rebuilds the items; the cursor must not slide off.
+	// A reconcile tick rebuilds the items; the focus must not slide off.
 	m.refreshItems()
-	if _, ok := m.list.SelectedItem().(addRow); !ok {
-		t.Fatalf("refresh moved the cursor off the add row, now %T", m.list.SelectedItem())
+	if !m.onAddRow {
+		t.Fatal("refresh moved the focus off the add row")
 	}
 }
 
@@ -352,12 +345,19 @@ func hasQuit(msgs []tea.Msg) bool {
 	return false
 }
 
-func TestCompactCardsDropTheDetailLine(t *testing.T) {
-	if h := (serverDelegate{compact: true}).Height(); h != 2 {
-		t.Fatalf("compact card height = %d, want 2", h)
+func TestColumnsDropAsTheWidthNarrows(t *testing.T) {
+	if (serverDelegate{}).Height() != 1 {
+		t.Fatalf("row height = %d, want 1", (serverDelegate{}).Height())
 	}
-	if h := (serverDelegate{}).Height(); h != 3 {
-		t.Fatalf("full card height = %d, want 3", h)
+	wide := columnsFor(120)
+	if !wide.detail || !wide.port || !wide.dot {
+		t.Fatalf("a wide terminal should carry every column: %+v", wide)
+	}
+	if columnsFor(75).detail {
+		t.Fatal("75 columns is too narrow for the detail column")
+	}
+	if columnsFor(50).name != 0 {
+		t.Fatal("50 columns should fall back to the loose one-liner")
 	}
 }
 
@@ -496,8 +496,8 @@ func TestAddRowOpensAndEscapesTheFolderPicker(t *testing.T) {
 
 	// The cursor starts on the first server; step up onto the add row.
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyUp})
-	if _, ok := m.list.SelectedItem().(addRow); !ok {
-		t.Fatalf("up from the first server should land on the add row, got %T", m.list.SelectedItem())
+	if !m.onAddRow {
+		t.Fatal("up from the first server should focus the add row")
 	}
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
 	if m.pick == nil {
