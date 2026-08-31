@@ -248,8 +248,44 @@ func (m *model) View() string {
 	return frameStyle.Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
 }
 
+// breadcrumb is the path shown at the top left: "Beacon" on the list, and a
+// trail down to wherever the operator has stepped. "Beacon" stays in the brand
+// colour, the separators are faint, and the last segment reads in normal weight.
+func (m *model) breadcrumb() string {
+	segs := []string{"Beacon"}
+	if spec, ok := m.selected(); ok {
+		id := string(spec.ID)
+		switch {
+		case m.pat != nil:
+			segs = append(segs, id, "fix start script")
+		case m.launch != nil:
+			segs = append(segs, id, "launch settings")
+		case m.config != nil:
+			segs = append(segs, id, "edit config")
+		case m.actions != nil:
+			segs = append(segs, id, "actions")
+		case m.screen == screenConsole:
+			segs = append(segs, id)
+		}
+	}
+	if m.pick != nil {
+		segs = []string{"Beacon", "add server"}
+	}
+
+	sep := mutedStyle.Render("  ›  ")
+	out := brandStyle.Render(segs[0])
+	for i, s := range segs[1:] {
+		style := mutedStyle
+		if i == len(segs)-2 {
+			style = lipgloss.NewStyle()
+		}
+		out += sep + style.Render(s)
+	}
+	return out
+}
+
 func (m *model) headerView() string {
-	left := brandStyle.Render("Beacon")
+	left := m.breadcrumb()
 	var right string
 	if m.update != nil {
 		right = badgeStyle.Render("↑ " + m.update.latest + " available")

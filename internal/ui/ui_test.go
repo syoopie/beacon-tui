@@ -259,6 +259,26 @@ func TestStartFromConsoleDrivesLifecycleAndClearsBusy(t *testing.T) {
 	}
 }
 
+func TestBreadcrumbTracksWhereYouAre(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+
+	if got := m.breadcrumb(); strings.Contains(got, "›") {
+		t.Fatalf("list breadcrumb should be just Beacon, got %q", got)
+	}
+
+	tm = openConsole(t, m, tm)
+	if got := m.breadcrumb(); !strings.Contains(got, "Beacon") || !strings.Contains(got, "survival") || strings.Contains(got, "console") {
+		t.Fatalf("console breadcrumb should read Beacon › survival, got %q", got)
+	}
+
+	chooseAction(t, m, tm, "Edit config")
+	if got := m.breadcrumb(); !strings.Contains(got, "survival") || !strings.Contains(got, "edit config") {
+		t.Fatalf("dialog breadcrumb should extend to edit config, got %q", got)
+	}
+}
+
 func TestEnterOpensTheConsoleAndEscReturns(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	writeSpec(t, dirs, "survival")
