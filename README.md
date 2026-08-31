@@ -6,8 +6,8 @@
 
 <p align="center">
 Run your Minecraft servers from one clean terminal screen. Start them, stop
-them, watch their logs, all without hunting for the right <code>tmux</code>
-session or leaving a server half-dead.
+them, watch their logs, without losing track of what is running or leaving a
+server half-dead.
 </p>
 
 <p align="center">
@@ -18,48 +18,35 @@ session or leaving a server half-dead.
 
 ## The list
 
-Beacon opens here. One aligned row per server.
+Beacon opens here.
 
-![Beacon's server list, with a search box, an add row and one aligned row per server](docs/demo/list.png)
+![Beacon's server list: a search box, an add row, and one aligned row per server](docs/demo/list.png)
 
-Running servers sort to the top. Their DETAIL column carries uptime, memory and
-CPU, and a health dot sits after the port, green once players can join and amber
-while the server is still opening it. A stopped server shows its launcher, a lost
-one shows `session lost` with the full warning in the banner. The search box is
-always on, so start typing to filter by name. `+ Add a server` opens a folder
-picker. On a narrow terminal the columns drop from the right, and below about 55
-they collapse to one loose line.
+Running servers sort to the top. The dot after the port is green once players can
+join, amber while the server is still opening it. Narrow terminals drop the
+columns from the right.
 
 ## The console
 
-Press `→` on a server to open its console. Everything else happens here.
+`→` opens a server's console. Everything happens from there.
 
-![The console for one server, log on the left with events and warnings coloured, a details rail on the right](docs/demo/console.png)
+![A server's console: the log on the left, a details rail on the right](docs/demo/console.png)
 
-`s` starts or stops the server, `c` types a command to it, `tab` swaps the log
-for a Chat view of player activity, `f` toggles the full log against an
-important-only view of events, warnings and errors, `/` searches. On a wide
-terminal the rail on the right always carries the server's details, and adds who
-is online plus uptime, memory and CPU while it runs.
+The rail carries the server's details always, and adds the player list plus live
+memory and CPU while it runs.
 
-## The actions overlay
+## Actions
 
-`a` opens the rest of the actions.
+`a` opens the rest. Which rows appear depends on the server: a vanished one gets
+Mark stopped, a broken start script gets Fix start script, and Edit config and
+Launch settings are always there.
 
-![The actions overlay open over the console, offering Edit config and Launch settings](docs/demo/actions.png)
+![The actions overlay over the console](docs/demo/actions.png)
 
-The rows that show depend on the server. A vanished one offers Mark stopped, a
-script that does not hand off to Java offers Fix start script, a server that has
-not accepted the EULA offers Accept the Minecraft EULA. Edit config and Launch
-settings are always there.
+Edit config writes only the `server.properties` keys you change. Turning RCON on
+here is what powers the player list.
 
-Edit config opens the common `server.properties` settings.
-
-![The config editor showing port, MOTD, difficulty, max players and the RCON block](docs/demo/config.png)
-
-Turning RCON on here is what makes the player list work. Beacon writes its port
-and password and mirrors them into its own record, so nothing needs re-importing.
-`esc` steps back to the actions overlay, `esc` again to the console.
+![The config editor: port, MOTD, difficulty, max players, RCON](docs/demo/config.png)
 
 ## Why Beacon
 
@@ -71,8 +58,8 @@ and password and mirrors them into its own record, so nothing needs re-importing
   only offers a hard kill if it hangs. It never yanks the plug on its own.
 - **It finds your servers for you.** Point it at a server's folder and it works
   out how to launch it, whether that is a `run.sh`, a Paper jar, or a Fabric jar.
-- **One file, no fuss.** Download one binary. The only thing you need installed
-  is `tmux`.
+- **One binary.** Download it and run. No daemon to keep alive, no database,
+  nothing to configure.
 
 ## Install
 
@@ -80,12 +67,8 @@ and password and mirrors them into its own record, so nothing needs re-importing
 curl -fsSL https://raw.githubusercontent.com/syoopie/beacon-tui/main/install.sh | bash
 ```
 
-You also need `tmux`:
-
-- macOS: `brew install tmux`
-- Debian / Ubuntu: `sudo apt-get install -y tmux`
-
-That is it. Beacon runs on macOS and Linux. Windows is not supported.
+Beacon runs on macOS and Linux. The installer pulls in `tmux` if you do not have
+it. Windows is not supported.
 
 ## First run
 
