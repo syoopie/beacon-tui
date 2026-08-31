@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.svg" alt="" width="76" height="76">
+</p>
+
 <h1 align="center">Beacon</h1>
 
 <p align="center">
