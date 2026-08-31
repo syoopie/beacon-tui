@@ -1,8 +1,7 @@
 # Beacon
 
 A Bubble Tea TUI that runs Java Minecraft servers on macOS and Linux under tmux.
-Module `github.com/syoopie/beacon-tui`, Go 1.24. Design write-up in
-[`beacon-tui-plan.md`](beacon-tui-plan.md).
+Module `github.com/syoopie/beacon-tui`, Go 1.24.
 
 ## Checks
 

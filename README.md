@@ -192,8 +192,6 @@ not on `PATH`. `make lint` runs golangci-lint if it is installed; CI always does
 - **Reconcile** compares recorded state against tmux on startup and on a ticker,
   and derives the status shown in the list.
 
-The full design write-up is [`beacon-tui-plan.md`](beacon-tui-plan.md).
-
 ### Package layout
 
 | Package                 | Responsibility                                    |
