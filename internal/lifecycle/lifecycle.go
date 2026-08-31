@@ -13,6 +13,7 @@ import (
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/importdetect"
+	"github.com/syoopie/beacon-tui/internal/logrotate"
 	"github.com/syoopie/beacon-tui/internal/mcprops"
 	"github.com/syoopie/beacon-tui/internal/oplock"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
@@ -304,6 +305,22 @@ func (m *Manager) AcceptEULA(spec server.Spec) error {
 		return fmt.Errorf("%s: accepting the EULA: %w", spec.ID, err)
 	}
 	return nil
+}
+
+// RotateLog archives and truncates a server's captured console log if it has
+// grown past the rotation policy. The size check is done without the lock; the
+// lock is taken only when a rotation is actually due, so the common no-op case
+// never contends with start or stop.
+func (m *Manager) RotateLog(logPath string) (bool, error) {
+	if !logrotate.Due(logPath, logrotate.DefaultPolicy) {
+		return false, nil
+	}
+	release, err := m.hold(m.lockDir(), oplock.OpRotateLog)
+	if err != nil {
+		return false, err
+	}
+	defer release()
+	return logrotate.Rotate(logPath, logrotate.DefaultPolicy)
 }
 
 func (m *Manager) sessionGone(ctx context.Context, s server.Session) (bool, error) {

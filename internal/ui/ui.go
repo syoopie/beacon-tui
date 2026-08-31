@@ -6,6 +6,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -104,6 +105,8 @@ type model struct {
 	procAt       time.Time
 	procInFlight bool
 
+	rotateInFlight bool
+
 	ready         bool
 	loaded        bool
 	width, height int
@@ -197,7 +200,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if c := m.procPollCmd(); c != nil {
 			cmds = append(cmds, c)
 		}
+		if c := m.rotateLogsCmd(); c != nil {
+			cmds = append(cmds, c)
+		}
 		return m, tea.Batch(cmds...)
+
+	case logRotatedMsg:
+		m.rotateInFlight = false
+		if msg.err != nil {
+			m.status = "log rotation: " + msg.err.Error()
+		}
+		return m, nil
 
 	case rconMsg:
 		m.rconInFlight = false
@@ -883,6 +896,31 @@ func (m *model) procPollCmd() tea.Cmd {
 		}
 		stat, err := procstat.Sample(ctx, pid)
 		return procMsg{id: id, stat: stat, err: err}
+	}
+}
+
+type logRotatedMsg struct{ err error }
+
+// rotateLogsCmd checks every server's captured log and rotates the ones that
+// have grown past the size limit. The size check is a cheap stat; the archive
+// and truncate only run for a log that is actually over. One rotation at a time,
+// since gzipping a large file can outlast a tick.
+func (m *model) rotateLogsCmd() tea.Cmd {
+	if m.app.Mgr == nil || m.rotateInFlight || len(m.specs) == 0 {
+		return nil
+	}
+	m.rotateInFlight = true
+	mgr, specs := m.app.Mgr, append([]server.Spec(nil), m.specs...)
+	return func() tea.Msg {
+		for _, s := range specs {
+			switch _, err := mgr.RotateLog(s.LogFile); {
+			case errors.Is(err, lifecycle.ErrBusy):
+				return logRotatedMsg{} // another op holds the lock; try again next tick
+			case err != nil:
+				return logRotatedMsg{err: err}
+			}
+		}
+		return logRotatedMsg{}
 	}
 }
 

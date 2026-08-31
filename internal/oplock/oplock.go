@@ -28,6 +28,7 @@ const (
 	OpPatchScript
 	OpWriteConfig
 	OpConsole
+	OpRotateLog
 )
 
 var opNames = [...]string{
@@ -38,6 +39,7 @@ var opNames = [...]string{
 	OpPatchScript: "patch-script",
 	OpWriteConfig: "write-config",
 	OpConsole:     "console",
+	OpRotateLog:   "rotate-log",
 }
 
 func (k OpKind) String() string {

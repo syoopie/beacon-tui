@@ -117,10 +117,11 @@ list works without a re-import.
 
 In the console screen: `↑` `↓` scroll, `c` types a command to the server, `←` or
 `esc` goes back. `tab` switches between the server log and a Chat view that shows
-only player activity. On the server log, `f` toggles between a filtered view that
-drops routine noise and the full log, where the noise is dimmed and the lines
-worth reading stand out. `/` searches the current view, narrowing it to matching
-lines until you clear it with `esc`.
+player activity. On the server log, `f` switches between the full log and an
+important-only view that keeps just the events, warnings, and errors. In the
+full log those same lines are coloured and everything else is dimmed, so a busy
+log still reads. `/` searches the current view, and search looks through the
+whole log, not just the current filter, until you clear it with `esc`.
 
 On wide terminals a rail on the right shows who is online and the server
 process's memory and CPU. The player list needs RCON, which the "Edit config"
@@ -182,12 +183,15 @@ not on `PATH`. `make lint` runs golangci-lint if it is installed; CI always does
   shell that redirects output to a log file and `exec`s the command, so the pane
   process is the JVM itself. Sessions are named `beacon-<id>`.
 - **Logs are plain files**, tailed from disk. The tailer reopens a log that is
-  truncated or rotated.
+  truncated or rotated. Beacon rotates the captured log itself once it passes
+  10 MiB: it gzips a timestamped copy next to the live file, truncates the live
+  file in place so the shell redirect keeps writing to it, and prunes the oldest
+  archives once they total more than 450 MB.
 - **Disk is the source of truth.** `config.toml` and `servers/<id>.toml` hold
   everything that matters. Every Beacon process reloads them each tick. Memory is
   a cache that goes stale until the next reconcile.
 - **A host lock serializes every mutating operation** (start, stop, force-kill,
-  import, script patch, config write) across all Beacon processes. It is a
+  import, script patch, config write, log rotation) across all Beacon processes. It is a
   PID-bearing lockfile with stale-holder recovery. Reads never take it.
 - **Reconcile** compares recorded state against tmux on startup and on a ticker,
   and derives the status shown in the list.
@@ -202,6 +206,7 @@ not on `PATH`. `make lint` runs golangci-lint if it is installed; CI always does
 | `internal/supervisor`   | the `Supervisor` port                             |
 | `internal/tmux`         | the tmux adapter, the only package that knows tmux |
 | `internal/logtail`      | append-only log file follower, reopens on truncate |
+| `internal/logrotate`    | copytruncate the captured log to gzip archives, prune to a size budget |
 | `internal/reconcile`    | derive status from tmux, port collision and live port health checks |
 | `internal/oplock`       | the host operation lock                           |
 | `internal/lifecycle`    | start, stop, force-kill, config writes under the lock |

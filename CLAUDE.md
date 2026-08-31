@@ -68,7 +68,7 @@ for fixtures: `~/MinecraftServer/BMC4_ServerPack_v61/logs/latest.log`.
 - **tmux owns process lifetime only.** Each server runs as `beacon-<id>`, its
   shell `exec`s the launch command so the pane PID is the JVM.
 - **A host lockfile serializes every mutating op** (start, stop, force-kill,
-  import, script patch, config write) across all beacon processes. Reads never
+  import, script patch, config write, log rotation) across all beacon processes. Reads never
   lock.
 - **`internal/supervisor`** is the port; `internal/tmux` is the only adapter.
   Nothing outside `internal/tmux` knows tmux exists.
@@ -81,6 +81,7 @@ for fixtures: `~/MinecraftServer/BMC4_ServerPack_v61/logs/latest.log`.
 | `internal/supervisor`   | the `Supervisor` port                             |
 | `internal/tmux`         | the tmux adapter, the only package that knows tmux |
 | `internal/logtail`      | append-only log file follower, reopens on truncate |
+| `internal/logrotate`    | copytruncate the captured log to gzip archives, prune to a size budget |
 | `internal/reconcile`    | derive status from tmux, port collision and live port health checks |
 | `internal/oplock`       | the host operation lock                           |
 | `internal/lifecycle`    | start, stop, force-kill, config writes under the lock |
