@@ -78,6 +78,7 @@ type model struct {
 	pat     *patchPrompt
 	launch  *launchPrompt
 	config  *configForm
+	actions *actionsPrompt
 	update  *updateNotice
 
 	// eula caches whether each server's eula.txt says eula=true, refreshed on
@@ -85,9 +86,9 @@ type model struct {
 	// drives the notice banner and the menu row.
 	eula map[server.ID]bool
 
-	screen     screen
-	menuCursor int
-	listW      int
+	screen      screen
+	pendingStop bool
+	listW       int
 
 	logTab           consoleTab
 	logImportantOnly bool
@@ -359,6 +360,8 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateLaunch(msg)
 	case m.config != nil:
 		return m.updateConfig(msg)
+	case m.actions != nil:
+		return m.updateActions(msg)
 	}
 
 	// Screen-independent keys.
@@ -372,8 +375,6 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.screen {
-	case screenMenu:
-		return m.handleMenuKey(msg)
 	case screenConsole:
 		return m.handleConsoleKey(msg)
 	default:
@@ -391,9 +392,7 @@ func (m *model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Act):
 		if _, ok := m.selected(); ok {
-			m.screen = screenMenu
-			m.menuCursor = 0
-			m.relayout()
+			m.openConsoleScreen()
 		}
 		return m, nil
 	case key.Matches(msg, m.keys.Add):
@@ -621,11 +620,10 @@ func (m *model) relayout() {
 	bodyH = max(bodyH, 3)
 	m.bodyH = bodyH
 
-	// The list and detail screens share the body as two columns; the console
-	// screen takes the whole width. The list is held to a slim column so the
-	// detail panel beside it gets the room.
-	m.listW = clampInt(innerW*2/5, 24, 34)
-	m.list.SetSize(m.listW, bodyH)
+	// The list screen is view only and takes the whole width; the console
+	// screen does too, minus its rail.
+	m.listW = innerW
+	m.list.SetSize(innerW, bodyH)
 
 	// The console screen carries a player and resource rail on the right, but
 	// only when the terminal is wide enough to spare the columns.
@@ -672,11 +670,12 @@ func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 		}
 	}
 	m.syncSelection()
-	// A server that vanished from under a drilled-in screen sends us home.
+	// A server that vanished from under the console sends us home.
 	if _, ok := m.selected(); !ok && m.screen != screenList {
 		m.screen = screenList
+		m.actions = nil
 	}
-	m.clampMenuCursor()
+	m.clampActionsCursor()
 	m.relayout()
 
 	switch {

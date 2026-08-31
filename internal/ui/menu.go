@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"fmt"
-
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -10,22 +8,21 @@ import (
 	"github.com/syoopie/beacon-tui/internal/server"
 )
 
-// screen is the top-level view. The list is the home screen; picking a server
-// opens its menu, and the console opens from there as its own full screen.
+// screen is the top-level view. The list is the home screen and view only;
+// picking a server opens its console, which is where every action lives.
 type screen int
 
 const (
 	screenList screen = iota
-	screenMenu
 	screenConsole
 )
 
-// menuAction is what a server-menu row does when chosen.
+// menuAction is what an action does when run, whether it came from the s / K
+// keys or the console's actions overlay.
 type menuAction int
 
 const (
-	actConsole menuAction = iota
-	actStart
+	actStart menuAction = iota
 	actStop
 	actForceKill
 	actMarkStopped
@@ -40,25 +37,29 @@ type menuRow struct {
 	act   menuAction
 }
 
-// menuRows is the selected server's menu: the console, then the actions its
-// status allows, then launch settings.
-func (m *model) menuRows() []menuRow {
+// primaryAction is what the s key does for a server in the given state: start a
+// stopped one, stop a live one, mark a vanished one stopped.
+func (m *model) primaryAction(s server.Status) (menuAction, bool) {
+	switch s {
+	case server.StatusStopped:
+		return actStart, true
+	case server.StatusRunning, server.StatusStarting, server.StatusStopping:
+		return actStop, true
+	case server.StatusUnknown:
+		return actMarkStopped, true
+	default:
+		return 0, false
+	}
+}
+
+// consoleActions is the console's actions overlay: the pre-launch chores that do
+// not warrant a dedicated key. Start, stop and force-kill are keys, not rows.
+func (m *model) consoleActions() []menuRow {
 	spec, ok := m.selected()
 	if !ok {
 		return nil
 	}
-	rows := []menuRow{{"Open console", actConsole}}
-	switch m.reports[spec.ID].Derived {
-	case server.StatusStopped:
-		rows = append(rows, menuRow{"Start", actStart})
-	case server.StatusRunning, server.StatusStarting, server.StatusStopping:
-		rows = append(rows, menuRow{"Stop", actStop})
-	case server.StatusUnknown:
-		rows = append(rows, menuRow{"Mark stopped", actMarkStopped})
-	}
-	if m.timedOut[spec.ID] {
-		rows = append(rows, menuRow{"Force-kill", actForceKill})
-	}
+	var rows []menuRow
 	if !m.eula[spec.ID] {
 		rows = append(rows, menuRow{"Accept the Minecraft EULA", actAcceptEULA})
 	}
@@ -70,49 +71,65 @@ func (m *model) menuRows() []menuRow {
 	return rows
 }
 
-func (m *model) clampMenuCursor() {
-	if n := len(m.menuRows()); m.menuCursor >= n {
-		m.menuCursor = max(n-1, 0)
+// actionsPrompt is the state of the console's actions overlay.
+type actionsPrompt struct {
+	cursor int
+}
+
+func (m *model) openActions() {
+	if _, ok := m.selected(); !ok {
+		return
+	}
+	m.actions = &actionsPrompt{}
+	m.relayout()
+}
+
+func (m *model) clampActionsCursor() {
+	if m.actions == nil {
+		return
+	}
+	if n := len(m.consoleActions()); m.actions.cursor >= n {
+		m.actions.cursor = max(n-1, 0)
 	}
 }
 
-func (m *model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	m.clampMenuCursor()
-	rows := m.menuRows()
+func (m *model) updateActions(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	m.clampActionsCursor()
+	rows := m.consoleActions()
 	switch {
 	case key.Matches(msg, m.keys.Back):
-		m.screen = screenList
+		m.actions = nil
 		m.relayout()
 		return m, nil
 	case key.Matches(msg, m.keys.Up):
-		if m.menuCursor > 0 {
-			m.menuCursor--
+		if m.actions.cursor > 0 {
+			m.actions.cursor--
 		}
 		return m, nil
 	case key.Matches(msg, m.keys.Down):
-		if m.menuCursor < len(rows)-1 {
-			m.menuCursor++
+		if m.actions.cursor < len(rows)-1 {
+			m.actions.cursor++
 		}
 		return m, nil
 	case key.Matches(msg, m.keys.Enter):
-		if m.menuCursor < len(rows) {
-			return m, m.runMenuAction(rows[m.menuCursor].act)
+		if m.actions.cursor < len(rows) {
+			act := rows[m.actions.cursor].act
+			m.actions = nil
+			m.relayout()
+			return m, m.runAction(act)
 		}
 	}
 	return m, nil
 }
 
-// runMenuAction fires the chosen menu row. Actions that mutate a server take the
-// busy path; opening the console or a modal does not.
-func (m *model) runMenuAction(act menuAction) tea.Cmd {
+// runAction fires an action. Actions that mutate a server take the busy path;
+// opening a modal does not.
+func (m *model) runAction(act menuAction) tea.Cmd {
 	spec, ok := m.selected()
 	if !ok {
 		return nil
 	}
 	switch act {
-	case actConsole:
-		m.openConsoleScreen()
-		return nil
 	case actLaunch:
 		return m.openLaunch(spec)
 	case actEditConfig:
@@ -147,40 +164,25 @@ func (m *model) runMenuAction(act menuAction) tea.Cmd {
 	return nil
 }
 
-// detailView is the right column: the selected server's status and the actions
-// that apply to it. It is always on screen beside the list; screenMenu focus
-// only adds the row cursor and lets enter fire a row.
-func (m *model) detailView() string {
+// actionsDialogView renders the console's actions overlay as a centred modal.
+func (m *model) actionsDialogView() string {
 	spec, ok := m.selected()
 	if !ok {
-		return mutedStyle.Render("Select a server on the left.")
+		return ""
 	}
-	r := m.reports[spec.ID]
-	focused := m.screen == screenMenu
-
-	portLine := mutedStyle.Render(fmt.Sprintf("   port %d", spec.Port))
-	if word, color := portHealthLabel(r.PortHealth); word != "" {
-		portLine += mutedStyle.Render(" ") + lipgloss.NewStyle().Foreground(color).Render(word)
-	}
-	head := lipgloss.JoinVertical(lipgloss.Left,
-		sectionStyle.Render(string(spec.ID)),
-		lipgloss.NewStyle().Foreground(statusColor(r.Derived)).Render(statusGlyph(r.Derived)+" "+r.Derived.String())+portLine,
-		mutedStyle.Render("via "+launchSummary(spec)),
-	)
-
-	rows := make([]string, 0, len(m.menuRows()))
-	for i, row := range m.menuRows() {
+	m.clampActionsCursor()
+	rows := []string{sectionStyle.Render(string(spec.ID) + "  ·  actions"), ""}
+	for i, row := range m.consoleActions() {
 		marker := "  "
 		label := row.label
-		if focused && i == m.menuCursor {
+		if i == m.actions.cursor {
 			marker = "▸ "
 			label = selectedRow.Render(label)
 		}
 		rows = append(rows, marker+label)
 	}
-	actions := lipgloss.JoinVertical(lipgloss.Left, rows...)
-	if !focused {
-		actions = mutedStyle.Render(actions) + "\n\n" + m.hintBar(hint("→", "act on this server"))
-	}
-	return lipgloss.JoinVertical(lipgloss.Left, head, "", actions)
+	rows = append(rows, "", m.hintBar(hint("↑↓", "move"), hint("enter", "run"), hint("esc", "close")))
+	inner := lipgloss.NewStyle().Width(clampInt(m.bodyW-12, 30, 52)).
+		Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
+	return lipgloss.Place(m.bodyW, m.bodyH, lipgloss.Center, lipgloss.Center, dialogStyle.Render(inner))
 }

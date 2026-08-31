@@ -52,9 +52,21 @@ var (
 	tabInactiveStyle = mutedStyle
 )
 
-// handleConsoleKey drives the full-screen console: tab switch, the noise-filter
-// toggle, log search, and the command input.
+// handleConsoleKey drives the full-screen console: start/stop, the actions
+// overlay, tab switch, the important-only toggle, log search, and the command
+// input.
 func (m *model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// A pending stop confirm eats the next key: y goes through, anything else
+	// backs out.
+	if m.pendingStop {
+		m.pendingStop = false
+		if msg.String() == "y" {
+			return m, m.runAction(actStop)
+		}
+		m.status = "stop cancelled"
+		return m, nil
+	}
+
 	switch {
 	case key.Matches(msg, m.keys.Back):
 		if m.logQuery != "" {
@@ -62,8 +74,32 @@ func (m *model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.renderLog()
 			return m, nil
 		}
-		m.screen = screenMenu
+		m.screen = screenList
 		m.relayout()
+		return m, nil
+	case key.Matches(msg, m.keys.Power):
+		spec, ok := m.selected()
+		if !ok {
+			return m, nil
+		}
+		act, ok := m.primaryAction(m.reports[spec.ID].Derived)
+		if !ok {
+			return m, nil
+		}
+		if act == actStop {
+			m.pendingStop = true
+			m.status = "stop " + string(spec.ID) + "?  y = yes, any other key = no"
+			return m, nil
+		}
+		return m, m.runAction(act)
+	case key.Matches(msg, m.keys.Kill):
+		spec, ok := m.selected()
+		if !ok || !m.timedOut[spec.ID] {
+			return m, nil
+		}
+		return m, m.runAction(actForceKill)
+	case key.Matches(msg, m.keys.Actions):
+		m.openActions()
 		return m, nil
 	case key.Matches(msg, m.keys.LogTab):
 		if m.logTab == tabChat {

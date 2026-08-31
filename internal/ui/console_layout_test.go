@@ -34,8 +34,7 @@ func TestConsoleRailStaysPutWhileScrolling(t *testing.T) {
 		for i := range m.specs {
 			m.specs[i].RCON = server.RCON{Enabled: true, Port: 25575, Password: "x"}
 		}
-		tm = openMenu(t, m, tm)
-		tm, _ = chooseMenu(t, m, tm, "Open console")
+		tm = openConsole(t, m, tm)
 
 		// Real logs mix short lines with unbreakable tokens far wider than the
 		// column: stack-trace class names, long paths. Word wrap cannot split

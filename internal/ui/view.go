@@ -161,6 +161,8 @@ func (m *model) commandBar() helpSet {
 		return helpSet{short: []key.Binding{hint("enter", "send"), hint("esc", "close console")}}
 	case m.logSearch != nil:
 		return helpSet{short: []key.Binding{hint("enter", "keep filter"), hint("esc", "clear search")}}
+	case m.actions != nil:
+		return helpSet{short: []key.Binding{hint("↑↓", "move"), hint("enter", "run"), hint("esc", "close")}}
 	case m.pick != nil:
 		return helpSet{short: []key.Binding{
 			hint("→", "open folder"), hint("←", "up a level"),
@@ -174,23 +176,34 @@ func (m *model) commandBar() helpSet {
 		return helpSet{short: []key.Binding{hint("enter", "apply filter"), hint("esc", "clear")}}
 	}
 
-	switch m.screen {
-	case screenMenu:
-		return helpSet{short: []key.Binding{
-			hint("↑↓", "move"), hint("enter", "run"), m.keys.Back, m.keys.Quit,
-		}}
-	case screenConsole:
-		return helpSet{
-			short: []key.Binding{
-				hint("↑↓", "scroll"), hint("tab", "tabs"), hint("f", "important"),
-				hint("/", "search"), hint("esc", "back"), m.keys.Help,
-			},
-			full: [][]key.Binding{
-				{hint("↑↓", "scroll"), m.keys.LogTab, m.keys.LogFilter},
-				{m.keys.LogSearch, m.keys.Console, m.keys.Back},
-				{m.keys.Help, m.keys.Quit},
-			},
+	if m.screen == screenConsole {
+		spec, ok := m.selected()
+		power := m.keys.Power
+		if ok {
+			if act, valid := m.primaryAction(m.reports[spec.ID].Derived); valid {
+				switch act {
+				case actStart:
+					power = hint("s", "start")
+				case actStop:
+					power = hint("s", "stop")
+				case actMarkStopped:
+					power = hint("s", "mark stopped")
+				}
+			}
 		}
+		short := []key.Binding{
+			power, m.keys.Actions, hint("c", "command"),
+			hint("tab", "tabs"), hint("/", "search"), hint("esc", "back"), m.keys.Help,
+		}
+		full := [][]key.Binding{
+			{power, m.keys.Actions, m.keys.Console},
+			{hint("↑↓", "scroll"), m.keys.LogTab, m.keys.LogFilter, m.keys.LogSearch},
+			{m.keys.Back, m.keys.Help, m.keys.Quit},
+		}
+		if ok && m.timedOut[spec.ID] {
+			full[0] = append(full[0], m.keys.Kill)
+		}
+		return helpSet{short: short, full: full}
 	}
 
 	// screenList
@@ -255,7 +268,7 @@ func (m *model) statusView() string {
 // noticeText is the banner for the selected server when something needs the
 // operator's attention. Empty when all is well.
 func (m *model) noticeText() string {
-	if m.pat != nil || m.pick != nil || m.launch != nil || m.config != nil {
+	if m.pat != nil || m.pick != nil || m.launch != nil || m.config != nil || m.actions != nil {
 		return ""
 	}
 	// The notice belongs to whichever server is highlighted, so it rides along
@@ -293,6 +306,8 @@ func (m *model) bodyView() string {
 		content = m.launchDialogView()
 	case m.config != nil:
 		content = m.configDialogView()
+	case m.actions != nil:
+		content = m.actionsDialogView()
 	case m.pick != nil:
 		content = m.pickerView()
 	case m.loaded && len(m.specs) == 0:
@@ -300,24 +315,16 @@ func (m *model) bodyView() string {
 	case m.screen == screenConsole:
 		content = m.consoleView()
 	default:
-		content = m.splitView()
+		content = m.listView()
 	}
 	return lipgloss.NewStyle().MaxWidth(m.bodyW).
 		Height(m.bodyH).MaxHeight(m.bodyH).Render(content)
 }
 
-// splitView is the list and detail screens: the server list in a slim left
-// column, the selected server's detail and actions on the right, a divider
-// between. Only the focus differs between screenList and screenMenu.
-func (m *model) splitView() string {
-	left := lipgloss.NewStyle().Width(m.listW).Render(m.list.View())
-	right := lipgloss.NewStyle().
-		Height(m.bodyH).
-		BorderStyle(lipgloss.NormalBorder()).BorderLeft(true).BorderForeground(mutedColor).
-		MarginLeft(2).PaddingLeft(2).
-		Width(max(m.bodyW-m.listW-5, 20)).
-		Render(m.detailView())
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+// listView is the home screen: a full-width, view-only list of servers. Every
+// action is a step in from here, on the console.
+func (m *model) listView() string {
+	return lipgloss.NewStyle().Width(m.bodyW).MaxWidth(m.bodyW).Render(m.list.View())
 }
 
 // launchSummary names what starts the server: the start script, or the jar

@@ -11,6 +11,9 @@ type keymap struct {
 	Enter     key.Binding
 	Act       key.Binding
 	Back      key.Binding
+	Power     key.Binding
+	Kill      key.Binding
+	Actions   key.Binding
 	Console   key.Binding
 	LogTab    key.Binding
 	LogFilter key.Binding
@@ -28,8 +31,11 @@ func newKeymap() keymap {
 		Up:        key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "up")),
 		Down:      key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "down")),
 		Enter:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open")),
-		Act:       key.NewBinding(key.WithKeys("right", "enter"), key.WithHelp("→", "actions")),
+		Act:       key.NewBinding(key.WithKeys("right", "enter"), key.WithHelp("→", "console")),
 		Back:      key.NewBinding(key.WithKeys("esc", "left"), key.WithHelp("←", "back")),
+		Power:     key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start/stop")),
+		Kill:      key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "force-kill")),
+		Actions:   key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "actions")),
 		Console:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "type a command")),
 		LogTab:    key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch tab")),
 		LogFilter: key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "important only")),

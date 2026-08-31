@@ -10,27 +10,22 @@ server half-dead.
 
 ```text
   Beacon                                         ↑ v0.2.0 available
-  ↑ up • ↓ down • → actions • / filter • a add server • ? more keys • q quit
+  ↑ up • ↓ down • → console • / filter • a add server • ? more keys • q quit
 
-  Servers                    │  survival
-                             │  ● running   port 25565
-  ▸ ● survival      running  │  via run.sh
-    ○ creative      stopped  │
-    ◆ skyblock      unknown  │    Open console
-                             │    Stop
-                             │    Edit config
-                             │    Launch settings
-                             │
-                             │  →  act on this server
+  Servers
+
+  ▸ ● survival      running
+    ○ creative      stopped
+    ◆ skyblock      unknown
 
   ready
 ```
 
-The panel on the right follows the highlighted server: its status, its port, the
-script or jar it starts with, and the actions that apply to it right now. Press
-`→` to step into that panel, `↑` `↓` to pick an action, `enter` to run it, `←` to
-step back to the list. "Open console" fills the screen with the server log. The
-bar under the title always shows the keys that work right now; `?` expands it.
+The list is a view. Press `→` on a server to open its console, and everything
+happens from there: `s` starts or stops it, `a` opens the rest of the actions
+(edit config, launch settings, and the pre-start chores), `c` types a command to
+a running server. `←` steps back to the list. The bar under the title always
+shows the keys that work right now; `?` expands it.
 
 ## Why Beacon
 
@@ -70,21 +65,19 @@ The first run opens on a welcome screen because you have no servers yet.
 
 1. Press `a` and pick the folder your server lives in. Beacon browses your
    folders, so you do not need to type a path.
-2. Your server shows up in the list. Move the highlight with `↑` and `↓`; the
-   panel on the right updates to match.
-3. Press `→` to step into that panel. It holds the actions that make sense right
-   now (start, stop, open console, edit config, launch settings). Pick one with
-   `↑` `↓` and `enter`; `←` steps back to the list.
-4. "Open console" is a full screen: the server log, scrollable. Press `c` there
-   to type a command straight to the server.
-5. "Edit config" opens the common `server.properties` settings (port, MOTD,
-   difficulty, max players, RCON). Beacon writes only the keys you change.
-6. Have many servers? Press `/` to filter the list by name.
+2. Your server shows up in the list. Move the highlight with `↑` and `↓`.
+3. Press `→` to open that server's console. This is where everything happens:
+   `s` starts or stops it (stopping asks you to confirm), `a` opens the other
+   actions, `c` types a command to a running server. `←` steps back to the list.
+4. `a` on the console holds "Edit config": the common `server.properties`
+   settings (port, MOTD, difficulty, max players, RCON). Beacon writes only the
+   keys you change.
+5. Have many servers? Press `/` to filter the list by name.
 
 Have several servers, each in its own folder? Add each one with `a`. Or point
 Beacon at a folder that contains all of them and it picks up every server inside.
 
-The panel's header shows which script or jar Beacon starts each server with
+The console header shows which script or jar Beacon starts each server with
 (`via run.sh`). A pack that ships more than one launcher, such as a `run.sh` and
 a `start.sh`, defaults to `run.sh`; the "Launch settings" action switches it or
 sets the arguments passed to it.
@@ -96,7 +89,7 @@ On the list:
 | Key     | What it does                         |
 | ------- | ------------------------------------ |
 | `↑` `↓` | move the highlight                   |
-| `→`     | step into the server's actions       |
+| `→`     | open the server's console            |
 | `/`     | filter the list by name              |
 | `a`     | add a server (pick its folder)       |
 | `i`     | re-scan your folders for new servers |
@@ -105,10 +98,11 @@ On the list:
 | `?`     | show every key                       |
 | `q`     | quit (your servers keep running)     |
 
-In the action panel: `↑` `↓` move, `enter` runs the row, `←` or `esc` goes back
-to the list. The rows depend on status: start, stop, open console, edit config,
-mark stopped, force-kill (only after a stop hangs), accept the Minecraft EULA
-(until you have), fix start script, launch settings.
+In the console: `s` starts a stopped server, stops a running one (after a
+confirm), or marks a vanished one stopped. `K` force-kills, and is offered only
+after a stop has hung. `a` opens the rest of the actions: edit config, launch
+settings, accept the Minecraft EULA (until you have), fix start script. `↑` `↓`
+move in that overlay, `enter` runs the row, `esc` closes it.
 
 In the config editor: `↑` `↓` move between fields, `←` `→` change a choice or
 toggle, type into a text field, `enter` saves, `esc` cancels. Turning RCON on
@@ -145,7 +139,7 @@ on Linux). Logs live under `~/.local/state/beacon/logs`. You rarely need to touc
 either.
 
 **My server flips straight to `unknown` when I start it.** It started and then
-exited on its own. The log panel on the right shows why. The usual cause is Java
+exited on its own. Open its console with `→` to see why. The usual cause is Java
 not being on your `PATH`; most modpacks need Java 17 or 21. Install it (macOS:
 `brew install openjdk@17`, then follow the caveats `brew` prints so `java` is
 found), then try again.
@@ -157,7 +151,7 @@ sitting in front of it) is how you use Beacon.
 **What is that `unknown` status?** Beacon knows a server was running, but its
 session has vanished. It will not guess that the server is safely off, because
 guessing wrong is how you get two servers fighting over one port. Check the box,
-then run the "Mark stopped" action.
+then open the console and press `s` to mark it stopped.
 
 **Does it keep itself updated?** It tells you when a new version is out and shows
 the command to run. Updating is re-running the install line above.
