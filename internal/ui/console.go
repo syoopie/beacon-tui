@@ -43,8 +43,9 @@ const (
 )
 
 // logScrollStep is how many lines one press of up or down moves the log. The
-// viewport's own default of one line at a time is too slow for a busy log.
-const logScrollStep = 3
+// viewport's own default of one line at a time is too slow for a busy log;
+// pgup and pgdn still jump a whole screen.
+const logScrollStep = 6
 
 var (
 	tabActiveStyle   = lipgloss.NewStyle().Bold(true).Foreground(accentColor)
