@@ -82,7 +82,7 @@ for fixtures: `~/MinecraftServer/BMC4_ServerPack_v61/logs/latest.log`.
 | `internal/supervisor`   | the `Supervisor` port                             |
 | `internal/tmux`         | the tmux adapter, the only package that knows tmux |
 | `internal/logtail`      | append-only log file follower, reopens on truncate |
-| `internal/reconcile`    | derive status from tmux, port collision check     |
+| `internal/reconcile`    | derive status from tmux, port collision and live port health checks |
 | `internal/oplock`       | the host operation lock                           |
 | `internal/lifecycle`    | start, stop, force-kill, config writes under the lock |
 | `internal/mcprops`      | line-preserving editor for server.properties and eula.txt |

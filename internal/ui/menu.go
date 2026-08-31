@@ -158,10 +158,13 @@ func (m *model) detailView() string {
 	r := m.reports[spec.ID]
 	focused := m.screen == screenMenu
 
+	portLine := mutedStyle.Render(fmt.Sprintf("   port %d", spec.Port))
+	if word, color := portHealthLabel(r.PortHealth); word != "" {
+		portLine += mutedStyle.Render(" ") + lipgloss.NewStyle().Foreground(color).Render(word)
+	}
 	head := lipgloss.JoinVertical(lipgloss.Left,
 		sectionStyle.Render(string(spec.ID)),
-		lipgloss.NewStyle().Foreground(statusColor(r.Derived)).Render(statusGlyph(r.Derived)+" "+r.Derived.String())+
-			mutedStyle.Render(fmt.Sprintf("   port %d", spec.Port)),
+		lipgloss.NewStyle().Foreground(statusColor(r.Derived)).Render(statusGlyph(r.Derived)+" "+r.Derived.String())+portLine,
 		mutedStyle.Render("via "+launchSummary(spec)),
 	)
 

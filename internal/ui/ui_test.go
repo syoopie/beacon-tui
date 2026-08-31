@@ -437,6 +437,27 @@ func TestServerMenuTracksStatus(t *testing.T) {
 	}
 }
 
+func TestDetailViewShowsPortHealth(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	loadRegistry(t, m, tm)
+
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusStopped}
+	if got := m.detailView(); strings.Contains(got, "ready") || strings.Contains(got, "starting") {
+		t.Fatalf("stopped server should carry no port-health word:\n%s", got)
+	}
+
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning, PortHealth: reconcile.PortClosed}
+	if got := m.detailView(); !strings.Contains(got, "starting") {
+		t.Fatalf("running server with a closed port should read \"starting\":\n%s", got)
+	}
+
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning, PortHealth: reconcile.PortOpen}
+	if got := m.detailView(); !strings.Contains(got, "ready") {
+		t.Fatalf("running server with an open port should read \"ready\":\n%s", got)
+	}
+}
+
 func TestConsoleSendsTypedLineToRunningServer(t *testing.T) {
 	m, tm, sup, dirs, _ := bootModel(t)
 	spec := writeSpec(t, dirs, "survival")

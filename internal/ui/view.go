@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/syoopie/beacon-tui/internal/reconcile"
 	"github.com/syoopie/beacon-tui/internal/server"
 )
 
@@ -52,6 +53,21 @@ func statusColor(s server.Status) lipgloss.TerminalColor {
 		return warnColor
 	default:
 		return mutedColor
+	}
+}
+
+// portHealthLabel turns a live port probe into a word and its colour: "ready"
+// once the server accepts connections, "starting" while its session is up but
+// the port has not opened. An unprobed port returns "", so a stopped server's
+// header stays just "port 25565".
+func portHealthLabel(h reconcile.PortHealth) (string, lipgloss.TerminalColor) {
+	switch h {
+	case reconcile.PortOpen:
+		return "ready", runColor
+	case reconcile.PortClosed:
+		return "starting", transColor
+	default:
+		return "", mutedColor
 	}
 }
 

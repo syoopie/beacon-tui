@@ -11,12 +11,25 @@ import (
 	"github.com/syoopie/beacon-tui/internal/supervisor"
 )
 
+// PortHealth is a live TCP probe of a server's listen port, a signal kept
+// separate from Derived status. A running session whose port has not opened yet
+// is still coming up; one whose port never opens is wedged. Status cannot tell
+// those apart because both have a live tmux session.
+type PortHealth int
+
+const (
+	PortUnprobed PortHealth = iota // no live session, or the spec carries no port
+	PortOpen                       // a TCP connect to the port succeeded
+	PortClosed                     // the session is up but nothing accepts on the port
+)
+
 // Report is one server's reconciled state for a single pass.
 type Report struct {
 	ID            server.ID
 	SessionExists bool
 	LastKnown     server.Status
 	Derived       server.Status
+	PortHealth    PortHealth
 	// Warning is operator-facing text, non-empty only when reality and the
 	// recorded state disagree in a way the operator must resolve.
 	Warning string
@@ -37,6 +50,7 @@ func Run(ctx context.Context, sup supervisor.Supervisor, specs []server.Spec) ([
 			SessionExists: exists,
 			LastKnown:     s.State.LastKnown,
 			Derived:       derived,
+			PortHealth:    probePort(exists, s.Port),
 			Warning:       warning,
 		})
 	}
@@ -58,4 +72,16 @@ func derive(sessionExists bool, lastKnown server.Status) (server.Status, string)
 	default:
 		return server.StatusStopped, ""
 	}
+}
+
+// probePort dials the server's listen port when its session is live. A dead
+// session or a spec with no port is left Unprobed rather than reported closed.
+func probePort(sessionExists bool, port int) PortHealth {
+	if !sessionExists || port <= 0 {
+		return PortUnprobed
+	}
+	if osListening(port) {
+		return PortOpen
+	}
+	return PortClosed
 }

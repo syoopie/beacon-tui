@@ -3,6 +3,7 @@ package reconcile
 import (
 	"context"
 	"errors"
+	"net"
 	"testing"
 
 	"github.com/syoopie/beacon-tui/internal/server"
@@ -77,6 +78,41 @@ func TestRunReportsPerSpec(t *testing.T) {
 	}
 	if reports[1].Derived != server.StatusUnknown || reports[1].Warning == "" {
 		t.Errorf("creative report = %+v, want unknown with a warning", reports[1])
+	}
+}
+
+func TestRunProbesPortHealth(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+	openPort := ln.Addr().(*net.TCPAddr).Port
+
+	bound := spec(t, "survival", server.StatusRunning)
+	bound.Port = openPort
+	wedged := spec(t, "creative", server.StatusRunning)
+	wedged.Port = openPort + 1 // nothing listens here
+	down := spec(t, "skyblock", server.StatusStopped)
+	down.Port = openPort
+
+	sup := fakeSup{present: map[server.Session]bool{
+		bound.Session:  true,
+		wedged.Session: true,
+	}}
+
+	reports, err := Run(context.Background(), sup, []server.Spec{bound, wedged, down})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if reports[0].PortHealth != PortOpen {
+		t.Errorf("bound port health = %v, want PortOpen", reports[0].PortHealth)
+	}
+	if reports[1].PortHealth != PortClosed {
+		t.Errorf("wedged port health = %v, want PortClosed", reports[1].PortHealth)
+	}
+	if reports[2].PortHealth != PortUnprobed {
+		t.Errorf("stopped port health = %v, want PortUnprobed", reports[2].PortHealth)
 	}
 }
 

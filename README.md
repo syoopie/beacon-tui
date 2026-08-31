@@ -127,6 +127,11 @@ process's memory and CPU. The player list needs RCON, which the "Edit config"
 action turns on for you. The memory and CPU figures come from `ps` and need
 nothing configured.
 
+Next to the port, Beacon shows whether that port is accepting connections.
+`starting` means the process is up but has not opened its port yet, the normal
+state for the first half minute of a boot. `ready` means players can join. A
+server that sits on `starting` while its log has gone quiet is wedged.
+
 Beacon will not start a server whose `eula.txt` does not say `eula=true`. The
 "Accept the Minecraft EULA" action writes it once you agree to
 <https://aka.ms/MinecraftEULA>.
@@ -197,10 +202,12 @@ The full design write-up is [`beacon-tui-plan.md`](beacon-tui-plan.md).
 | `internal/server`       | IDs, spec, the status state machine               |
 | `internal/importdetect` | scan folders, detect scripts and jars, exec patch |
 | `internal/supervisor`   | the `Supervisor` port                             |
-| `internal/tmux`         | the tmux adapter and the log tailer               |
-| `internal/reconcile`    | derive status from tmux, port collision check     |
+| `internal/tmux`         | the tmux adapter, the only package that knows tmux |
+| `internal/logtail`      | append-only log file follower, reopens on truncate |
+| `internal/reconcile`    | derive status from tmux, port collision and live port health checks |
 | `internal/oplock`       | the host operation lock                           |
-| `internal/lifecycle`    | start, stop, force-kill under the lock            |
+| `internal/lifecycle`    | start, stop, force-kill, config writes under the lock |
+| `internal/mcprops`      | line-preserving editor for server.properties and eula.txt |
 | `internal/rcon`         | poll a running server for its player list         |
 | `internal/procstat`     | read a process's memory and CPU from `ps`         |
 | `internal/selfupdate`   | the startup release check                         |

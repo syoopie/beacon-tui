@@ -227,10 +227,14 @@ func (m *model) logHeaderView(w int) string {
 		return sectionStyle.Render("Log")
 	}
 	r := m.reports[spec.ID]
+	port := mutedStyle.Render(fmt.Sprintf("port %d", spec.Port))
+	if word, color := portHealthLabel(r.PortHealth); word != "" {
+		port += mutedStyle.Render(" ") + lipgloss.NewStyle().Foreground(color).Render(word)
+	}
 	line := strings.Join([]string{
 		sectionStyle.Render(string(spec.ID)),
 		lipgloss.NewStyle().Foreground(statusColor(r.Derived)).Render(r.Derived.String()),
-		mutedStyle.Render(fmt.Sprintf("port %d", spec.Port)),
+		port,
 		mutedStyle.Render("via " + launchSummary(spec)),
 	}, mutedStyle.Render("   ·   "))
 	return lipgloss.NewStyle().MaxWidth(max(w, 1)).Render(line)
@@ -243,7 +247,8 @@ func (m *model) railView() string {
 	if !ok {
 		return ""
 	}
-	running := m.reports[spec.ID].Derived == server.StatusRunning
+	r := m.reports[spec.ID]
+	running := r.Derived == server.StatusRunning
 
 	rows := []string{sectionStyle.Render("Players")}
 	switch {
@@ -267,13 +272,18 @@ func (m *model) railView() string {
 	switch {
 	case !running:
 		rows = append(rows, mutedStyle.Render("—"))
-	case m.procErr != "":
-		rows = append(rows, mutedStyle.Render(m.procErr))
 	default:
-		rows = append(rows,
-			mutedStyle.Render("mem  "+humanize.IBytes(uint64(m.proc.RSS))),
-			mutedStyle.Render(fmt.Sprintf("cpu  %.0f%%", m.proc.CPUPercent)),
-		)
+		if word, color := portHealthLabel(r.PortHealth); word != "" {
+			rows = append(rows, mutedStyle.Render("port ")+lipgloss.NewStyle().Foreground(color).Render(word))
+		}
+		if m.procErr != "" {
+			rows = append(rows, mutedStyle.Render(m.procErr))
+		} else {
+			rows = append(rows,
+				mutedStyle.Render("mem  "+humanize.IBytes(uint64(m.proc.RSS))),
+				mutedStyle.Render(fmt.Sprintf("cpu  %.0f%%", m.proc.CPUPercent)),
+			)
+		}
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
