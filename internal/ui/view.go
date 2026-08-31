@@ -5,12 +5,16 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/dustin/go-humanize"
+
+	"github.com/syoopie/beacon-tui/internal/procstat"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
 	"github.com/syoopie/beacon-tui/internal/server"
 )
@@ -87,67 +91,142 @@ func statusGlyph(s server.Status) string {
 
 // --- server list delegate ---
 
+// serverItem is one card in the list. It carries a snapshot of everything the
+// card draws, so the delegate stays a pure function of the item.
 type serverItem struct {
-	spec   server.Spec
-	status server.Status
-	warn   string
+	spec    server.Spec
+	status  server.Status
+	health  reconcile.PortHealth
+	warn    string
+	proc    procstat.Stat
+	hasProc bool
 }
 
 func (i serverItem) FilterValue() string { return string(i.spec.ID) }
 
-type serverDelegate struct{}
+// statusGroup buckets a status for the list: live servers first, then stopped,
+// then the ones Beacon has lost track of.
+func statusGroup(s server.Status) int {
+	switch s {
+	case server.StatusRunning, server.StatusStarting, server.StatusStopping:
+		return 0
+	case server.StatusStopped:
+		return 1
+	default:
+		return 2
+	}
+}
 
-func (serverDelegate) Height() int                         { return 1 }
+func groupLabel(g int) string {
+	switch g {
+	case 0:
+		return "running"
+	case 1:
+		return "stopped"
+	default:
+		return "unknown"
+	}
+}
+
+// serverDelegate draws each server as a two-line card: a status line, then a
+// dimmed detail line. compact drops the detail line on a narrow terminal. A
+// group label rides above the first card of each group.
+type serverDelegate struct{ compact bool }
+
+func (d serverDelegate) Height() int {
+	if d.compact {
+		return 2
+	}
+	return 3
+}
 func (serverDelegate) Spacing() int                        { return 0 }
 func (serverDelegate) Update(tea.Msg, *list.Model) tea.Cmd { return nil }
 
-func (serverDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+func (d serverDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	si, ok := item.(serverItem)
 	if !ok {
 		return
 	}
-	width := m.Width()
-	if width < 12 {
-		width = 12
-	}
+	width := max(m.Width(), 12)
 	selected := index == m.Index()
+	clip := func(s string) string { return lipgloss.NewStyle().MaxWidth(width).Render(s) }
 
-	marker := "  "
+	label := ""
+	vis := m.VisibleItems()
+	if index == 0 || statusGroup(vis[index-1].(serverItem).status) != statusGroup(si.status) {
+		label = mutedStyle.Render(groupLabel(statusGroup(si.status)))
+	}
+
+	bar, name := "  ", lipgloss.NewStyle().Render(string(si.spec.ID))
 	if selected {
-		marker = "▸ "
+		bar = markerStyle.Render("▎ ")
+		name = selectedRow.Render(string(si.spec.ID))
 	}
-	glyph := statusGlyph(si.status) + " "
-	status := si.status.String()
 
-	// Give the name whatever is left after the marker, glyph, one gap, and the
-	// status word, then ellipsize it rather than letting the row overflow.
-	nameW := width - lipgloss.Width(marker) - lipgloss.Width(glyph) - lipgloss.Width(status) - 1
-	name := truncateName(string(si.spec.ID), nameW)
-
-	gap := width - lipgloss.Width(marker) - lipgloss.Width(glyph) - lipgloss.Width(name) - lipgloss.Width(status)
-	if gap < 1 {
-		gap = 1
-	}
 	color := lipgloss.NewStyle().Foreground(statusColor(si.status))
-	rendered := markerStyle.Render(marker) + color.Render(glyph) + name +
-		strings.Repeat(" ", gap) + color.Render(status)
-	if selected {
-		rendered = selectedRow.Render(rendered)
+	dot := mutedStyle.Render("  ·  ")
+	head := color.Render(statusGlyph(si.status)) + " " + name +
+		dot + color.Render(si.status.String())
+	if si.spec.Port > 0 {
+		head += dot + mutedStyle.Render(fmt.Sprintf(":%d", si.spec.Port))
+		if word, hc := portHealthLabel(si.health); word != "" {
+			head += " " + lipgloss.NewStyle().Foreground(hc).Render(word)
+		}
 	}
-	_, _ = fmt.Fprint(w, lipgloss.NewStyle().MaxWidth(width).Render(rendered))
+
+	// The first row is the group label at a group boundary, one blank line as a
+	// separator mid-group, and nothing for the very first card.
+	top := ""
+	if label != "" {
+		top = label
+	} else if index > 0 {
+		top = " "
+	}
+	rows := []string{top, clip(bar + head)}
+	if !d.compact {
+		rows = append(rows, clip("  "+mutedStyle.Render(cardDetail(si))))
+	}
+	for len(rows) < d.Height() {
+		rows = append(rows, "")
+	}
+	_, _ = fmt.Fprint(w, strings.Join(rows, "\n"))
 }
 
-func truncateName(s string, w int) string {
-	if w < 1 {
-		return ""
+// cardDetail is the dimmed second line: how a running server is doing, or what
+// starts a stopped one, or why a vanished one needs a look.
+func cardDetail(si serverItem) string {
+	switch statusGroup(si.status) {
+	case 0:
+		if si.hasProc {
+			return fmt.Sprintf("up %s  ·  mem %s  ·  cpu %.0f%%",
+				humanShortDuration(si.proc.Uptime),
+				humanize.IBytes(uint64(si.proc.RSS)),
+				si.proc.CPUPercent)
+		}
+		return "via " + launchSummary(si.spec)
+	case 2:
+		if si.warn != "" {
+			return si.warn
+		}
+		return "session vanished; open the console and press s to mark it stopped"
+	default:
+		return "via " + launchSummary(si.spec)
 	}
-	if len(s) <= w {
-		return s
+}
+
+// humanShortDuration is a compact "4h12m" style age, for a card that has one
+// column to spare.
+func humanShortDuration(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh%dm", int(d.Hours()), int(d.Minutes())%60)
+	default:
+		return fmt.Sprintf("%dd%dh", int(d.Hours())/24, int(d.Hours())%24)
 	}
-	if w == 1 {
-		return "…"
-	}
-	return s[:w-1] + "…"
 }
 
 // --- the command bar ---

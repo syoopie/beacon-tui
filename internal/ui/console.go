@@ -13,7 +13,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 
-	"github.com/syoopie/beacon-tui/internal/procstat"
 	"github.com/syoopie/beacon-tui/internal/rcon"
 	"github.com/syoopie/beacon-tui/internal/server"
 )
@@ -25,9 +24,6 @@ func (m *model) openConsoleScreen() {
 	m.rconSnap = rcon.Snapshot{}
 	m.rconErr = ""
 	m.rconAt = time.Time{}
-	m.proc = procstat.Stat{}
-	m.procErr = ""
-	m.procAt = time.Time{}
 	m.relayout()
 	m.vp.GotoBottom()
 }
@@ -325,12 +321,13 @@ func (m *model) railView() string {
 		if word, color := portHealthLabel(r.PortHealth); word != "" {
 			rows = append(rows, mutedStyle.Render("port ")+lipgloss.NewStyle().Foreground(color).Render(word))
 		}
-		if m.procErr != "" {
-			rows = append(rows, mutedStyle.Render(m.procErr))
-		} else {
+		if e := m.procErrByID[spec.ID]; e != "" {
+			rows = append(rows, mutedStyle.Render(e))
+		} else if p, ok := m.procByID[spec.ID]; ok {
 			rows = append(rows,
-				mutedStyle.Render("mem  "+humanize.IBytes(uint64(m.proc.RSS))),
-				mutedStyle.Render(fmt.Sprintf("cpu  %.0f%%", m.proc.CPUPercent)),
+				mutedStyle.Render("up   "+humanShortDuration(p.Uptime)),
+				mutedStyle.Render("mem  "+humanize.IBytes(uint64(p.RSS))),
+				mutedStyle.Render(fmt.Sprintf("cpu  %.0f%%", p.CPUPercent)),
 			)
 		}
 	}

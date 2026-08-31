@@ -14,18 +14,28 @@ server half-dead.
 
   Servers
 
-  ▸ ● survival      running
-    ○ creative      stopped
-    ◆ skyblock      unknown
+  running
+  ▎ ● survival  ·  running  ·  :25565 ready
+      up 4h12m  ·  mem 3.1 GiB  ·  cpu 42%
+
+  stopped
+    ○ creative  ·  stopped  ·  :25566
+      via run.sh
+
+  unknown
+    ◆ skyblock  ·  unknown  ·  :25567
+      session vanished; open the console and press s to mark it stopped
 
   ready
 ```
 
-The list is a view. Press `→` on a server to open its console, and everything
-happens from there: `s` starts or stops it, `a` opens the rest of the actions
-(edit config, launch settings, and the pre-start chores), `c` types a command to
-a running server. `←` steps back to the list. The bar under the title always
-shows the keys that work right now; `?` expands it.
+The list is a view. Servers are grouped by state, live ones first, and each card
+carries a second line: how a running server is doing, or what starts a stopped
+one. Press `→` on a server to open its console, and everything happens from
+there: `s` starts or stops it, `a` opens the rest of the actions (edit config,
+launch settings, and the pre-start chores), `c` types a command to a running
+server. `←` steps back to the list. The bar under the title always shows the
+keys that work right now; `?` expands it.
 
 ## Why Beacon
 
@@ -118,9 +128,10 @@ log still reads. `/` searches the current view, and search looks through the
 whole log, not just the current filter, until you clear it with `esc`.
 
 On wide terminals a rail on the right shows who is online and the server
-process's memory and CPU. The player list needs RCON, which the "Edit config"
-action turns on for you. The memory and CPU figures come from `ps` and need
-nothing configured.
+process's uptime, memory and CPU. The player list needs RCON, which the "Edit
+config" action turns on for you. The uptime, memory and CPU figures come from
+`ps` and need nothing configured; the same numbers show on the server's card in
+the list.
 
 Next to the port, Beacon shows whether that port is accepting connections.
 `starting` means the process is up but has not opened its port yet, the normal
@@ -206,7 +217,7 @@ not on `PATH`. `make lint` runs golangci-lint if it is installed; CI always does
 | `internal/lifecycle`    | start, stop, force-kill, config writes under the lock |
 | `internal/mcprops`      | line-preserving editor for server.properties and eula.txt |
 | `internal/rcon`         | poll a running server for its player list         |
-| `internal/procstat`     | read a process's memory and CPU from `ps`         |
+| `internal/procstat`     | read a process's memory, CPU and uptime from `ps` |
 | `internal/selfupdate`   | the startup release check                         |
 | `internal/ui`           | the Bubble Tea front end                          |
 

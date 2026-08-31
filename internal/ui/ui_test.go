@@ -259,6 +259,39 @@ func TestStartFromConsoleDrivesLifecycleAndClearsBusy(t *testing.T) {
 	}
 }
 
+func TestServerCardsGroupAndShowDetail(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t) // 100x30, non-compact
+	sp := writeSpec(t, dirs, "survival")
+	writeSpec(t, dirs, "creative")
+	tm = loadRegistry(t, m, tm)
+
+	m.reports[sp.ID] = reconcile.Report{ID: sp.ID, Derived: server.StatusRunning, PortHealth: reconcile.PortOpen}
+	m.procByID[sp.ID] = procstat.Stat{RSS: 3 * 1024 * 1024 * 1024, CPUPercent: 42, Uptime: 4*time.Hour + 12*time.Minute}
+	m.refreshItems()
+
+	view := tm.View()
+	for _, want := range []string{"running", "stopped", "ready", "up 4h12m", "mem 3.0 GiB", "cpu 42%", "via run.sh"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("list view missing %q:\n%s", want, view)
+		}
+	}
+
+	// The running group sorts above the stopped one.
+	rIdx, sIdx := strings.Index(view, "running"), strings.Index(view, "stopped")
+	if rIdx < 0 || sIdx < 0 || rIdx > sIdx {
+		t.Fatalf("running group should come before stopped:\n%s", view)
+	}
+}
+
+func TestCompactCardsDropTheDetailLine(t *testing.T) {
+	if h := (serverDelegate{compact: true}).Height(); h != 2 {
+		t.Fatalf("compact card height = %d, want 2", h)
+	}
+	if h := (serverDelegate{}).Height(); h != 3 {
+		t.Fatalf("full card height = %d, want 3", h)
+	}
+}
+
 func TestBreadcrumbTracksWhereYouAre(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	writeSpec(t, dirs, "survival")
@@ -657,10 +690,17 @@ func TestConsolePlayerRail(t *testing.T) {
 		t.Fatalf("a poll error should show in the rail:\n%s", tm.View())
 	}
 
-	tm, _ = drive(t, tm, procMsg{id: spec.ID, stat: procstat.Stat{RSS: 2 * 1024 * 1024 * 1024, CPUPercent: 31}})
+	tm, _ = drive(t, tm, procMsg{
+		stats: map[server.ID]procstat.Stat{
+			spec.ID: {RSS: 2 * 1024 * 1024 * 1024, CPUPercent: 31, Uptime: 90 * time.Minute},
+		},
+		errs: map[server.ID]string{},
+	})
 	view = tm.View()
-	if !strings.Contains(view, "Resources") || !strings.Contains(view, "2.0 GiB") || !strings.Contains(view, "cpu  31%") {
-		t.Fatalf("rail should show the sampled memory and CPU:\n%s", view)
+	for _, want := range []string{"Resources", "up   1h30m", "2.0 GiB", "cpu  31%"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("rail should show the sampled memory, CPU and uptime; missing %q:\n%s", want, view)
+		}
 	}
 }
 

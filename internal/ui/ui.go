@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -101,8 +102,11 @@ type model struct {
 	rconAt       time.Time
 	rconInFlight bool
 
-	proc         procstat.Stat
-	procErr      string
+	// procByID samples every running server's JVM, not just the selected one,
+	// so the list can show each server's weight. Refreshed on the same cadence
+	// as the console rail.
+	procByID     map[server.ID]procstat.Stat
+	procErrByID  map[server.ID]string
 	procAt       time.Time
 	procInFlight bool
 
@@ -143,14 +147,16 @@ func newModel(app App) *model {
 	l.Styles.NoItems = mutedStyle
 
 	return &model{
-		app:      app,
-		reports:  map[server.ID]reconcile.Report{},
-		timedOut: map[server.ID]bool{},
-		eula:     map[server.ID]bool{},
-		status:   initialStatus,
-		list:     l,
-		help:     newHelp(),
-		keys:     newKeymap(),
+		app:         app,
+		reports:     map[server.ID]reconcile.Report{},
+		timedOut:    map[server.ID]bool{},
+		eula:        map[server.ID]bool{},
+		procByID:    map[server.ID]procstat.Stat{},
+		procErrByID: map[server.ID]string{},
+		status:      initialStatus,
+		list:        l,
+		help:        newHelp(),
+		keys:        newKeymap(),
 	}
 }
 
@@ -227,14 +233,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case procMsg:
 		m.procInFlight = false
-		if msg.id != m.selID {
-			return m, nil
-		}
-		if msg.err != nil {
-			m.procErr = "unavailable"
-		} else {
-			m.proc, m.procErr = msg.stat, ""
-		}
+		m.procByID, m.procErrByID = msg.stats, msg.errs
+		m.refreshItems() // the cards carry these numbers
 		return m, nil
 
 	case reloadedMsg:
@@ -556,9 +556,6 @@ func (m *model) syncSelection() {
 	m.rconSnap = rcon.Snapshot{}
 	m.rconErr = ""
 	m.rconAt = time.Time{}
-	m.proc = procstat.Stat{}
-	m.procErr = ""
-	m.procAt = time.Time{}
 	m.vp.SetContent("")
 	m.vp.GotoTop()
 	m.relayout() // the notice banner depends on which server is selected
@@ -568,12 +565,30 @@ func (m *model) refreshItems() {
 	if m.list.FilterState() == list.Filtering {
 		return
 	}
-	items := make([]list.Item, len(m.specs))
-	for i, s := range m.specs {
+	ordered := append([]server.Spec(nil), m.specs...)
+	sort.SliceStable(ordered, func(a, b int) bool {
+		ga, gb := statusGroup(m.reports[ordered[a].ID].Derived), statusGroup(m.reports[ordered[b].ID].Derived)
+		if ga != gb {
+			return ga < gb
+		}
+		return strings.ToLower(string(ordered[a].ID)) < strings.ToLower(string(ordered[b].ID))
+	})
+	items := make([]list.Item, len(ordered))
+	for i, s := range ordered {
 		r := m.reports[s.ID]
-		items[i] = serverItem{spec: s, status: r.Derived, warn: r.Warning}
+		p, ok := m.procByID[s.ID]
+		items[i] = serverItem{spec: s, status: r.Derived, health: r.PortHealth, warn: r.Warning, proc: p, hasProc: ok}
 	}
 	m.list.SetItems(items)
+	// The sort can move the selected server, so re-point the cursor at it by ID.
+	if m.selID != "" {
+		for i, it := range items {
+			if it.(serverItem).spec.ID == m.selID {
+				m.list.Select(i)
+				break
+			}
+		}
+	}
 	m.syncSelection()
 }
 
@@ -621,8 +636,10 @@ func (m *model) relayout() {
 	m.bodyH = bodyH
 
 	// The list screen is view only and takes the whole width; the console
-	// screen does too, minus its rail.
+	// screen does too, minus its rail. Below 55 columns the cards drop their
+	// dimmed detail line.
 	m.listW = innerW
+	m.list.SetDelegate(serverDelegate{compact: innerW < 55})
 	m.list.SetSize(innerW, bodyH)
 
 	// The console screen carries a player and resource rail on the right, but
@@ -868,33 +885,47 @@ func (m *model) rconPollCmd() tea.Cmd {
 }
 
 type procMsg struct {
-	id   server.ID
-	stat procstat.Stat
-	err  error
+	stats map[server.ID]procstat.Stat
+	errs  map[server.ID]string
 }
 
-// procPollCmd samples the selected server's process for memory and CPU, on the
-// same terms as the player poll: console open, server running, poll aged out.
+// procPollCmd samples every running server's JVM for memory, CPU and uptime, so
+// the list and the console rail both have fresh numbers. One ps per server per
+// cycle; a stopped server costs nothing.
 func (m *model) procPollCmd() tea.Cmd {
-	if m.screen != screenConsole || m.procInFlight || time.Since(m.procAt) < pollEvery {
+	if m.procInFlight || time.Since(m.procAt) < pollEvery {
 		return nil
 	}
-	spec, ok := m.selected()
-	if !ok || m.reports[spec.ID].Derived != server.StatusRunning {
+	var running []server.Spec
+	for _, s := range m.specs {
+		if m.reports[s.ID].Derived == server.StatusRunning {
+			running = append(running, s)
+		}
+	}
+	if len(running) == 0 {
 		return nil
 	}
 	m.procInFlight = true
 	m.procAt = time.Now()
-	sup, sess, id := m.app.Sup, spec.Session, spec.ID
+	sup := m.app.Sup
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), pollEvery)
 		defer cancel()
-		pid, err := sup.PID(ctx, sess)
-		if err != nil || pid == 0 {
-			return procMsg{id: id, err: fmt.Errorf("%s: no process id", id)}
+		stats := make(map[server.ID]procstat.Stat, len(running))
+		errs := make(map[server.ID]string, len(running))
+		for _, s := range running {
+			pid, err := sup.PID(ctx, s.Session)
+			if err != nil || pid == 0 {
+				errs[s.ID] = "unavailable"
+				continue
+			}
+			if stat, err := procstat.Sample(ctx, pid); err != nil {
+				errs[s.ID] = "unavailable"
+			} else {
+				stats[s.ID] = stat
+			}
 		}
-		stat, err := procstat.Sample(ctx, pid)
-		return procMsg{id: id, stat: stat, err: err}
+		return procMsg{stats: stats, errs: errs}
 	}
 }
 
