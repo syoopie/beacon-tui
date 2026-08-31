@@ -113,6 +113,45 @@ func TestLoadSpecsRejectsIDFilenameMismatch(t *testing.T) {
 	}
 }
 
+func TestSaveSpecRoundTripsCommandsBlock(t *testing.T) {
+	dirs := Dirs{Config: t.TempDir()}
+	original := server.Spec{
+		ID: "survival", Dir: "/srv/mc/survival", Start: "./run.sh", Script: "run.sh",
+		Port: 25565, Session: server.SessionFor("survival"),
+		LogFile: "/srv/mc/survival/logs/beacon.log", Exec: server.ExecOK,
+		Commands: server.Commands{MCVersion: "1.20.1", Loader: "forge"},
+		State:    server.State{LastKnown: server.StatusStopped},
+	}
+	if err := SaveSpec(dirs, original); err != nil {
+		t.Fatalf("SaveSpec: %v", err)
+	}
+	reloaded, err := LoadSpec(dirs.ServerFile("survival"))
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	if !reflect.DeepEqual(original, reloaded) {
+		t.Fatalf("round trip changed the spec:\n before %+v\n after  %+v", original, reloaded)
+	}
+}
+
+func TestLoadSpecPredatesCommandsBlock(t *testing.T) {
+	// A spec file written before [commands] existed must still load, with the
+	// zero value standing for "auto".
+	path := filepath.Join(t.TempDir(), "survival.toml")
+	body := "id = \"survival\"\ndir = \"/srv/mc/survival\"\nstart = \"./run.sh\"\nport = 25565\n" +
+		"session = \"beacon-survival\"\nlog_file = \"/srv/mc/survival/logs/beacon.log\"\nexec_state = \"ok\"\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	s, err := LoadSpec(path)
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	if (s.Commands != server.Commands{}) || !s.Commands.CompletionEnabled() {
+		t.Fatalf("Commands = %+v, want the zero value meaning auto", s.Commands)
+	}
+}
+
 func TestLoadSpecRejectsUnknownKey(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "survival.toml")
 	body := "id = \"survival\"\ndir = \"/srv/minecraft/survival\"\nstart = \"./run.sh\"\nport = 25565\n" +

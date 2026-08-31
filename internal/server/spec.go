@@ -3,6 +3,8 @@ package server
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"time"
 )
 
@@ -19,7 +21,47 @@ type Spec struct {
 	Exec    ExecState `toml:"exec_state"`
 	RCON    RCON      `toml:"rcon"`
 	State   State     `toml:"state"`
+
+	Commands Commands `toml:"commands"`
 }
+
+// Commands configures the console's command completion for this server. A spec
+// written before this block existed decodes with the zero value, which means
+// "auto": use the bundled command tree for MCVersion, or fall back to plain
+// input when MCVersion is unknown. importdetect fills MCVersion and Loader at
+// import; the operator can correct either by hand.
+type Commands struct {
+	MCVersion  string `toml:"mc_version"` // "1.20.1"; blank when detection could not tell
+	Loader     string `toml:"loader"`     // vanilla|forge|neoforge|fabric|quilt|paper|purpur|folia|spigot|craftbukkit; informational until the RCON phase
+	Completion string `toml:"completion"` // "" or "auto" (default), or "off"
+}
+
+var (
+	mcVersionRe  = regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?$`)
+	knownLoaders = []string{
+		"vanilla", "forge", "neoforge", "fabric", "quilt",
+		"paper", "purpur", "folia", "spigot", "craftbukkit",
+	}
+)
+
+func (c Commands) validate() error {
+	switch c.Completion {
+	case "", "auto", "off":
+	default:
+		return fmt.Errorf("completion %q: want \"auto\" or \"off\"", c.Completion)
+	}
+	if c.MCVersion != "" && !mcVersionRe.MatchString(c.MCVersion) {
+		return fmt.Errorf("mc_version %q: want a Minecraft version like 1.20.1", c.MCVersion)
+	}
+	if c.Loader != "" && !slices.Contains(knownLoaders, c.Loader) {
+		return fmt.Errorf("loader %q: not a known server type", c.Loader)
+	}
+	return nil
+}
+
+// CompletionEnabled reports whether the console should offer command completion
+// for this server. It is off only when the operator set it so.
+func (c Commands) CompletionEnabled() bool { return c.Completion != "off" }
 
 // RCON mirrors server.properties. The password is plaintext on disk, which is
 // why spec files are 0600.
@@ -68,6 +110,9 @@ func (s Spec) Validate() error {
 	}
 	if s.State.PID < 0 {
 		return fmt.Errorf("state.pid %d: negative", s.State.PID)
+	}
+	if err := s.Commands.validate(); err != nil {
+		return fmt.Errorf("commands: %w", err)
 	}
 	return nil
 }

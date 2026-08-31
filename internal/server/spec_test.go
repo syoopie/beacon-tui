@@ -45,6 +45,10 @@ func TestSpecValidate(t *testing.T) {
 		{"rcon port too high", func(s *Spec) { s.RCON.Port = 70000 }, "rcon.port"},
 		{"negative rcon port", func(s *Spec) { s.RCON.Port = -1 }, "rcon.port"},
 		{"negative pid", func(s *Spec) { s.State.PID = -1 }, "state.pid"},
+		{"bad completion", func(s *Spec) { s.Commands.Completion = "sometimes" }, "completion"},
+		{"bad mc_version", func(s *Spec) { s.Commands.MCVersion = "1.x" }, "mc_version"},
+		{"four-part mc_version", func(s *Spec) { s.Commands.MCVersion = "1.20.1.2" }, "mc_version"},
+		{"unknown loader", func(s *Spec) { s.Commands.Loader = "frobnix" }, "loader"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -67,5 +71,30 @@ func TestSpecValidateAllowsEmptyScriptAndRCONPort(t *testing.T) {
 	s.RCON = RCON{}
 	if err := s.Validate(); err != nil {
 		t.Fatalf("Validate: %v", err)
+	}
+}
+
+func TestSpecValidateCommands(t *testing.T) {
+	s := validSpec()
+	// The zero value (a spec written before the block existed) is valid.
+	if err := s.Validate(); err != nil {
+		t.Fatalf("zero Commands rejected: %v", err)
+	}
+	// A fully populated block is valid.
+	s.Commands = Commands{MCVersion: "1.20.1", Loader: "forge", Completion: "off"}
+	if err := s.Validate(); err != nil {
+		t.Fatalf("populated Commands rejected: %v", err)
+	}
+	if s.Commands.CompletionEnabled() {
+		t.Error("CompletionEnabled() should be false when Completion is off")
+	}
+	s.Commands.Completion = ""
+	if !s.Commands.CompletionEnabled() {
+		t.Error("CompletionEnabled() should default to true")
+	}
+	// Two-part versions are fine.
+	s.Commands.MCVersion = "1.21"
+	if err := s.Validate(); err != nil {
+		t.Fatalf("two-part mc_version rejected: %v", err)
 	}
 }

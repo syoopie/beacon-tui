@@ -36,11 +36,13 @@ func TestScanFixtureRoots(t *testing.T) {
 			Port:   25565,
 		},
 		{
-			Dir:   filepath.Join(a, "paper"),
-			Base:  "paper",
-			Start: "java -jar paper-1.20.4-496.jar nogui",
-			Exec:  server.ExecOK,
-			Port:  25565,
+			Dir:       filepath.Join(a, "paper"),
+			Base:      "paper",
+			Start:     "java -jar paper-1.20.4-496.jar nogui",
+			Exec:      server.ExecOK,
+			Port:      25565,
+			MCVersion: "1.20.4", // from the jar's file name
+			Loader:    "paper",
 		},
 		{
 			Dir:    filepath.Join(a, "survival"),
@@ -219,9 +221,9 @@ func TestScanJarPrecedence(t *testing.T) {
 				t.Fatalf("Scan: %v", err)
 			}
 
-			want := Candidate{Dir: dir, Base: "srv", Start: tt.start, Exec: server.ExecOK, Port: 25565}
-			if len(got) != 1 || got[0] != want {
-				t.Fatalf("Scan = %+v, want exactly %+v", got, want)
+			// This test is about which launch method wins, not identification.
+			if len(got) != 1 || got[0].Dir != dir || got[0].Start != tt.start {
+				t.Fatalf("Scan = %+v, want one candidate for %s starting with %q", got, dir, tt.start)
 			}
 		})
 	}

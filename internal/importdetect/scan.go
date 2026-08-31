@@ -16,13 +16,15 @@ import (
 // Candidate is a directory that looks like a Minecraft server, before IDs are
 // assigned and collisions are resolved.
 type Candidate struct {
-	Dir    string    // absolute
-	Base   server.ID // derived from the directory name, before any -2 suffix
-	Start  string    // shell command to run inside Dir
-	Script string    // start script relative to Dir, empty when a jar is launched directly
-	Exec   server.ExecState
-	Port   int
-	RCON   server.RCON
+	Dir       string    // absolute
+	Base      server.ID // derived from the directory name, before any -2 suffix
+	Start     string    // shell command to run inside Dir
+	Script    string    // start script relative to Dir, empty when a jar is launched directly
+	Exec      server.ExecState
+	Port      int
+	RCON      server.RCON
+	MCVersion string // best-effort, "" when undetected
+	Loader    string // best-effort, "" when undetected
 }
 
 var scriptNames = []string{"run.sh", "start.sh"}
@@ -108,10 +110,12 @@ func inspectDir(dir string) (Candidate, bool) {
 	if err != nil {
 		props = mcprops.Empty()
 	}
+	mcVersion, loader := Identify(dir)
 	return Candidate{
 		Dir: dir, Base: base, Port: props.Port(),
 		Script: o.Script, Exec: o.Exec, Start: o.Command("nogui"),
-		RCON: props.RCON(),
+		RCON:      props.RCON(),
+		MCVersion: mcVersion, Loader: loader,
 	}, true
 }
 
