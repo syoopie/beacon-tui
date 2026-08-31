@@ -325,6 +325,24 @@ func TestListSearchFiltersAndEscClearsThenQuits(t *testing.T) {
 	}
 }
 
+func TestAddRowStaysSelectedAcrossRefreshTicks(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	writeSpec(t, dirs, "creative")
+	tm = loadRegistry(t, m, tm)
+
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyUp}) // first server -> add row
+	if _, ok := m.list.SelectedItem().(addRow); !ok {
+		t.Fatalf("up should land on the add row, got %T", m.list.SelectedItem())
+	}
+
+	// A reconcile tick rebuilds the items; the cursor must not slide off.
+	m.refreshItems()
+	if _, ok := m.list.SelectedItem().(addRow); !ok {
+		t.Fatalf("refresh moved the cursor off the add row, now %T", m.list.SelectedItem())
+	}
+}
+
 func hasQuit(msgs []tea.Msg) bool {
 	for _, msg := range msgs {
 		if _, ok := msg.(tea.QuitMsg); ok {

@@ -68,19 +68,23 @@ type model struct {
 	reports  map[server.ID]reconcile.Report
 	timedOut map[server.ID]bool
 
-	list    list.Model
-	help    help.Model
-	keys    keymap
-	vp      viewport.Model
-	tail    *logFollower
-	selID   server.ID
-	console *textinput.Model
-	pick    *filepicker.Model
-	pat     *patchPrompt
-	launch  *launchPrompt
-	config  *configForm
-	actions *actionsPrompt
-	update  *updateNotice
+	list  list.Model
+	help  help.Model
+	keys  keymap
+	vp    viewport.Model
+	tail  *logFollower
+	selID server.ID
+	// onAddRow is set while the list cursor sits on the add row rather than a
+	// server, so a refresh tick re-points there instead of falling to the first
+	// server.
+	onAddRow bool
+	console  *textinput.Model
+	pick     *filepicker.Model
+	pat      *patchPrompt
+	launch   *launchPrompt
+	config   *configForm
+	actions  *actionsPrompt
+	update   *updateNotice
 
 	// eula caches whether each server's eula.txt says eula=true, refreshed on
 	// every registry reload. The lifecycle manager is the real gate; this just
@@ -585,7 +589,15 @@ func (m *model) selected() (server.Spec, bool) {
 // syncSelection follows the list cursor: it points the log follower at the
 // newly selected server and clears the viewport.
 func (m *model) syncSelection() {
-	it, ok := m.list.SelectedItem().(serverItem)
+	sel := m.list.SelectedItem()
+	if _, isAdd := sel.(addRow); isAdd {
+		m.onAddRow = true
+		m.selID = ""
+		m.tail = nil
+		return
+	}
+	m.onAddRow = false
+	it, ok := sel.(serverItem)
 	if !ok {
 		m.selID = ""
 		m.tail = nil
@@ -626,22 +638,30 @@ func (m *model) refreshItems() {
 	}
 	m.setListItems(items)
 
-	// The sort and the filter can move the selected server, so re-point the
-	// cursor at it by ID; failing that, land on the first server, not the add row.
+	// The sort and the filter can move the selection, so re-point the cursor:
+	// to the add row if that is where it was, else to the selected server by ID,
+	// else to the first server (never leave a fresh list parked on the add row).
 	vis := m.list.VisibleItems()
-	target := -1
+	addIdx, firstServer, byID := -1, -1, -1
 	for i, it := range vis {
-		s, ok := it.(serverItem)
-		if !ok {
-			continue
+		switch s := it.(type) {
+		case addRow:
+			addIdx = i
+		case serverItem:
+			if firstServer < 0 {
+				firstServer = i
+			}
+			if m.selID != "" && s.spec.ID == m.selID {
+				byID = i
+			}
 		}
-		if m.selID != "" && s.spec.ID == m.selID {
-			target = i
-			break
-		}
-		if target < 0 {
-			target = i
-		}
+	}
+	target := firstServer
+	switch {
+	case m.onAddRow && addIdx >= 0:
+		target = addIdx
+	case byID >= 0:
+		target = byID
 	}
 	if target >= 0 {
 		m.list.Select(target)
