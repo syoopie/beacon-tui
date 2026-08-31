@@ -1,12 +1,16 @@
-# Beacon
+<h1 align="center">Beacon</h1>
 
-Run your Minecraft servers from one clean terminal screen. Start them, stop them,
-watch their logs, all without hunting for the right `tmux` session or leaving a
-server half-dead.
+<p align="center">
+Run your Minecraft servers from one clean terminal screen. Start them, stop
+them, watch their logs, all without hunting for the right <code>tmux</code>
+session or leaving a server half-dead.
+</p>
 
-[![CI](https://github.com/syoopie/beacon-tui/actions/workflows/ci.yml/badge.svg)](https://github.com/syoopie/beacon-tui/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/syoopie/beacon-tui?sort=semver)](https://github.com/syoopie/beacon-tui/releases)
-[![License](https://img.shields.io/github/license/syoopie/beacon-tui)](LICENSE)
+<p align="center">
+  <a href="https://github.com/syoopie/beacon-tui/actions/workflows/ci.yml"><img src="https://github.com/syoopie/beacon-tui/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/syoopie/beacon-tui/releases"><img src="https://img.shields.io/github/v/release/syoopie/beacon-tui?sort=semver" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/syoopie/beacon-tui" alt="License"></a>
+</p>
 
 ## The list
 
@@ -169,7 +173,8 @@ add it, lowercased with odd characters turned to `-`.
 **Does it keep itself updated?** It tells you when a new version is out and shows
 the command to run. Updating is re-running the install line above.
 
-## Development
+<details>
+<summary>Development</summary>
 
 Requires Go 1.24+ and `tmux`.
 
@@ -184,7 +189,7 @@ make run          # go run ./cmd/beacon
 The tmux integration tests carry a `//go:build unix` tag and skip when `tmux` is
 not on `PATH`. `make lint` runs golangci-lint if it is installed; CI always does.
 
-### How it works
+**How it works**
 
 - **tmux owns process lifetime and stdin.** Beacon launches each server through a
   shell that redirects output to a log file and `exec`s the command, so the pane
@@ -203,7 +208,7 @@ not on `PATH`. `make lint` runs golangci-lint if it is installed; CI always does
 - **Reconcile** compares recorded state against tmux on startup and on a ticker,
   and derives the status shown in the list.
 
-### Package layout
+**Package layout**
 
 | Package                 | Responsibility                                    |
 | ----------------------- | ------------------------------------------------- |
@@ -223,13 +228,11 @@ not on `PATH`. `make lint` runs golangci-lint if it is installed; CI always does
 | `internal/selfupdate`   | the startup release check                         |
 | `internal/ui`           | the Bubble Tea front end                          |
 
-### Cutting a release
+**Cutting a release**
 
 Releases are built by a manually triggered GitHub Actions workflow, not on every
 push. In the **Actions** tab, run **Release** and pass a version such as `v0.1.0`.
 It cross-compiles `darwin` and `linux` for `amd64` and `arm64`, publishes the
 binaries with checksums, and tags the commit.
 
-## License
-
-[MIT](LICENSE)
+</details>
