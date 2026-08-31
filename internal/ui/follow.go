@@ -19,8 +19,17 @@ const tabStop = 4
 // than Beacon thinks and overruns the column it was laid out for. Stack traces
 // are full of tabs, which is why the console's side rail used to jog sideways
 // on exactly the rows that had one.
+//
+// The server runs on a tmux PTY, so its console reader (JLine) thinks a human is
+// at the keyboard and reprints its "> " prompt in front of many log lines,
+// wrapped in an erase-line escape. Strip the escape, then the prompt, so the
+// line starts where the timestamp does.
 func sanitize(line string) string {
 	line = ansi.Strip(line)
+	line = strings.TrimLeft(line, "\r")
+	for strings.HasPrefix(line, "> ") {
+		line = line[2:]
+	}
 	if strings.ContainsRune(line, '\t') {
 		var b strings.Builder
 		col := 0

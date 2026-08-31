@@ -516,31 +516,35 @@ func TestConsoleLogTabsFilterAndSearch(t *testing.T) {
 		"[12:00:01] [Server thread/INFO]: Preparing spawn area: 42%",
 		"[12:00:02] [Server thread/INFO]: <Steve> anyone on?",
 		"[12:00:03] [Server thread/INFO]: Alex joined the game",
-		"[12:00:04] [Server thread/WARN]: Can't keep up! Running 2050ms behind",
+		"[12:00:04] [Server thread/WARN]: Can't keep up! Is the server overloaded? Running 2050ms or 41 ticks behind",
 		"[12:00:05] [Server thread/INFO]: Saving chunks for level 'world'",
 	})
 	m.renderLog()
 
 	body := m.logBody()
-	if strings.Contains(body, "Preparing spawn area") || strings.Contains(body, "Can't keep up") {
-		t.Fatalf("the default Server tab should hide noise:\n%s", body)
+	if strings.Contains(body, "<Steve>") {
+		t.Fatalf("raw chat should never appear on the Server tab:\n%s", body)
 	}
-	if !strings.Contains(body, "Starting minecraft server") || !strings.Contains(body, "<Steve>") {
-		t.Fatalf("the default Server tab should keep signal and chat:\n%s", body)
+	if !strings.Contains(body, "Preparing spawn area") || !strings.Contains(body, "Starting minecraft server") {
+		t.Fatalf("the default Server tab is the full log and should keep everything else:\n%s", body)
 	}
 
 	pressRune(t, m, tm, "f")
-	if !strings.Contains(m.logBody(), "Preparing spawn area") {
-		t.Fatalf("f should reveal noise in the full log:\n%s", m.logBody())
+	imp := m.logBody()
+	if strings.Contains(imp, "Preparing spawn area") || strings.Contains(imp, "Saving chunks") {
+		t.Fatalf("important only should drop noise and plain lines:\n%s", imp)
+	}
+	if !strings.Contains(imp, "Starting minecraft server") || !strings.Contains(imp, "Alex joined the game") || !strings.Contains(imp, "Can't keep up") {
+		t.Fatalf("important only should keep events, warnings and errors:\n%s", imp)
 	}
 
 	drive(t, tm, tea.KeyMsg{Type: tea.KeyTab})
 	chat := m.logBody()
-	if strings.Contains(chat, "Starting minecraft server") || strings.Contains(chat, "Saving chunks") {
-		t.Fatalf("the Chat tab should drop plain log lines:\n%s", chat)
+	if strings.Contains(chat, "Saving chunks") || strings.Contains(chat, "Preparing spawn area") {
+		t.Fatalf("the Chat tab should drop plain and noise log lines:\n%s", chat)
 	}
 	if !strings.Contains(chat, "<Steve>") || !strings.Contains(chat, "Alex joined the game") {
-		t.Fatalf("the Chat tab should keep chat and join lines:\n%s", chat)
+		t.Fatalf("the Chat tab should keep chat and event lines:\n%s", chat)
 	}
 
 	drive(t, tm, tea.KeyMsg{Type: tea.KeyTab}) // back to Server log

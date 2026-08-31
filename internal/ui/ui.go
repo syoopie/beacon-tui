@@ -49,8 +49,12 @@ func Run(app App) error {
 }
 
 const (
-	refreshEvery  = time.Second
-	pollEvery     = 3 * time.Second
+	refreshEvery = time.Second
+	pollEvery    = 3 * time.Second
+	// rconPollEvery is slower than the process poll on purpose. Every RCON poll
+	// opens and closes a connection, and the server logs two lines for each one,
+	// so a fast cadence floods its own log with connect and disconnect noise.
+	rconPollEvery = 10 * time.Second
 	maxLogLines   = 5000
 	initialStatus = "loading…"
 	busyStatus    = "an operation is already running"
@@ -84,11 +88,11 @@ type model struct {
 	menuCursor int
 	listW      int
 
-	logTab    consoleTab
-	logFull   bool
-	logQuery  string
-	logSearch *textinput.Model
-	railW     int
+	logTab           consoleTab
+	logImportantOnly bool
+	logQuery         string
+	logSearch        *textinput.Model
+	railW            int
 
 	rconSnap     rcon.Snapshot
 	rconErr      string
@@ -831,7 +835,7 @@ type rconMsg struct {
 // rconPollCmd asks the selected server who is online, but only while its console
 // is open, it is running, RCON is configured, and the last poll has aged out.
 func (m *model) rconPollCmd() tea.Cmd {
-	if m.screen != screenConsole || m.rconInFlight || time.Since(m.rconAt) < pollEvery {
+	if m.screen != screenConsole || m.rconInFlight || time.Since(m.rconAt) < rconPollEvery {
 		return nil
 	}
 	spec, ok := m.selected()

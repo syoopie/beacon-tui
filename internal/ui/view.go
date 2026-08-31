@@ -26,6 +26,7 @@ var (
 	accentColor = lipgloss.Color("39")
 	runColor    = lipgloss.Color("42")
 	warnColor   = lipgloss.Color("214")
+	errColor    = lipgloss.Color("203")
 	transColor  = lipgloss.Color("45")
 	mutedColor  = lipgloss.AdaptiveColor{Light: "245", Dark: "241"}
 
@@ -181,7 +182,7 @@ func (m *model) commandBar() helpSet {
 	case screenConsole:
 		return helpSet{
 			short: []key.Binding{
-				hint("↑↓", "scroll"), hint("tab", "tabs"), hint("f", "filter"),
+				hint("↑↓", "scroll"), hint("tab", "tabs"), hint("f", "important"),
 				hint("/", "search"), hint("esc", "back"), m.keys.Help,
 			},
 			full: [][]key.Binding{

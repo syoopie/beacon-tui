@@ -23,6 +23,8 @@ func TestSanitizeMakesLineWidthMeasurable(t *testing.T) {
 		{"tab lands on the stop", "abcd\te", "abcd    e"},
 		{"colour codes", "\x1b[32mDone\x1b[0m (31.4s)", "Done (31.4s)"},
 		{"carriage return", "Preparing spawn area: 42%\r", "Preparing spawn area: 42%"},
+		{"jline prompt", "> \x1b[K[12:00:00] [Server thread/INFO]: hello", "[12:00:00] [Server thread/INFO]: hello"},
+		{"repeated jline prompt", "\r> > [12:00:00] [Server thread/INFO]: hi", "[12:00:00] [Server thread/INFO]: hi"},
 		{"already clean", "[12:00:00] [Server thread/INFO]: hello", "[12:00:00] [Server thread/INFO]: hello"},
 	}
 	for _, tc := range cases {
@@ -42,7 +44,7 @@ func TestSanitizeMakesLineWidthMeasurable(t *testing.T) {
 // rail beside it moves. A tab counted as one column is the way that used to
 // break, so the fixture is a real stack frame.
 func TestLogBodyRowsFitTheColumn(t *testing.T) {
-	m := &model{tail: &logFollower{}, logFull: true}
+	m := &model{tail: &logFollower{}}
 	m.vp.Width = 60
 	m.tail.append([]string{
 		"\tat net.minecraft.server.MinecraftServer.m_130011_(MinecraftServer.java:689) ~[server-1.20.1-20230612.114412-srg.jar%23729!/:?]",

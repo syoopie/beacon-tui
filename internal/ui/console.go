@@ -75,7 +75,7 @@ func (m *model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.vp.GotoBottom()
 		return m, nil
 	case key.Matches(msg, m.keys.LogFilter):
-		m.logFull = !m.logFull
+		m.logImportantOnly = !m.logImportantOnly
 		m.renderLog()
 		m.vp.GotoBottom()
 		return m, nil
@@ -158,37 +158,49 @@ func (m *model) logBody() string {
 			rows = append(rows, style.Render(seg))
 		}
 	}
+	if len(rows) == 0 && m.logTab == tabServer && m.logImportantOnly && q == "" {
+		msg := fmt.Sprintf("no warnings or errors in the last %d lines", maxLogLines)
+		return lipgloss.PlaceHorizontal(w, lipgloss.Center, mutedStyle.Render(msg))
+	}
 	return strings.Join(rows, "\n")
 }
 
-// logLineStyle picks out the lines worth noticing on the server-log tab:
-// warnings and errors in the warning colour, dimmed noise when the filter is
-// off. The chat tab is uniform, since every line there already matters.
+// logLineStyle colours a server-log line by its tier: errors red, warnings
+// orange, events blue. In the full log everything else is dimmed so those three
+// stand out, and known noise is dimmed further. The chat tab is uniform, since
+// every line there already matters.
 func (m *model) logLineStyle(k logKind) lipgloss.Style {
 	if m.logTab == tabChat {
 		return lipgloss.NewStyle()
 	}
 	switch k {
-	case kindNotable:
+	case kindError:
+		return lipgloss.NewStyle().Bold(true).Foreground(errColor)
+	case kindWarn:
 		return lipgloss.NewStyle().Foreground(warnColor)
+	case kindEvent:
+		return lipgloss.NewStyle().Foreground(accentColor)
 	case kindNoise:
+		return mutedStyle.Faint(true)
+	default:
 		return mutedStyle
 	}
-	return lipgloss.NewStyle()
 }
 
 func (m *model) lineVisible(e logEntry, lowerQuery string) bool {
-	switch m.logTab {
-	case tabChat:
-		if e.kind != kindChat {
+	if m.logTab == tabChat {
+		if !e.kind.onChatTab() {
 			return false
 		}
-	case tabServer:
-		if !m.logFull && e.kind == kindNoise {
-			return false
-		}
+	} else if e.kind == kindChat {
+		return false // raw chat lives on the Chat tab only
 	}
-	if lowerQuery != "" && !strings.Contains(strings.ToLower(e.raw), lowerQuery) {
+	if lowerQuery != "" {
+		// An active search looks through the whole log, not just the current
+		// tier. The tab split above still holds.
+		return strings.Contains(strings.ToLower(e.raw), lowerQuery)
+	}
+	if m.logTab == tabServer && m.logImportantOnly && !e.kind.important() {
 		return false
 	}
 	return true
@@ -303,10 +315,10 @@ func (m *model) tabBarView(w int) string {
 	switch {
 	case m.logTab == tabChat:
 		right = mutedStyle.Render("player activity")
-	case m.logFull:
-		right = mutedStyle.Render("full log") + mutedStyle.Render("  ·  ") + m.hintBar(hint("f", "filter noise"))
+	case m.logImportantOnly:
+		right = mutedStyle.Render("important only") + mutedStyle.Render("  ·  ") + m.hintBar(hint("f", "show all"))
 	default:
-		right = mutedStyle.Render("noise filtered") + mutedStyle.Render("  ·  ") + m.hintBar(hint("f", "full log"))
+		right = mutedStyle.Render("full log") + mutedStyle.Render("  ·  ") + m.hintBar(hint("f", "important only"))
 	}
 	if q := strings.TrimSpace(m.logQuery); q != "" {
 		right = mutedStyle.Render("search: "+q) + mutedStyle.Render("   ·   ") + right

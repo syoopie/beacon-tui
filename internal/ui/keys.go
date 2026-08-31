@@ -32,7 +32,7 @@ func newKeymap() keymap {
 		Back:      key.NewBinding(key.WithKeys("esc", "left"), key.WithHelp("←", "back")),
 		Console:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "type a command")),
 		LogTab:    key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch tab")),
-		LogFilter: key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "full / filtered")),
+		LogFilter: key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "important only")),
 		LogSearch: key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 		Add:       key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add server")),
 		Rescan:    key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "rescan folders")),
