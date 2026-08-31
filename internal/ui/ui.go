@@ -642,16 +642,20 @@ func (m *model) relayout() {
 	m.list.SetDelegate(serverDelegate{compact: innerW < 55})
 	m.list.SetSize(innerW, bodyH)
 
-	// The console screen carries a player and resource rail on the right, but
-	// only when the terminal is wide enough to spare the columns.
+	// The console screen carries a details, player and resource rail on the
+	// right, but only when the terminal is wide enough to spare the columns.
+	// Below that, the rail's facts collapse to one line under the tab bar.
 	m.railW = 0
 	logW := innerW
+	chrome := 3 // log header + tab bar + rule
 	if m.screen == screenConsole && innerW >= 64 {
-		m.railW = 28
+		m.railW = 30
 		logW = innerW - m.railW
+	} else if m.screen == screenConsole {
+		chrome = 4 // + the facts strip
 	}
 	m.vp.Width = max(logW, 20)
-	m.vp.Height = max(bodyH-3, 1) // log header + tab bar + rule
+	m.vp.Height = max(bodyH-chrome, 1)
 	m.renderLog()
 
 	if m.pick != nil {

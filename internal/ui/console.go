@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -245,13 +246,16 @@ const railChrome = 5
 
 func (m *model) consoleView() string {
 	w := max(m.vp.Width, 1)
-	logBlock := lipgloss.NewStyle().Width(w).MaxWidth(w).Height(m.bodyH).Render(
-		lipgloss.JoinVertical(lipgloss.Left,
-			m.logHeaderView(w),
-			m.tabBarView(w),
-			mutedStyle.Render(strings.Repeat("─", w)),
-			m.vp.View(),
-		))
+	head := []string{m.logHeaderView(w), m.tabBarView(w)}
+	if m.railW == 0 {
+		// No room for the rail, so its facts collapse to one dimmed line.
+		if s := m.railStrip(w); s != "" {
+			head = append(head, s)
+		}
+	}
+	head = append(head, mutedStyle.Render(strings.Repeat("─", w)), m.vp.View())
+	logBlock := lipgloss.NewStyle().Width(w).MaxWidth(w).Height(m.bodyH).
+		Render(lipgloss.JoinVertical(lipgloss.Left, head...))
 	if m.railW == 0 {
 		return logBlock
 	}
@@ -285,8 +289,42 @@ func (m *model) logHeaderView(w int) string {
 	return lipgloss.NewStyle().MaxWidth(max(w, 1)).Render(line)
 }
 
-// railView is the console's right column: who is online, and (phase 2c) the
-// server process's memory and CPU.
+// rconRailLabel is the one-word state of a server's RCON: off, or on with its
+// port.
+func rconRailLabel(spec server.Spec) string {
+	if spec.RCON.Enabled && spec.RCON.Port != 0 {
+		return fmt.Sprintf("on · %d", spec.RCON.Port)
+	}
+	return "off"
+}
+
+func eulaRailLabel(accepted bool) string {
+	if accepted {
+		return "accepted"
+	}
+	return "not accepted"
+}
+
+// railStrip is the one-liner the console shows in place of the rail when the
+// terminal is too narrow for it: the facts the header does not already carry.
+func (m *model) railStrip(w int) string {
+	spec, ok := m.selected()
+	if !ok {
+		return ""
+	}
+	parts := []string{"rcon " + rconRailLabel(spec), "eula " + eulaRailLabel(m.eula[spec.ID])}
+	if p, ok := m.procByID[spec.ID]; ok {
+		parts = append(parts,
+			"up "+humanShortDuration(p.Uptime),
+			"mem "+humanize.IBytes(uint64(p.RSS)),
+			fmt.Sprintf("cpu %.0f%%", p.CPUPercent),
+		)
+	}
+	return lipgloss.NewStyle().MaxWidth(max(w, 1)).Render(mutedStyle.Render(strings.Join(parts, "  ·  ")))
+}
+
+// railView is the console's right column: the server's fixed details always, and
+// its players and live resource use while it is running.
 func (m *model) railView() string {
 	spec, ok := m.selected()
 	if !ok {
@@ -295,10 +333,24 @@ func (m *model) railView() string {
 	r := m.reports[spec.ID]
 	running := r.Derived == server.StatusRunning
 
-	rows := []string{sectionStyle.Render("Players")}
+	rows := []string{sectionStyle.Render("Details")}
+	port := mutedStyle.Render(fmt.Sprintf("port  %d", spec.Port))
+	if word, color := portHealthLabel(r.PortHealth); word != "" {
+		port += " " + lipgloss.NewStyle().Foreground(color).Render(word)
+	}
+	rows = append(rows,
+		port,
+		mutedStyle.Render("rcon  "+rconRailLabel(spec)),
+		mutedStyle.Render("eula  "+eulaRailLabel(m.eula[spec.ID])),
+		"",
+		mutedStyle.Render(spec.Start),
+		mutedStyle.Render(filepath.Base(spec.Dir)),
+	)
+
+	rows = append(rows, "", sectionStyle.Render("Players"))
 	switch {
 	case !spec.RCON.Enabled || spec.RCON.Port == 0:
-		rows = append(rows, mutedStyle.Render("RCON is off. Turn on enable-rcon in server.properties."))
+		rows = append(rows, mutedStyle.Render("RCON is off"))
 	case !running:
 		rows = append(rows, mutedStyle.Render("server not running"))
 	case m.rconErr != "":
@@ -313,14 +365,8 @@ func (m *model) railView() string {
 		}
 	}
 
-	rows = append(rows, "", sectionStyle.Render("Resources"))
-	switch {
-	case !running:
-		rows = append(rows, mutedStyle.Render("—"))
-	default:
-		if word, color := portHealthLabel(r.PortHealth); word != "" {
-			rows = append(rows, mutedStyle.Render("port ")+lipgloss.NewStyle().Foreground(color).Render(word))
-		}
+	if running {
+		rows = append(rows, "", sectionStyle.Render("Resources"))
 		if e := m.procErrByID[spec.ID]; e != "" {
 			rows = append(rows, mutedStyle.Render(e))
 		} else if p, ok := m.procByID[spec.ID]; ok {

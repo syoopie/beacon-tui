@@ -704,6 +704,45 @@ func TestConsolePlayerRail(t *testing.T) {
 	}
 }
 
+func TestConsoleRailShowsDetailsAtEveryStatus(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t) // 100 wide: rail is shown
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+	tm = openConsole(t, m, tm)
+
+	// Stopped: no Resources block, but the details are all there.
+	view := tm.View()
+	for _, want := range []string{"Details", "port  40000", "rcon  off", "eula  accepted", "./run.sh"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("stopped rail missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "Resources") {
+		t.Fatalf("a stopped server has no Resources block:\n%s", view)
+	}
+}
+
+func TestNarrowConsoleCollapsesRailToAStrip(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	tm, _ = drive(t, tm, tea.WindowSizeMsg{Width: 56, Height: 24}) // under the rail gate
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+	tm = openConsole(t, m, tm)
+
+	if m.railW != 0 {
+		t.Fatalf("rail should be off at 56 columns, railW = %d", m.railW)
+	}
+	view := tm.View()
+	if strings.Contains(view, "Details") {
+		t.Fatalf("the full rail should not render this narrow:\n%s", view)
+	}
+	for _, want := range []string{"rcon off", "eula accepted"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("narrow strip missing %q:\n%s", want, view)
+		}
+	}
+}
+
 func TestConsoleRefusedUnlessServerIsRunning(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	writeSpec(t, dirs, "survival")

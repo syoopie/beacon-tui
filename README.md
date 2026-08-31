@@ -127,11 +127,13 @@ full log those same lines are coloured and everything else is dimmed, so a busy
 log still reads. `/` searches the current view, and search looks through the
 whole log, not just the current filter, until you clear it with `esc`.
 
-On wide terminals a rail on the right shows who is online and the server
-process's uptime, memory and CPU. The player list needs RCON, which the "Edit
-config" action turns on for you. The uptime, memory and CPU figures come from
-`ps` and need nothing configured; the same numbers show on the server's card in
-the list.
+On wide terminals a rail on the right carries the server's details always (port
+and health, RCON state, EULA state, launch command, folder) and, while it runs,
+who is online and its uptime, memory and CPU. The player list needs RCON, which
+the "Edit config" action turns on for you. The uptime, memory and CPU figures
+come from `ps` and need nothing configured; the same numbers show on the
+server's card in the list. On a narrow terminal the rail's facts fold into one
+line under the tab bar.
 
 Next to the port, Beacon shows whether that port is accepting connections.
 `starting` means the process is up but has not opened its port yet, the normal
