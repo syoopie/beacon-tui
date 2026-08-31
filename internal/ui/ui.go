@@ -141,9 +141,26 @@ func newModel(app App) *model {
 		eula:     map[server.ID]bool{},
 		status:   initialStatus,
 		list:     l,
-		help:     help.New(),
+		help:     newHelp(),
 		keys:     newKeymap(),
 	}
+}
+
+// newHelp is the command bar with Beacon's own styling. The bundled default
+// paints the key, its label, and the separator in three near-identical greys,
+// so the eye cannot find the key. Here the key is the one bright, bold token on
+// the line and the label reads in normal grey beside it, keeping the default's
+// width so nothing new is truncated.
+func newHelp() help.Model {
+	h := help.New()
+	key := lipgloss.NewStyle().Bold(true).Foreground(accentColor)
+	desc := lipgloss.NewStyle().Foreground(mutedColor)
+	sep := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	h.Styles.ShortKey, h.Styles.FullKey = key, key
+	h.Styles.ShortDesc, h.Styles.FullDesc = desc, desc
+	h.Styles.ShortSeparator, h.Styles.FullSeparator = sep, sep
+	h.Styles.Ellipsis = sep
+	return h
 }
 
 func (m *model) Init() tea.Cmd {
