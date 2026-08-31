@@ -269,6 +269,40 @@ func (m *Manager) SaveSpec(spec server.Spec) (server.Spec, error) {
 	return spec, nil
 }
 
+// DetectCommands fills a spec's [commands] mc_version and loader from a fresh
+// scan of its directory when they are blank, and persists the result under the
+// host lock. It backfills a server imported before detection existed the first
+// time Beacon loads it, and never touches a value the operator set by hand.
+// changed reports whether anything was written.
+func (m *Manager) DetectCommands(spec server.Spec) (out server.Spec, changed bool, err error) {
+	if spec.Commands.MCVersion != "" && spec.Commands.Loader != "" {
+		return spec, false, nil
+	}
+	mcVersion, loader := importdetect.Identify(spec.Dir)
+	if spec.Commands.MCVersion == "" && mcVersion != "" {
+		spec.Commands.MCVersion = mcVersion
+		changed = true
+	}
+	if spec.Commands.Loader == "" && loader != "" {
+		spec.Commands.Loader = loader
+		changed = true
+	}
+	if !changed {
+		return spec, false, nil
+	}
+
+	release, err := m.hold(m.lockDir(), oplock.OpWriteConfig)
+	if err != nil {
+		return spec, false, err
+	}
+	defer release()
+
+	if err := config.SaveSpec(m.dirs, spec); err != nil {
+		return spec, false, fmt.Errorf("%s: saving detected command settings: %w", spec.ID, err)
+	}
+	return spec, true, nil
+}
+
 // ApplyScriptPatch runs the exec patch on a server's start script, re-inspects
 // it, and records the new exec state in the spec, all under the host lock so it
 // cannot race a start.

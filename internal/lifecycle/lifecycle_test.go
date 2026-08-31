@@ -248,6 +248,68 @@ func TestEditPropertiesMirrorsPortAndRCONIntoTheSpec(t *testing.T) {
 	}
 }
 
+func TestDetectCommandsBackfillsAndPersists(t *testing.T) {
+	dirs := testDirs(t)
+	m := newManager(&fakeSup{}, dirs)
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
+
+	// A forge pack layout: libraries/net/minecraftforge/forge/<mcver>-<forgever>
+	// and the unpacked vanilla server directory.
+	forge := filepath.Join(spec.Dir, "libraries", "net", "minecraftforge", "forge", "1.20.1-47.4.20")
+	server20 := filepath.Join(spec.Dir, "libraries", "net", "minecraft", "server", "1.20.1")
+	for _, d := range []string{forge, server20} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := config.SaveSpec(dirs, spec); err != nil {
+		t.Fatal(err)
+	}
+
+	got, changed, err := m.DetectCommands(spec)
+	if err != nil || !changed {
+		t.Fatalf("DetectCommands = changed %v, err %v; want a change", changed, err)
+	}
+	if got.Commands.MCVersion != "1.20.1" || got.Commands.Loader != "forge" {
+		t.Fatalf("detected %+v, want 1.20.1 / forge", got.Commands)
+	}
+	reloaded, err := config.LoadSpec(dirs.ServerFile(spec.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Commands.MCVersion != "1.20.1" {
+		t.Fatalf("persisted spec Commands = %+v", reloaded.Commands)
+	}
+
+	// A second call is a no-op: the version is already set.
+	if _, changed, _ := m.DetectCommands(reloaded); changed {
+		t.Fatal("DetectCommands changed an already-populated spec")
+	}
+}
+
+func TestDetectCommandsLeavesAHandSetValueAlone(t *testing.T) {
+	dirs := testDirs(t)
+	m := newManager(&fakeSup{}, dirs)
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
+	spec.Commands.MCVersion = "1.19.2" // operator's choice, even if "wrong"
+	forge := filepath.Join(spec.Dir, "libraries", "net", "minecraftforge", "forge", "1.20.1-47.4.20")
+	if err := os.MkdirAll(forge, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got, changed, err := m.DetectCommands(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Commands.MCVersion != "1.19.2" {
+		t.Fatalf("DetectCommands overwrote a hand-set version: %q", got.Commands.MCVersion)
+	}
+	// The blank loader may still be filled in.
+	if !changed || got.Commands.Loader == "" {
+		t.Fatalf("expected the blank loader to be backfilled, got %+v (changed %v)", got.Commands, changed)
+	}
+}
+
 func TestStopSendsStopAndReportsGone(t *testing.T) {
 	dirs := testDirs(t)
 	sup := &fakeSup{exists: true}

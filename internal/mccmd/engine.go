@@ -47,25 +47,21 @@ func New(opts Options) (*Engine, error) {
 	return e, nil
 }
 
-// degradedReason names, in words a server owner can act on, why completion is
-// off or weaker than it should be. Empty when completion is at full strength.
+// degradedReason states, without jargon, why command help is missing or weaker
+// than it should be. Empty when it is at full strength.
 func degradedReason(ctx Context, contributed bool) string {
 	if contributed && ctx.MCVersion != "" {
 		m := matchVersion(ctx.MCVersion, embeddedVersions())
 		if m.pick != "" && !m.exact && !m.minor {
-			return fmt.Sprintf("completion: no command data for %s, using %s", ctx.MCVersion, m.pick)
+			return fmt.Sprintf("command help: no bundled data for Minecraft %s, using %s", ctx.MCVersion, m.pick)
 		}
 		return ""
 	}
 	if ctx.MCVersion == "" {
-		where := "servers/<id>.toml"
-		if ctx.ServerID != "" {
-			where = "servers/" + ctx.ServerID + ".toml"
-		}
-		return "completion off: set mc_version in " + where
+		return "command help unavailable: beacon could not detect this server's Minecraft version"
 	}
 	if !contributed {
-		return fmt.Sprintf("completion off: no command data for %s", ctx.MCVersion)
+		return fmt.Sprintf("command help unavailable: no bundled command data for Minecraft %s", ctx.MCVersion)
 	}
 	return ""
 }

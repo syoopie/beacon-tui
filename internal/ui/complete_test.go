@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -116,8 +118,8 @@ func TestConsoleCompletionOffWithoutVersion(t *testing.T) {
 	if len(m.cmp.Suggestions) != 0 {
 		t.Fatalf("suggestions = %d, want none when no command tree is available", len(m.cmp.Suggestions))
 	}
-	if !strings.Contains(m.cmp.Degraded, "mc_version") {
-		t.Fatalf("Degraded = %q, want it to point at mc_version", m.cmp.Degraded)
+	if !strings.Contains(m.cmp.Degraded, "could not detect") {
+		t.Fatalf("Degraded = %q, want it to explain the missing version", m.cmp.Degraded)
 	}
 }
 
@@ -190,6 +192,42 @@ func TestConsoleHistoryPersistsAcrossReopen(t *testing.T) {
 
 	if m2.history == nil || len(m2.history.All()) != 1 || m2.history.All()[0] != "seed" {
 		t.Fatalf("reopened history = %v, want [seed]", historyLines(m2))
+	}
+}
+
+func TestConsoleCompletionBackfillsMissingVersion(t *testing.T) {
+	m, tm, sup, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival") // no [commands] mc_version
+
+	// Give the server dir a forge layout so Identify has something to find.
+	forge := filepath.Join(spec.Dir, "libraries", "net", "minecraftforge", "forge", "1.20.1-47.4.20")
+	if err := os.MkdirAll(forge, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Drive the reload and every message it fans out, including the backfill
+	// the reload schedules and the commandsDetectedMsg it produces.
+	queue := runCmd(t, m.reloadCmd())
+	for len(queue) > 0 {
+		msg := queue[0]
+		queue = queue[1:]
+		var more []tea.Msg
+		tm, more = drive(t, tm, msg)
+		queue = append(queue, more...)
+	}
+	sup.present[spec.Session] = true
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
+
+	got, _ := m.selected()
+	if got.Commands.MCVersion != "1.20.1" || got.Commands.Loader != "forge" {
+		t.Fatalf("spec not backfilled in memory: %+v", got.Commands)
+	}
+
+	// The completion engine now works without the operator touching a file.
+	tm = openConsole(t, m, tm)
+	tm, _ = pressRune(t, m, tm, "c")
+	typeRunes(t, tm, "ga")
+	if len(m.cmp.Suggestions) < 2 || m.cmp.Degraded != "" {
+		t.Fatalf("completion still degraded after backfill: %d suggestions, %q", len(m.cmp.Suggestions), m.cmp.Degraded)
 	}
 }
 

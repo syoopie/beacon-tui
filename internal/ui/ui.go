@@ -123,6 +123,11 @@ type model struct {
 	histIdx   int       // -1 when on the live line, else an index into history
 	histStash string    // the live line, kept while recalling
 
+	// cmdDetectTried marks servers whose Minecraft version and loader Beacon
+	// has already tried to detect this session, so a server imported before
+	// detection existed is backfilled once, not on every reload tick.
+	cmdDetectTried map[server.ID]bool
+
 	rconSnap     rcon.Snapshot
 	rconErr      string
 	rconAt       time.Time
@@ -185,16 +190,17 @@ func newModel(app App) *model {
 	l.FilterInput.Focus()
 
 	return &model{
-		app:         app,
-		reports:     map[server.ID]reconcile.Report{},
-		timedOut:    map[server.ID]bool{},
-		eula:        map[server.ID]bool{},
-		procByID:    map[server.ID]procstat.Stat{},
-		procErrByID: map[server.ID]string{},
-		status:      initialStatus,
-		list:        l,
-		help:        newHelp(),
-		keys:        newKeymap(),
+		app:            app,
+		reports:        map[server.ID]reconcile.Report{},
+		timedOut:       map[server.ID]bool{},
+		eula:           map[server.ID]bool{},
+		procByID:       map[server.ID]procstat.Stat{},
+		procErrByID:    map[server.ID]string{},
+		cmdDetectTried: map[server.ID]bool{},
+		status:         initialStatus,
+		list:           l,
+		help:           newHelp(),
+		keys:           newKeymap(),
 	}
 }
 
@@ -286,6 +292,22 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reports = msg.reports
 		m.refreshItems()
 		m.relayout() // a new warning adds the notice banner, which resizes the body
+		return m, nil
+
+	case commandsDetectedMsg:
+		if msg.err != nil || !msg.changed {
+			return m, nil // best effort; the fix-it note stays if nothing was found
+		}
+		for i := range m.specs {
+			if m.specs[i].ID == msg.id {
+				m.specs[i].Commands = msg.spec.Commands
+			}
+		}
+		if msg.id == m.selID {
+			m.cmpKey = "" // force ensureConsoleData to rebuild with the new version
+			m.ensureConsoleData()
+			m.recomputeCompletion()
+		}
 		return m, nil
 
 	case logMsg:
@@ -877,8 +899,32 @@ func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 		if m.transientStatus() {
 			m.status = "ready"
 		}
-		return m.reconcileCmd()
+		return tea.Batch(m.reconcileCmd(), m.detectCommandsCmd())
 	}
+}
+
+// detectCommandsCmd backfills the Minecraft version and loader for any server
+// still missing them, once per server per session. A server imported before
+// Beacon could detect these gets its command help without the operator editing
+// a file.
+func (m *model) detectCommandsCmd() tea.Cmd {
+	mgr := m.app.Mgr
+	if mgr == nil {
+		return nil
+	}
+	var cmds []tea.Cmd
+	for _, s := range m.specs {
+		if s.Commands.MCVersion != "" || m.cmdDetectTried[s.ID] {
+			continue
+		}
+		m.cmdDetectTried[s.ID] = true
+		spec := s
+		cmds = append(cmds, func() tea.Msg {
+			out, changed, err := mgr.DetectCommands(spec)
+			return commandsDetectedMsg{id: spec.ID, spec: out, changed: changed, err: err}
+		})
+	}
+	return tea.Batch(cmds...)
 }
 
 // transientStatus reports whether the status line still holds a boot or scan
@@ -917,6 +963,13 @@ type reloadedMsg struct {
 
 type reconciledMsg struct {
 	reports map[server.ID]reconcile.Report
+	err     error
+}
+
+type commandsDetectedMsg struct {
+	id      server.ID
+	spec    server.Spec
+	changed bool
 	err     error
 }
 

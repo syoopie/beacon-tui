@@ -135,8 +135,8 @@ func TestDegraded(t *testing.T) {
 	}{
 		{"1.20.1", ""},
 		{"1.20.4", ""}, // patch drift is fine
-		{"", "set mc_version"},
-		{"1.12.2", "no command data for 1.12.2"},
+		{"", "could not detect"},
+		{"1.12.2", "no bundled command data for Minecraft 1.12.2"},
 		{"1.99.0", "using 1.21.11"},
 	}
 	for _, c := range cases {
