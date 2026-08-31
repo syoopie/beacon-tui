@@ -104,6 +104,13 @@ type serverItem struct {
 
 func (i serverItem) FilterValue() string { return string(i.spec.ID) }
 
+// addRow is the single action row above the server groups. Selecting it opens
+// the folder picker. Its empty FilterValue drops it from the list the moment
+// the search has text, so a query only ever shows matching servers.
+type addRow struct{}
+
+func (addRow) FilterValue() string { return "" }
+
 // statusGroup buckets a status for the list: live servers first, then stopped,
 // then the ones Beacon has lost track of.
 func statusGroup(s server.Status) int {
@@ -143,23 +150,45 @@ func (serverDelegate) Spacing() int                        { return 0 }
 func (serverDelegate) Update(tea.Msg, *list.Model) tea.Cmd { return nil }
 
 func (d serverDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	si, ok := item.(serverItem)
-	if !ok {
-		return
-	}
 	width := max(m.Width(), 12)
 	selected := index == m.Index()
 	clip := func(s string) string { return lipgloss.NewStyle().MaxWidth(width).Render(s) }
 
+	bar := "  "
+	if selected {
+		bar = markerStyle.Render("▎ ")
+	}
+
+	if _, ok := item.(addRow); ok {
+		label := "+  Add a server"
+		if selected {
+			label = selectedRow.Render(label)
+		} else {
+			label = mutedStyle.Render(label)
+		}
+		rows := []string{"", clip(bar + label)}
+		for len(rows) < d.Height() {
+			rows = append(rows, "")
+		}
+		_, _ = fmt.Fprint(w, strings.Join(rows, "\n"))
+		return
+	}
+
+	si, ok := item.(serverItem)
+	if !ok {
+		return
+	}
+
 	label := ""
 	vis := m.VisibleItems()
-	if index == 0 || statusGroup(vis[index-1].(serverItem).status) != statusGroup(si.status) {
+	if index == 0 {
+		label = mutedStyle.Render(groupLabel(statusGroup(si.status)))
+	} else if prev, ok := vis[index-1].(serverItem); !ok || statusGroup(prev.status) != statusGroup(si.status) {
 		label = mutedStyle.Render(groupLabel(statusGroup(si.status)))
 	}
 
-	bar, name := "  ", lipgloss.NewStyle().Render(string(si.spec.ID))
+	name := lipgloss.NewStyle().Render(string(si.spec.ID))
 	if selected {
-		bar = markerStyle.Render("▎ ")
 		name = selectedRow.Render(string(si.spec.ID))
 	}
 
@@ -251,8 +280,6 @@ func (m *model) commandBar() helpSet {
 		// These are centred dialogs that carry their own key hints in a footer,
 		// right under the fields. Repeating them up here just adds noise.
 		return helpSet{}
-	case m.list.FilterState() == list.Filtering:
-		return helpSet{short: []key.Binding{hint("enter", "apply filter"), hint("esc", "clear")}}
 	}
 
 	if m.screen == screenConsole {
@@ -287,19 +314,16 @@ func (m *model) commandBar() helpSet {
 
 	// screenList
 	if len(m.specs) == 0 {
-		return helpSet{short: []key.Binding{m.keys.Add, m.keys.Refresh, m.keys.Quit}}
+		return helpSet{short: []key.Binding{m.keys.Add, hint("esc", "quit")}}
 	}
-	short := []key.Binding{m.keys.Up, m.keys.Down, m.keys.Act, hint("/", "filter"), m.keys.Add}
-	if m.update != nil {
-		short = append(short, m.keys.Update)
+	back := hint("esc", "quit")
+	if m.list.FilterInput.Value() != "" {
+		back = hint("esc", "clear search")
 	}
-	short = append(short, m.keys.Help, m.keys.Quit)
-	full := [][]key.Binding{
-		{m.keys.Up, m.keys.Down, m.keys.Act, hint("/", "filter")},
-		{m.keys.Add, m.keys.Rescan, m.keys.Refresh, m.keys.Update},
-		{m.keys.Help, m.keys.Quit},
+	short := []key.Binding{
+		m.keys.Up, m.keys.Down, m.keys.Act, m.keys.Rescan, back,
 	}
-	return helpSet{short: short, full: full}
+	return helpSet{short: short}
 }
 
 // --- view ---
@@ -436,10 +460,29 @@ func (m *model) bodyView() string {
 		Height(m.bodyH).MaxHeight(m.bodyH).Render(content)
 }
 
-// listView is the home screen: a full-width, view-only list of servers. Every
-// action is a step in from here, on the console.
+// listView is the home screen: an always-on search bar over a full-width,
+// view-only list of servers. Every action is a step in from here, on the
+// console, save for the add row at the top of the list.
 func (m *model) listView() string {
-	return lipgloss.NewStyle().Width(m.bodyW).MaxWidth(m.bodyW).Render(m.list.View())
+	body := lipgloss.JoinVertical(lipgloss.Left, m.searchBarView(), "", m.list.View())
+	return lipgloss.NewStyle().Width(m.bodyW).MaxWidth(m.bodyW).Render(body)
+}
+
+// searchBarView is the persistent filter line above the list. It shows the
+// current query, or a prompt when empty, plus how many servers match.
+func (m *model) searchBarView() string {
+	q := m.list.FilterInput.Value()
+	if q == "" {
+		return mutedStyle.Render("search  ") + mutedStyle.Render("type to filter servers")
+	}
+	shown := 0
+	for _, it := range m.list.VisibleItems() {
+		if _, ok := it.(serverItem); ok {
+			shown++
+		}
+	}
+	tail := mutedStyle.Render(fmt.Sprintf("   %d shown", shown))
+	return mutedStyle.Render("search  ") + lipgloss.NewStyle().MaxWidth(max(m.bodyW-20, 8)).Render(q) + tail
 }
 
 // launchSummary names what starts the server: the start script, or the jar
@@ -468,7 +511,7 @@ func (m *model) landingView() string {
 		"",
 		ctaStyle.Render("Press  a  to add your first server"),
 		"",
-		mutedStyle.Render("Added one already?  Press  r  to refresh."),
+		mutedStyle.Render("Dropped one into a folder Beacon watches?  Press  ctrl+r  to scan."),
 	)
 	return lipgloss.Place(m.bodyW, m.bodyH, lipgloss.Center, lipgloss.Center, panel)
 }

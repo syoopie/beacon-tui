@@ -10,9 +10,11 @@ server half-dead.
 
 ```text
   Beacon                                         ↑ v0.2.0 available
-  ↑ up • ↓ down • → console • / filter • a add server • ? more keys • q quit
+  ↑ up • ↓ down • → console • ctrl+r scan folders • esc quit
 
-  Servers
+  search  type to filter servers
+
+    +  Add a server
 
   running
   ▎ ● survival  ·  running  ·  :25565 ready
@@ -31,11 +33,16 @@ server half-dead.
 
 The list is a view. Servers are grouped by state, live ones first, and each card
 carries a second line: how a running server is doing, or what starts a stopped
-one. Press `→` on a server to open its console, and everything happens from
-there: `s` starts or stops it, `a` opens the rest of the actions (edit config,
-launch settings, and the pre-start chores), `c` types a command to a running
-server. `←` steps back to the list. The bar under the title always shows the
-keys that work right now; `?` expands it.
+one. The search bar above the list is always on, so just start typing to filter
+by name. The `+ Add a server` row at the top opens the folder picker; `ctrl+r`
+re-scans the folders Beacon already watches.
+
+Press `→` on a server to open its console, and everything happens from there:
+`s` starts or stops it, `a` opens the rest of the actions (edit config, launch
+settings, and the pre-start chores), `c` types a command to a running server.
+`←` steps back to the list. `esc` on the list clears the search, or quits when
+it is already empty. The bar under the title always shows the keys that work
+right now.
 
 ## Why Beacon
 
@@ -82,10 +89,12 @@ The first run opens on a welcome screen because you have no servers yet.
 4. `a` on the console holds "Edit config": the common `server.properties`
    settings (port, MOTD, difficulty, max players, RCON). Beacon writes only the
    keys you change.
-5. Have many servers? Press `/` to filter the list by name.
+5. Have many servers? The search bar above the list is always on, so just start
+   typing to filter by name.
 
-Have several servers, each in its own folder? Add each one with `a`. Or point
-Beacon at a folder that contains all of them and it picks up every server inside.
+Have several servers, each in its own folder? Add each one from the
+`+ Add a server` row at the top of the list. Or point Beacon at a folder that
+contains all of them and it picks up every server inside.
 
 The console header shows which script or jar Beacon starts each server with
 (`via run.sh`). A pack that ships more than one launcher, such as a `run.sh` and
@@ -96,17 +105,17 @@ sets the arguments passed to it.
 
 On the list:
 
-| Key     | What it does                         |
-| ------- | ------------------------------------ |
-| `↑` `↓` | move the highlight                   |
-| `→`     | open the server's console            |
-| `/`     | filter the list by name              |
-| `a`     | add a server (pick its folder)       |
-| `i`     | re-scan your folders for new servers |
-| `u`     | show the command to update Beacon    |
-| `r`     | refresh now                          |
-| `?`     | show every key                       |
-| `q`     | quit (your servers keep running)     |
+| Key      | What it does                                       |
+| -------- | ------------------------------------------------- |
+| `↑` `↓`  | move the highlight                                |
+| `→`      | open the server's console                         |
+| type     | filter the list by name                          |
+| `enter`  | on the `+ Add a server` row, pick a folder        |
+| `ctrl+r` | re-scan your folders for new servers              |
+| `esc`    | clear the search, or quit when it is already empty |
+
+The list refreshes itself every second, so there is no refresh key. `ctrl+c`
+also quits from anywhere. Your servers keep running either way.
 
 In the console: `s` starts a stopped server, stops a running one (after a
 confirm), or marks a vanished one stopped. `K` force-kills, and is offered only

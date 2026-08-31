@@ -283,6 +283,57 @@ func TestServerCardsGroupAndShowDetail(t *testing.T) {
 	}
 }
 
+func TestListSearchFiltersAndEscClearsThenQuits(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	writeSpec(t, dirs, "creative")
+	tm = loadRegistry(t, m, tm)
+
+	// The add row is always at the top and the search bar is always shown.
+	if _, ok := m.list.Items()[0].(addRow); !ok {
+		t.Fatalf("first list item should be the add row, got %T", m.list.Items()[0])
+	}
+	if !strings.Contains(tm.View(), "type to filter servers") {
+		t.Fatalf("search prompt not shown:\n%s", tm.View())
+	}
+
+	// Typing filters live and drops the add row.
+	for _, r := range "sur" {
+		tm, _ = pressRune(t, m, tm, string(r))
+	}
+	shown := 0
+	for _, it := range m.list.VisibleItems() {
+		if _, ok := it.(serverItem); ok {
+			shown++
+		}
+	}
+	if shown != 1 || m.selID != "survival" {
+		t.Fatalf("query \"sur\": shown=%d selID=%q, want 1 / survival", shown, m.selID)
+	}
+	if _, ok := m.list.SelectedItem().(addRow); ok {
+		t.Fatal("add row should filter out once the search has text")
+	}
+
+	// First esc clears the search, second esc quits.
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEsc})
+	if m.list.FilterInput.Value() != "" {
+		t.Fatalf("esc should clear the search, still %q", m.list.FilterInput.Value())
+	}
+	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEsc})
+	if !hasQuit(msgs) {
+		t.Fatalf("esc on an empty search should quit, msgs = %v", msgs)
+	}
+}
+
+func hasQuit(msgs []tea.Msg) bool {
+	for _, msg := range msgs {
+		if _, ok := msg.(tea.QuitMsg); ok {
+			return true
+		}
+	}
+	return false
+}
+
 func TestCompactCardsDropTheDetailLine(t *testing.T) {
 	if h := (serverDelegate{compact: true}).Height(); h != 2 {
 		t.Fatalf("compact card height = %d, want 2", h)
@@ -397,7 +448,7 @@ func TestPrimaryActionTracksStatus(t *testing.T) {
 	}
 }
 
-func TestImportKeyWritesSpecsForScannedDirs(t *testing.T) {
+func TestScanKeyWritesSpecsForScannedDirs(t *testing.T) {
 	m, tm, _, dirs, root := bootModel(t)
 	tm = loadRegistry(t, m, tm)
 
@@ -407,7 +458,7 @@ func TestImportKeyWritesSpecsForScannedDirs(t *testing.T) {
 	}
 	m.app.Cfg.ScanRoots = []string{filepath.Join(root, "mc")}
 
-	_, msgs := pressRune(t, m, tm, "i")
+	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyCtrlR})
 	for _, msg := range msgs {
 		tm, _ = drive(t, tm, msg)
 	}
@@ -420,14 +471,19 @@ func TestImportKeyWritesSpecsForScannedDirs(t *testing.T) {
 	}
 }
 
-func TestAddKeyOpensAndEscapesTheFolderPicker(t *testing.T) {
+func TestAddRowOpensAndEscapesTheFolderPicker(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	writeSpec(t, dirs, "survival")
 	tm = loadRegistry(t, m, tm)
 
-	drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	// The cursor starts on the first server; step up onto the add row.
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyUp})
+	if _, ok := m.list.SelectedItem().(addRow); !ok {
+		t.Fatalf("up from the first server should land on the add row, got %T", m.list.SelectedItem())
+	}
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
 	if m.pick == nil {
-		t.Fatal("pressing a did not open the folder picker")
+		t.Fatal("enter on the add row did not open the folder picker")
 	}
 	if !strings.Contains(tm.View(), "Add a server") {
 		t.Fatalf("picker view not shown:\n%s", tm.View())
@@ -758,7 +814,7 @@ func TestConsoleRefusedUnlessServerIsRunning(t *testing.T) {
 	}
 }
 
-func TestUpdateNoticeShowsCommandAndDismisses(t *testing.T) {
+func TestUpdateNoticeShowsCommand(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	m.app.Repo = "syoopie/beacon-tui"
 	writeSpec(t, dirs, "survival")
@@ -771,11 +827,6 @@ func TestUpdateNoticeShowsCommandAndDismisses(t *testing.T) {
 	}
 	if !strings.Contains(m.status, "install.sh | bash") {
 		t.Fatalf("status = %q, want the update command", m.status)
-	}
-
-	pressRune(t, m, tm, "u")
-	if m.update != nil {
-		t.Fatal("pressing u did not dismiss the banner")
 	}
 }
 

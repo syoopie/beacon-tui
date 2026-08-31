@@ -128,12 +128,21 @@ type updateNotice struct {
 
 func newModel(app App) *model {
 	l := list.New(nil, serverDelegate{}, 0, 0)
-	l.Title = "Servers"
+	l.SetShowTitle(false)
+	l.SetShowFilter(false)
 	l.SetShowHelp(false)
 	l.SetShowStatusBar(false)
 	l.SetStatusBarItemName("server", "servers")
 	l.KeyMap.Quit.SetEnabled(false)
 	l.KeyMap.ForceQuit.SetEnabled(false)
+	// The search bar on the list screen is always on, so the model drives the
+	// filter itself. The list's own filter keys would only fight it.
+	l.KeyMap.Filter.SetEnabled(false)
+	l.KeyMap.ClearFilter.SetEnabled(false)
+	l.KeyMap.CancelWhileFiltering.SetEnabled(false)
+	l.KeyMap.AcceptWhileFiltering.SetEnabled(false)
+	l.KeyMap.ShowFullHelp.SetEnabled(false)
+	l.KeyMap.CloseFullHelp.SetEnabled(false)
 	// One key per action: the list's vim-style aliases (j/k, h/l, g/G) are
 	// dropped in favour of the arrow and page keys.
 	l.KeyMap.CursorUp = key.NewBinding(key.WithKeys("up"))
@@ -142,9 +151,12 @@ func newModel(app App) *model {
 	l.KeyMap.PrevPage = key.NewBinding(key.WithKeys("pgup"))
 	l.KeyMap.GoToStart = key.NewBinding(key.WithKeys("home"))
 	l.KeyMap.GoToEnd = key.NewBinding(key.WithKeys("end"))
-	l.Styles.Title = lipgloss.NewStyle().Bold(true)
-	l.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 1, 0)
 	l.Styles.NoItems = mutedStyle
+	l.FilterInput.Prompt = "search  "
+	l.FilterInput.PromptStyle = mutedStyle
+	l.FilterInput.Cursor.Style = mutedStyle
+	l.FilterInput.Placeholder = "type to filter servers"
+	l.FilterInput.Focus()
 
 	return &model{
 		app:         app,
@@ -364,11 +376,13 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateActions(msg)
 	}
 
-	// Screen-independent keys.
+	// Screen-independent keys. On the populated list every printable key feeds
+	// the always-on search, so q and ? only quit and toggle help elsewhere.
+	offList := m.screen == screenConsole || len(m.specs) == 0
 	switch {
-	case key.Matches(msg, m.keys.Quit):
+	case key.Matches(msg, m.keys.Quit) && offList:
 		return m, tea.Quit
-	case key.Matches(msg, m.keys.Help):
+	case key.Matches(msg, m.keys.Help) && offList:
 		m.help.ShowAll = !m.help.ShowAll
 		m.relayout()
 		return m, nil
@@ -382,21 +396,11 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// handleListKey drives the home screen. The list is view only and carries an
+// always-on search: arrows and enter navigate, ctrl+r re-scans, esc clears the
+// search or quits, and every other printable key edits the search.
 func (m *model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.list.FilterState() == list.Filtering {
-		var cmd tea.Cmd
-		m.list, cmd = m.list.Update(msg)
-		m.syncSelection()
-		return m, cmd
-	}
 	switch {
-	case key.Matches(msg, m.keys.Act):
-		if _, ok := m.selected(); ok {
-			m.openConsoleScreen()
-		}
-		return m, nil
-	case key.Matches(msg, m.keys.Add):
-		return m, m.openPicker()
 	case key.Matches(msg, m.keys.Rescan):
 		if m.busy {
 			m.status = busyStatus
@@ -405,20 +409,61 @@ func (m *model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.busy = true
 		m.status = "scanning your folders…"
 		return m, m.importCmd()
-	case key.Matches(msg, m.keys.Refresh):
-		m.status = "refreshing"
-		return m, m.reloadCmd()
-	case key.Matches(msg, m.keys.Update):
-		if m.update != nil {
-			m.status = "update: " + m.update.command
-			m.update = nil
-			m.relayout()
+
+	case len(m.specs) == 0 && key.Matches(msg, m.keys.Add):
+		// The landing screen has no search bar, so a still adds a server there.
+		return m, m.openPicker()
+
+	case key.Matches(msg, m.keys.Act): // enter or right
+		if _, ok := m.list.SelectedItem().(addRow); ok {
+			return m, m.openPicker()
+		}
+		if _, ok := m.selected(); ok {
+			m.openConsoleScreen()
 		}
 		return m, nil
+
+	case msg.String() == "esc":
+		if m.list.FilterInput.Value() != "" {
+			m.list.ResetFilter()
+			m.syncSelection()
+			return m, nil
+		}
+		return m, tea.Quit
 	}
+
+	// Cursor keys go to the list's own browsing handler.
+	switch msg.String() {
+	case "up", "down", "pgup", "pgdown", "home", "end":
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		m.syncSelection()
+		return m, cmd
+	}
+
+	// Text keys edit the search, which filters as it changes. Nothing to filter
+	// until the registry has loaded. Backspace edits; a rune is only accepted
+	// when it could appear in a server id, so a terminal query reply that leaks
+	// in as runes on startup never lands in the field.
+	switch {
+	case len(m.specs) == 0:
+		return m, nil
+	case msg.Type == tea.KeyBackspace:
+	case msg.Type == tea.KeyRunes && idRunes(msg.Runes):
+	default:
+		return m, nil
+	}
+	before := m.list.FilterInput.Value()
 	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
-	m.syncSelection()
+	m.list.FilterInput, cmd = m.list.FilterInput.Update(msg)
+	if after := m.list.FilterInput.Value(); after != before {
+		if after == "" {
+			m.list.ResetFilter()
+		} else {
+			m.list.SetFilterText(after)
+		}
+		m.syncSelection()
+	}
 	return m, cmd
 }
 
@@ -562,9 +607,6 @@ func (m *model) syncSelection() {
 }
 
 func (m *model) refreshItems() {
-	if m.list.FilterState() == list.Filtering {
-		return
-	}
 	ordered := append([]server.Spec(nil), m.specs...)
 	sort.SliceStable(ordered, func(a, b int) bool {
 		ga, gb := statusGroup(m.reports[ordered[a].ID].Derived), statusGroup(m.reports[ordered[b].ID].Derived)
@@ -573,23 +615,64 @@ func (m *model) refreshItems() {
 		}
 		return strings.ToLower(string(ordered[a].ID)) < strings.ToLower(string(ordered[b].ID))
 	})
-	items := make([]list.Item, len(ordered))
-	for i, s := range ordered {
+	// The add row rides at the top of the list. It filters out the moment the
+	// search has any text, so a query only ever shows matching servers.
+	items := make([]list.Item, 0, len(ordered)+1)
+	items = append(items, addRow{})
+	for _, s := range ordered {
 		r := m.reports[s.ID]
 		p, ok := m.procByID[s.ID]
-		items[i] = serverItem{spec: s, status: r.Derived, health: r.PortHealth, warn: r.Warning, proc: p, hasProc: ok}
+		items = append(items, serverItem{spec: s, status: r.Derived, health: r.PortHealth, warn: r.Warning, proc: p, hasProc: ok})
 	}
-	m.list.SetItems(items)
-	// The sort can move the selected server, so re-point the cursor at it by ID.
-	if m.selID != "" {
-		for i, it := range items {
-			if it.(serverItem).spec.ID == m.selID {
-				m.list.Select(i)
-				break
-			}
+	m.setListItems(items)
+
+	// The sort and the filter can move the selected server, so re-point the
+	// cursor at it by ID; failing that, land on the first server, not the add row.
+	vis := m.list.VisibleItems()
+	target := -1
+	for i, it := range vis {
+		s, ok := it.(serverItem)
+		if !ok {
+			continue
+		}
+		if m.selID != "" && s.spec.ID == m.selID {
+			target = i
+			break
+		}
+		if target < 0 {
+			target = i
 		}
 	}
+	if target >= 0 {
+		m.list.Select(target)
+	}
 	m.syncSelection()
+}
+
+// idRunes reports whether every rune could appear in a server id. Server ids are
+// [a-z0-9_-]; uppercase is allowed through because the filter is case-folding.
+func idRunes(rs []rune) bool {
+	if len(rs) == 0 {
+		return false
+	}
+	for _, r := range rs {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// setListItems swaps the list's items and re-runs the active search
+// synchronously, so a refresh tick never drops matches or jumps the cursor.
+func (m *model) setListItems(items []list.Item) {
+	if cmd := m.list.SetItems(items); cmd != nil {
+		if msg := cmd(); msg != nil {
+			m.list, _ = m.list.Update(msg)
+		}
+	}
 }
 
 func (m *model) appendLogs(lines []string) {
@@ -640,7 +723,7 @@ func (m *model) relayout() {
 	// dimmed detail line.
 	m.listW = innerW
 	m.list.SetDelegate(serverDelegate{compact: innerW < 55})
-	m.list.SetSize(innerW, bodyH)
+	m.list.SetSize(innerW, max(bodyH-2, 3)) // the search bar and its spacer sit above
 
 	// The console screen carries a details, player and resource rail on the
 	// right, but only when the terminal is wide enough to spare the columns.
@@ -678,19 +761,9 @@ func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 		return nil
 	}
 	m.loaded = true
-	prev := m.selID
 	m.specs = msg.specs
 	m.eula = msg.eula
 	m.refreshItems()
-	if prev != "" {
-		for i, s := range m.specs {
-			if s.ID == prev {
-				m.list.Select(i)
-				break
-			}
-		}
-	}
-	m.syncSelection()
 	// A server that vanished from under the console sends us home.
 	if _, ok := m.selected(); !ok && m.screen != screenList {
 		m.screen = screenList
@@ -719,7 +792,7 @@ func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 // placeholder that a fresh reload should replace.
 func (m *model) transientStatus() bool {
 	switch m.status {
-	case initialStatus, "scanning your folders…", "scanning the folder you added…", "refreshing":
+	case initialStatus, "scanning your folders…", "scanning the folder you added…":
 		return true
 	}
 	return false

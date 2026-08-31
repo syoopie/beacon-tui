@@ -20,8 +20,6 @@ type keymap struct {
 	LogSearch key.Binding
 	Add       key.Binding
 	Rescan    key.Binding
-	Update    key.Binding
-	Refresh   key.Binding
 	Help      key.Binding
 	Quit      key.Binding
 }
@@ -41,9 +39,7 @@ func newKeymap() keymap {
 		LogFilter: key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "important only")),
 		LogSearch: key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 		Add:       key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add server")),
-		Rescan:    key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "rescan folders")),
-		Update:    key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update")),
-		Refresh:   key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
+		Rescan:    key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "scan folders")),
 		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more keys")),
 		Quit:      key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
 	}
