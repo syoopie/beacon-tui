@@ -35,7 +35,9 @@ arbitrary text from outside the program.
 - **Scrolling** with the arrow keys, `logScrollStep` lines per press. `end` (or
   `G`) jumps to the newest line, `home` (or `g`) to the oldest. The view opens
   at the newest line; when it has been scrolled off the tail while new lines
-  keep arriving, the tab bar shows `↓ new lines  end jump down`.
+  keep arriving, a centred `↓ new lines below   end jump down` nudge shows on
+  its own row under the log (`newLinesRow`, a blank row when at the bottom, so
+  the log height never shifts).
 - **The rail**: player list over RCON, then memory and CPU from `ps`. It only
   appears above 64 inner columns.
 - **The input**, only open while the server is running, sends whatever is typed

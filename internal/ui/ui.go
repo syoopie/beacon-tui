@@ -898,12 +898,12 @@ func (m *model) relayout() {
 	// Below that, the rail's facts collapse to one line under the tab bar.
 	m.railW = 0
 	logW := innerW
-	chrome := 3 // log header + tab bar + rule
+	chrome := 4 // log header + tab bar + key row + the new-lines row under the log
 	if m.screen == screenConsole && innerW >= 64 {
 		m.railW = 30
 		logW = innerW - m.railW
 	} else if m.screen == screenConsole {
-		chrome = 4 // + the facts strip
+		chrome = 5 // + the facts strip
 	}
 	m.vp.Width = max(logW, 20)
 	m.vp.Height = max(bodyH-chrome, 1)
