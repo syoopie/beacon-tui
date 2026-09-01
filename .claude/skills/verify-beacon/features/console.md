@@ -25,9 +25,9 @@ arbitrary text from outside the program.
 - **The rail**: player list over RCON, then memory and CPU from `ps`. It only
   appears above 64 inner columns.
 - **The input**, only open while the server is running, sends whatever is typed
-  straight to the server's stdin on `enter` and stays open. It works like
-  Minecraft's own chat box: `t` opens it empty, `/` opens it already holding a
-  slash. A line that starts with `/` is **command mode** (`model.commandMode`) -
+  straight to the server's stdin on `enter` and then closes, the same as `esc`
+  (the sent line shows on the status line). It works like Minecraft's own chat
+  box: `t` opens it empty, `/` opens it already holding a slash. A line that starts with `/` is **command mode** (`model.commandMode`) -
   the completion panel shows and `↑` / `↓` cycle it; any other line is plain and
   `↑` / `↓` walk the per-server command history (`internal/mccmd`, persisted to
   `state/history/<id>.txt`). Typing or deleting the leading slash flips between

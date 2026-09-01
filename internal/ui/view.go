@@ -326,9 +326,15 @@ func (m *model) commandBar() helpSet {
 				}
 			}
 		}
+		// f is a toggle: name the state it switches to, not a fixed label, so it
+		// is clear you can switch back.
+		filter := m.keys.LogFilter
+		if m.logImportantOnly {
+			filter = hint("f", "show all")
+		}
 		short := []key.Binding{
 			power, m.keys.Actions, m.keys.Chat, m.keys.Console,
-			hint("↑↓", "scroll"), m.keys.LogBottom, m.keys.LogTab, m.keys.LogFilter, m.keys.LogSearch,
+			hint("↑↓", "scroll"), m.keys.LogBottom, m.keys.LogTab, filter, m.keys.LogSearch,
 			hint("esc", "back"), m.keys.Quit,
 		}
 		if ok && m.timedOut[spec.ID] {

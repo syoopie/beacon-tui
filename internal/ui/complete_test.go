@@ -212,15 +212,19 @@ func TestConsoleCompletionOffWithoutVersion(t *testing.T) {
 
 func TestConsoleHistoryRecall(t *testing.T) {
 	m, tm := runningConsoleInput(t, server.Commands{MCVersion: "1.20.1"})
-	m.console.SetValue("") // drop the opening slash; these are plain lines
-	m.onConsoleEdit()
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEsc}) // start from a closed input
 
+	// Sending closes the input, so each line is: open with t, type, enter.
 	send := func(line string) {
 		t.Helper()
+		tm, _ = pressRune(t, m, tm, "t")
 		tm = typeRunes(t, tm, line)
 		_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
 		for _, msg := range msgs {
 			tm, _ = drive(t, tm, msg)
+		}
+		if m.console != nil {
+			t.Fatalf("console stayed open after sending %q", line)
 		}
 	}
 	send("list")
@@ -230,6 +234,8 @@ func TestConsoleHistoryRecall(t *testing.T) {
 		t.Fatalf("history = %v, want [list, time set day]", m.history.All())
 	}
 
+	// Reopen a plain line; the arrows now walk the two sent commands.
+	tm, _ = pressRune(t, m, tm, "t")
 	up := func() { tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyUp}) }
 	down := func() { tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyDown}) }
 

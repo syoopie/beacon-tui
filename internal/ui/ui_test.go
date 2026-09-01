@@ -682,16 +682,11 @@ func TestConsoleSendsTypedLineToRunningServer(t *testing.T) {
 	if got := sup.sentLines(); len(got) != 1 || got[0] != "say hi" {
 		t.Fatalf("sent lines = %v, want [say hi]", got)
 	}
-	if m.console == nil {
-		t.Fatal("console closed itself after a send; it should stay open")
-	}
-	if m.console.Value() != "" {
-		t.Fatalf("console still holds %q after send, want it cleared", m.console.Value())
-	}
-
-	drive(t, tm, tea.KeyMsg{Type: tea.KeyEsc})
 	if m.console != nil {
-		t.Fatal("esc did not close the console")
+		t.Fatal("sending a line should close the input, like esc")
+	}
+	if !strings.Contains(m.status, "say hi") {
+		t.Fatalf("status = %q, want it to confirm the sent line", m.status)
 	}
 }
 

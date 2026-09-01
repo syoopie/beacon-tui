@@ -642,15 +642,15 @@ func (m *model) updateConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !ok {
 			return m.closeConsole("console closed (no server selected)")
 		}
-		m.console.SetValue("")
 		var save tea.Cmd
 		if m.history != nil {
 			m.history.Add(line)
 			save = m.consoleHistoryCmd(spec.ID)
 		}
-		m.resetCompletionState()
-		m.recomputeCompletion()
-		return m, tea.Batch(m.consoleCmd(spec, line), save)
+		// Sending closes the input, the same as esc; the confirmation lands on
+		// the status line and the log is back in full view for the reply.
+		next, _ := m.closeConsole(string(spec.ID) + " ‹ " + line)
+		return next, tea.Batch(m.consoleCmd(spec, line), save)
 	}
 
 	ti, cmd := m.console.Update(msg)
