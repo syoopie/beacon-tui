@@ -53,10 +53,13 @@ func sanitize(line string) string {
 	}, line)
 }
 
-// logEntry is one log line plus the tier it was sorted into when it arrived.
+// logEntry is one log line reduced to what the console needs: the compact text
+// it renders and searches, and the tier it was sorted into. Both are computed
+// once on the way in. Classification sees the full sanitized line, since several
+// rules key off the thread and logger brackets that the compact form drops.
 type logEntry struct {
-	raw  string
-	kind logKind
+	display string
+	kind    logKind
 }
 
 // logFollower pairs a file tailer with the classified lines it has yielded so
@@ -79,7 +82,7 @@ func (f *logFollower) read() ([]string, error) {
 func (f *logFollower) append(lines []string, limit int) {
 	for _, l := range lines {
 		l = sanitize(l)
-		f.entries = append(f.entries, logEntry{raw: l, kind: classify(l)})
+		f.entries = append(f.entries, logEntry{display: formatConsoleLine(l), kind: classify(l)})
 	}
 	if len(f.entries) > limit {
 		f.entries = append(f.entries[:0:0], f.entries[len(f.entries)-limit:]...)

@@ -30,8 +30,10 @@ key:right snap:focused                     # actions focused
 key:left snap:unfocused
 'key:/' key:b key:m key:c snap:filtered    # filter to bmc4
 key:esc snap:unfiltered
-key:? snap:helpgrid
 ```
+
+The command bar at the top lists every key for the current mode and wraps
+onto more rows when the terminal is narrow; there is no separate help screen.
 
 An empty config dir (omit `--config-dir` and `drive.py` makes a fresh one)
 renders the landing panel instead.

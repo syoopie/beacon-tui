@@ -8,12 +8,20 @@ arbitrary text from outside the program.
 ## Sub-features
 
 - **Server log tab** and **Chat tab**, switched with `tab`.
+- **Compact line format.** The console rewrites each log line for display
+  (`formatConsoleLine`, `internal/ui/logfmt.go`): the full `[date time] [thread/
+  LEVEL] [logger]:` prefix collapses to a bare `HH:MM:SS`, and a level tag is
+  kept only for `WARN` and above. The line on disk is untouched; a line that is
+  not a server-log line (a stack frame, a mod banner) is shown as-is. Search and
+  the noise filter both work on this compact text.
 - **Noise filter**, toggled with `f`. Filtered hides chatter; full shows
   everything with warnings and errors in the warning colour and noise dimmed.
 - **Search**, opened with `ctrl+f`, narrowing the active tab as you type. `enter`
   keeps the filter, `esc` clears it.
-- **Scrolling** with the arrow keys, three lines per press (`logScrollStep`).
-  The view opens at the newest line.
+- **Scrolling** with the arrow keys, `logScrollStep` lines per press. `end` (or
+  `G`) jumps to the newest line, `home` (or `g`) to the oldest. The view opens
+  at the newest line; when it has been scrolled off the tail while new lines
+  keep arriving, the tab bar shows `↓ new  end`.
 - **The rail**: player list over RCON, then memory and CPU from `ps`. It only
   appears above 64 inner columns.
 - **Sending a command** to a running server, opened with `/`. Only opens while

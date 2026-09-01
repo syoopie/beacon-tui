@@ -196,7 +196,7 @@ func (m *model) logBody() string {
 			continue
 		}
 		style := m.logLineStyle(e.kind)
-		for _, seg := range strings.Split(ansi.Wrap(e.raw, w, ""), "\n") {
+		for _, seg := range strings.Split(ansi.Wrap(e.display, w, ""), "\n") {
 			rows = append(rows, style.Render(seg))
 		}
 	}
@@ -239,8 +239,8 @@ func (m *model) lineVisible(e logEntry, lowerQuery string) bool {
 	}
 	if lowerQuery != "" {
 		// An active search looks through the whole log, not just the current
-		// tier. The tab split above still holds.
-		return strings.Contains(strings.ToLower(e.raw), lowerQuery)
+		// tier. It matches the compact text the operator actually sees.
+		return strings.Contains(strings.ToLower(e.display), lowerQuery)
 	}
 	if m.logTab == tabServer && m.logImportantOnly && !e.kind.important() {
 		return false
