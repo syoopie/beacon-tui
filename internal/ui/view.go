@@ -687,11 +687,23 @@ func (m *model) launchDialogView() string {
 	lp := m.launch
 	width := clampInt(m.bodyW-12, 40, 72)
 
+	// Prose wraps inside width; a sub-note is wrapped by hand to width-6 and
+	// every line indented six columns, so a long note keeps its hanging indent
+	// instead of spilling a ragged fragment back to the border. lipgloss's own
+	// Width+PaddingLeft only pads the first wrapped line.
+	title := lipgloss.NewStyle().Width(width).Bold(true)
+	prose := lipgloss.NewStyle().Width(width).Foreground(mutedColor)
+	subNote := func(s string) string { return hangingNote(s, width, 6) }
+
 	rows := []string{
-		sectionStyle.Render("How should Beacon start " + string(lp.id) + "?"),
-		mutedStyle.Render("Every launch method Beacon found in its folder:"),
-		"",
+		title.Render("How should Beacon start " + string(lp.id) + "?"),
+		prose.Render("Every launch method Beacon found in its folder:"),
 	}
+	if n := m.restartNoticeRow(lp.id, width); n != "" {
+		rows = append(rows, "", n)
+	}
+	rows = append(rows, "")
+
 	for i, o := range lp.opts {
 		marker := "  "
 		if i == lp.cursor {
@@ -707,7 +719,7 @@ func (m *model) launchDialogView() string {
 		if o.Script != "" && !o.Exec.Launchable() {
 			note += "   (not exec java; press p after saving to try to fix it)"
 		}
-		rows = append(rows, marker+radio+label, mutedStyle.Render("      "+note))
+		rows = append(rows, marker+radio+label, subNote(note))
 	}
 
 	field := func(row int, view string) string {
@@ -720,10 +732,34 @@ func (m *model) launchDialogView() string {
 		"",
 		field(lp.argsRow(), lp.args.View()),
 		field(lp.versionRow(), lp.version.View()),
-		mutedStyle.Render("      the Minecraft version, for console command help"),
+		subNote("the Minecraft version, for console command help"),
 		"",
 		m.hintBar(hint("↑↓", "move"), hint("space", "pick method"), hint("enter", "save"), hint("esc", "cancel")),
 	)
-	inner := lipgloss.NewStyle().Width(width).Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
+	inner := lipgloss.JoinVertical(lipgloss.Left, rows...)
 	return lipgloss.Place(m.bodyW, m.bodyH, lipgloss.Center, lipgloss.Center, dialogStyle.Render(inner))
+}
+
+// hangingNote wraps s to width-indent columns and indents every line, including
+// the wrapped continuations, by indent spaces. It is the reliable hanging
+// indent lipgloss's Width+PaddingLeft does not give: that pads only the first
+// line of a wrapped block.
+func hangingNote(s string, width, indent int) string {
+	pad := strings.Repeat(" ", indent)
+	lines := strings.Split(ansi.Wrap(s, max(width-indent, 8), ""), "\n")
+	for i := range lines {
+		lines[i] = mutedStyle.Render(pad + lines[i])
+	}
+	return strings.Join(lines, "\n")
+}
+
+// restartNoticeRow is the line both settings dialogs show when the server is
+// already running: what they change is written to disk now but the running
+// process keeps its old launch command and properties until it is restarted.
+func (m *model) restartNoticeRow(id server.ID, width int) string {
+	if m.reports[id].Derived != server.StatusRunning {
+		return ""
+	}
+	return lipgloss.NewStyle().Width(width).Foreground(warnColor).
+		Render(string(id) + " is running; changes take effect after a restart.")
 }

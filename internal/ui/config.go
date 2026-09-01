@@ -392,15 +392,20 @@ func (m *model) configDialogView() string {
 		mutedStyle.Render("Writes only the keys you change; the rest of the file is left alone."))
 	hints := m.hintBar(hint("↑↓", "field"), hint("←→", "change"), hint("enter", "save"), hint("esc", "cancel"))
 
+	head := []string{title, subtitle}
+	if n := m.restartNoticeRow(cf.id, width); n != "" {
+		head = append(head, "", n)
+	}
+	head = append(head, "")
+
 	content, cursorLine := cf.renderFields(width)
 	// The dialog box adds a rounded border and one padding row top and bottom;
-	// title, subtitle, the two blank spacers, and the hint bar sit around the
-	// viewport.
-	chrome := 4 + lipgloss.Height(title) + lipgloss.Height(subtitle) + lipgloss.Height(hints) + 2
+	// the head block, a blank spacer, and the hint bar sit around the viewport.
+	chrome := 4 + lipgloss.Height(strings.Join(head, "\n")) + lipgloss.Height(hints) + 1
 	vpHeight := clampInt(m.bodyH-chrome, 3, lipgloss.Height(content))
 	cf.scrollToCursor(width, vpHeight, content, cursorLine)
 
 	inner := lipgloss.NewStyle().Width(width).Render(lipgloss.JoinVertical(lipgloss.Left,
-		title, subtitle, "", cf.vp.View(), "", hints))
+		append(head, cf.vp.View(), "", hints)...))
 	return lipgloss.Place(m.bodyW, m.bodyH, lipgloss.Center, lipgloss.Center, dialogStyle.Render(inner))
 }

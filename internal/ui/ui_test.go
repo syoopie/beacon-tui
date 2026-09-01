@@ -938,6 +938,41 @@ func TestLaunchSettingsSwitchesTheStartScript(t *testing.T) {
 	}
 }
 
+func TestSettingsDialogsWarnWhileTheServerRuns(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	if err := os.WriteFile(filepath.Join(spec.Dir, "run.sh"), []byte("#!/bin/sh\nexec java -jar server.jar \"$@\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tm = loadRegistry(t, m, tm)
+	tm = openConsole(t, m, tm)
+
+	// The caveat wraps inside the dialog, so match a fragment that stays on one
+	// line rather than the whole sentence.
+	const notice = "is running"
+
+	// Stopped: no restart caveat.
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusStopped}
+	tm, _ = chooseAction(t, m, tm, "Launch settings")
+	if strings.Contains(tm.View(), notice) {
+		t.Fatalf("stopped server should not show the restart caveat:\n%s", tm.View())
+	}
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEsc})
+
+	// Running: both dialogs carry it.
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
+	tm, _ = chooseAction(t, m, tm, "Launch settings")
+	if !strings.Contains(tm.View(), notice) {
+		t.Fatalf("running server's launch dialog missing the restart caveat:\n%s", tm.View())
+	}
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEsc})
+
+	tm, _ = chooseAction(t, m, tm, "Edit config")
+	if !strings.Contains(tm.View(), notice) {
+		t.Fatalf("running server's config dialog missing the restart caveat:\n%s", tm.View())
+	}
+}
+
 func drainMsgs(t *testing.T, tm tea.Model, msgs []tea.Msg) tea.Model {
 	t.Helper()
 	for _, msg := range msgs {
