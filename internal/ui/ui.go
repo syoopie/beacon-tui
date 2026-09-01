@@ -456,15 +456,10 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Screen-independent keys. On the populated list every printable key feeds
-	// the always-on search, so q and ? only quit and toggle help elsewhere.
+	// the always-on search, so q only quits elsewhere.
 	offList := m.screen == screenConsole || len(m.specs) == 0
-	switch {
-	case key.Matches(msg, m.keys.Quit) && offList:
+	if key.Matches(msg, m.keys.Quit) && offList {
 		return m, tea.Quit
-	case key.Matches(msg, m.keys.Help) && offList:
-		m.help.ShowAll = !m.help.ShowAll
-		m.relayout()
-		return m, nil
 	}
 
 	switch m.screen {
@@ -840,7 +835,7 @@ func (m *model) relayout() {
 	m.help.Width = innerW
 	m.bodyW = innerW
 
-	helpH := lipgloss.Height(m.help.View(m.commandBar()))
+	helpH := lipgloss.Height(m.commandBarView())
 	noticeH := 0
 	if t := m.noticeText(); t != "" {
 		noticeH = lipgloss.Height(lipgloss.NewStyle().Width(innerW).Render(t)) + 1 // banner + spacer

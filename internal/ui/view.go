@@ -329,17 +329,13 @@ func (m *model) commandBar() helpSet {
 		}
 		short := []key.Binding{
 			power, m.keys.Actions, m.keys.Console,
-			hint("tab", "tabs"), m.keys.LogSearch, hint("esc", "back"), m.keys.Help,
-		}
-		full := [][]key.Binding{
-			{power, m.keys.Actions, m.keys.Console},
-			{hint("↑↓", "scroll"), m.keys.LogTab, m.keys.LogFilter, m.keys.LogSearch},
-			{m.keys.Back, m.keys.Help, m.keys.Quit},
+			hint("↑↓", "scroll"), m.keys.LogTab, m.keys.LogFilter, m.keys.LogSearch,
+			hint("esc", "back"), m.keys.Quit,
 		}
 		if ok && m.timedOut[spec.ID] {
-			full[0] = append(full[0], m.keys.Kill)
+			short = append(short, m.keys.Kill)
 		}
-		return helpSet{short: short, full: full}
+		return helpSet{short: short}
 	}
 
 	// screenList
@@ -360,6 +356,42 @@ func (m *model) commandBar() helpSet {
 	return helpSet{short: short}
 }
 
+// commandBarView renders the current mode's bindings as "key label" tokens
+// joined by faint dots, greedily wrapped so a narrow terminal gets more rows
+// instead of a truncated line. It replaces bubbles/help's single-line view,
+// which drops trailing items when they do not fit.
+func (m *model) commandBarView() string {
+	st := m.help.Styles
+	sep := st.ShortSeparator.Render(" · ")
+	sepW := lipgloss.Width(sep)
+	width := max(m.bodyW, 1)
+
+	var lines []string
+	cur, curW := "", 0
+	for _, b := range m.commandBar().short {
+		if !b.Enabled() {
+			continue
+		}
+		h := b.Help()
+		tok := st.ShortKey.Render(h.Key) + " " + st.ShortDesc.Render(h.Desc)
+		tokW := lipgloss.Width(tok)
+		switch {
+		case cur == "":
+			cur, curW = tok, tokW
+		case curW+sepW+tokW <= width:
+			cur += sep + tok
+			curW += sepW + tokW
+		default:
+			lines = append(lines, cur)
+			cur, curW = tok, tokW
+		}
+	}
+	if cur != "" {
+		lines = append(lines, cur)
+	}
+	return strings.Join(lines, "\n")
+}
+
 // --- view ---
 
 func (m *model) View() string {
@@ -368,7 +400,7 @@ func (m *model) View() string {
 	}
 	rows := []string{
 		m.headerView(),
-		m.help.View(m.commandBar()),
+		m.commandBarView(),
 		"",
 	}
 	if n := m.noticeView(); n != "" {

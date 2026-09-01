@@ -20,7 +20,6 @@ type keymap struct {
 	LogSearch key.Binding
 	Add       key.Binding
 	Rescan    key.Binding
-	Help      key.Binding
 	Quit      key.Binding
 }
 
@@ -40,25 +39,15 @@ func newKeymap() keymap {
 		LogSearch: key.NewBinding(key.WithKeys("ctrl+f"), key.WithHelp("ctrl+f", "search")),
 		Add:       key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add server")),
 		Rescan:    key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "scan folders")),
-		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "more keys")),
 		Quit:      key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
 	}
 }
 
-// helpSet adapts a slice of bindings to bubbles/help.KeyMap. ShortHelp is the
-// one-line command bar; FullHelp is the grid shown after "?".
+// helpSet is the set of bindings the command bar shows for the current mode.
+// Every one is displayed; a bar too wide for the terminal wraps onto more rows
+// rather than hiding keys behind a "more" toggle.
 type helpSet struct {
 	short []key.Binding
-	full  [][]key.Binding
-}
-
-func (h helpSet) ShortHelp() []key.Binding { return h.short }
-
-func (h helpSet) FullHelp() [][]key.Binding {
-	if h.full != nil {
-		return h.full
-	}
-	return [][]key.Binding{h.short}
 }
 
 func hint(keys, desc string) key.Binding {

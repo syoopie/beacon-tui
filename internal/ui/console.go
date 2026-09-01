@@ -66,7 +66,9 @@ func (m *model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch {
-	case key.Matches(msg, m.keys.Back):
+	case msg.String() == "esc":
+		// esc alone backs out of the console; the left arrow stays a no-op here
+		// so it cannot yank the operator off a log they are reading.
 		if m.logQuery != "" {
 			m.logQuery = ""
 			m.renderLog()

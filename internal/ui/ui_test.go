@@ -404,6 +404,21 @@ func TestEnterOpensTheConsoleAndEscReturns(t *testing.T) {
 	}
 }
 
+func TestLeftArrowDoesNotLeaveTheConsole(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.screen != screenConsole {
+		t.Fatalf("setup: expected the console screen, got %d", m.screen)
+	}
+	drive(t, tm, tea.KeyMsg{Type: tea.KeyLeft})
+	if m.screen != screenConsole {
+		t.Fatalf("left should be a no-op on the console, screen = %d", m.screen)
+	}
+}
+
 func TestStopFromConsoleAsksToConfirm(t *testing.T) {
 	m, tm, sup, dirs, _ := bootModel(t)
 	spec := writeSpec(t, dirs, "survival")
