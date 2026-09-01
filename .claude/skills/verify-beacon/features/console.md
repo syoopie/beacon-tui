@@ -7,7 +7,18 @@ arbitrary text from outside the program.
 
 ## Sub-features
 
-- **Server log tab** and **Chat tab**, switched with `tab`.
+- **Where the key hints live.** The console keys sit next to what they act on,
+  not in one long bar. Server-level keys (`s` start or stop, `a` settings, `esc`
+  back, `K` force-kill once a stop hangs) are the top command bar. `tab` is by
+  the two tabs. `f` leads the hint row over the log (`logKeysView`), which also
+  carries `↑↓ scroll`, `end latest`, `ctrl+f find`; that row stands in for the
+  old rule, so it costs no height, and falls back to a plain rule while the
+  input is open. `t` and `/` are a hint row just above the status line, where
+  the input opens, shown only while the server is running. There is no `q`:
+  `esc` is the only way out of every screen (`ctrl+c` still hard-quits).
+- **Server log tab** and **Chat tab**, switched with `tab` (hinted right after
+  the Chat tab, dropped only when the log pane is too narrow for it and the
+  view word both).
 - **Compact line format.** The console rewrites each log line for display
   (`formatConsoleLine`, `internal/ui/logfmt.go`): the full `[date time] [thread/
   LEVEL] [logger]:` prefix collapses to a bare `HH:MM:SS`, and a level tag is
@@ -16,6 +27,9 @@ arbitrary text from outside the program.
   the noise filter both work on this compact text.
 - **Noise filter**, toggled with `f`. Filtered hides chatter; full shows
   everything with warnings and errors in the warning colour and noise dimmed.
+  The tab bar's right word names the current view (`full log` / `important
+  only`); the hint row below leads with `f` named for the other one, so
+  `full log` up top and `f important only` below reads as "press f to switch".
 - **Search**, opened with `ctrl+f`, narrowing the active tab as you type. `enter`
   keeps the filter, `esc` clears it.
 - **Scrolling** with the arrow keys, `logScrollStep` lines per press. `end` (or

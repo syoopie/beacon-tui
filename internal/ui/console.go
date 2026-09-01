@@ -272,7 +272,7 @@ func (m *model) consoleView() string {
 			head = append(head, s)
 		}
 	}
-	head = append(head, mutedStyle.Render(strings.Repeat("─", w)), m.vp.View())
+	head = append(head, m.logKeysView(w), m.vp.View())
 	logBlock := lipgloss.NewStyle().Width(w).MaxWidth(w).Height(m.bodyH).
 		Render(lipgloss.JoinVertical(lipgloss.Left, head...))
 	if m.railW == 0 {
@@ -306,6 +306,54 @@ func (m *model) logHeaderView(w int) string {
 		mutedStyle.Render("via " + launchSummary(spec)),
 	}, mutedStyle.Render("   ·   "))
 	return lipgloss.NewStyle().MaxWidth(max(w, 1)).Render(line)
+}
+
+// powerHint is the s-key binding, labelled for what it does in the server's
+// current state. It comes back disabled (and so is skipped by the hint bar)
+// when there is no primary action, e.g. a server still starting.
+func (m *model) powerHint(s server.Status) key.Binding {
+	act, ok := m.primaryAction(s)
+	if !ok {
+		return key.Binding{}
+	}
+	switch act {
+	case actStart:
+		return hint("s", "start")
+	case actStop:
+		return hint("s", "stop")
+	case actMarkStopped:
+		return hint("s", "mark stopped")
+	default:
+		return key.Binding{}
+	}
+}
+
+// logKeysView is the hint row sitting on top of the log viewport: the filter
+// toggle first (named for the view it switches to, right under the word for the
+// current one), then the keys that move and search the log. It stands in for a
+// plain rule, so it costs no height. While the input is open it falls back to
+// the rule, since the arrows drive the input then, not the log.
+func (m *model) logKeysView(w int) string {
+	if m.console != nil {
+		return mutedStyle.Render(strings.Repeat("─", max(w, 1)))
+	}
+	var b []key.Binding
+	if m.logTab == tabServer {
+		if m.logImportantOnly {
+			b = append(b, hint("f", "full log"))
+		} else {
+			b = append(b, hint("f", "important only"))
+		}
+	}
+	b = append(b, hint("↑↓", "scroll"), hint("end", "latest"), hint("ctrl+f", "find"))
+	return ansi.Truncate(m.hintBar(b...), max(w, 1), "…")
+}
+
+// consoleInputReady reports whether the console input can open: a server is
+// selected and running, so there is somewhere for a typed line to go.
+func (m *model) consoleInputReady() bool {
+	spec, ok := m.selected()
+	return ok && m.reports[spec.ID].Derived == server.StatusRunning
 }
 
 // rconRailLabel is the one-word state of a server's RCON: off, or on with its
@@ -407,18 +455,20 @@ func (m *model) tabBarView(w int) string {
 		}
 		return tabInactiveStyle.Render("  " + label + "  ")
 	}
-	left := tab("Server log", tabServer) + " " + tab("Chat", tabChat)
+	tabs := tab("Server log", tabServer) + " " + tab("Chat", tabChat)
 
-	// The right side names the current view; the key that changes it lives in
-	// the command bar, not here.
+	// The right side names the current view. The key that changes it, f, leads
+	// the hint row just below, next to this word.
 	var right string
-	switch {
-	case m.logTab == tabChat:
+	switch m.logTab {
+	case tabChat:
 		right = mutedStyle.Render("player activity")
-	case m.logImportantOnly:
-		right = mutedStyle.Render("important only")
-	default:
-		right = mutedStyle.Render("full log")
+	case tabServer:
+		if m.logImportantOnly {
+			right = mutedStyle.Render("important only")
+		} else {
+			right = mutedStyle.Render("full log")
+		}
 	}
 	if q := strings.TrimSpace(m.logQuery); q != "" {
 		right = mutedStyle.Render("search: "+q) + mutedStyle.Render("   ·   ") + right
@@ -430,9 +480,16 @@ func (m *model) tabBarView(w int) string {
 		right = behind + right
 	}
 
+	// Add the "tab" hint by the tabs only when it and the view word both still
+	// fit; on a very narrow log pane the word wins.
+	left := tabs
+	if lipgloss.Width(tabs)+6+lipgloss.Width(right) <= w {
+		left = tabs + "  " + m.help.Styles.ShortKey.Render("tab")
+	}
+
 	gap := w - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
 		gap = 1
 	}
-	return left + strings.Repeat(" ", gap) + right
+	return ansi.Truncate(left+strings.Repeat(" ", gap)+right, max(w, 1), "")
 }

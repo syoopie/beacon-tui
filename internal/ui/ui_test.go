@@ -419,6 +419,24 @@ func TestLeftArrowDoesNotLeaveTheConsole(t *testing.T) {
 	}
 }
 
+func TestQDoesNotQuitFromTheConsole(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.screen != screenConsole {
+		t.Fatalf("setup: expected the console screen, got %d", m.screen)
+	}
+	_, msgs := pressRune(t, m, tm, "q")
+	if hasQuit(msgs) {
+		t.Fatal("q on the console should do nothing; esc is the way back")
+	}
+	if m.screen != screenConsole {
+		t.Fatalf("q should not have changed the screen, got %d", m.screen)
+	}
+}
+
 func TestStopFromConsoleAsksToConfirm(t *testing.T) {
 	m, tm, sup, dirs, _ := bootModel(t)
 	spec := writeSpec(t, dirs, "survival")
@@ -656,6 +674,50 @@ func TestConsoleHeaderShowsPortHealth(t *testing.T) {
 	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning, PortHealth: reconcile.PortOpen}
 	if got := m.logHeaderView(80); !strings.Contains(got, "ready") {
 		t.Fatalf("running server with an open port should read \"ready\":\n%s", got)
+	}
+}
+
+func TestConsoleHintsSitNextToTheirFunction(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
+	openConsole(t, m, tm)
+
+	// The tab bar names the current filter state; the f key that switches it
+	// leads the hint row right below, naming the view it switches to.
+	m.logImportantOnly = false
+	if got := m.tabBarView(120); !strings.Contains(got, "full log") {
+		t.Fatalf("tab bar should name the current view:\n%s", got)
+	}
+	if got := m.logKeysView(120); !strings.Contains(got, "f") || !strings.Contains(got, "important only") {
+		t.Fatalf("full log should offer f to switch to important only:\n%s", got)
+	}
+	m.logImportantOnly = true
+	if got := m.logKeysView(120); !strings.Contains(got, "full log") {
+		t.Fatalf("important only should offer f to switch back to the full log:\n%s", got)
+	}
+
+	// tab sits on the tab bar; the scroll and search keys on the row over the log.
+	if got := m.tabBarView(120); !strings.Contains(got, "tab") {
+		t.Fatalf("tab bar should carry the tab hint:\n%s", got)
+	}
+	if got := m.logKeysView(120); !strings.Contains(got, "scroll") || !strings.Contains(got, "find") {
+		t.Fatalf("log-keys row should carry scroll and find:\n%s", got)
+	}
+
+	// t and / show where the input opens; the top bar is server-level only.
+	if !strings.Contains(tm.View(), "type a message") || !strings.Contains(tm.View(), "run a command") {
+		t.Fatalf("a running server's console should hint t and / by the input:\n%s", tm.View())
+	}
+	bar := m.commandBarView()
+	if !strings.Contains(bar, "back") || !strings.Contains(bar, "settings") || !strings.Contains(bar, "stop") {
+		t.Fatalf("console command bar should show stop, settings and the way back:\n%s", bar)
+	}
+	for _, gone := range []string{"important", "switch tab", "quit", "scroll"} {
+		if strings.Contains(bar, gone) {
+			t.Fatalf("console command bar should no longer carry %q:\n%s", gone, bar)
+		}
 	}
 }
 

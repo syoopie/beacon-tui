@@ -22,7 +22,6 @@ type keymap struct {
 	LogBottom key.Binding
 	Add       key.Binding
 	Rescan    key.Binding
-	Quit      key.Binding
 }
 
 func newKeymap() keymap {
@@ -38,12 +37,11 @@ func newKeymap() keymap {
 		Chat:      key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "type")),
 		Console:   key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "command")),
 		LogTab:    key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch tab")),
-		LogFilter: key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "important only")),
+		LogFilter: key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "filter")),
 		LogSearch: key.NewBinding(key.WithKeys("ctrl+f"), key.WithHelp("ctrl+f", "search")),
 		LogBottom: key.NewBinding(key.WithKeys("end", "G"), key.WithHelp("end", "latest")),
 		Add:       key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add server")),
 		Rescan:    key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "scan folders")),
-		Quit:      key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
 	}
 }
 

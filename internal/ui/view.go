@@ -312,31 +312,16 @@ func (m *model) commandBar() helpSet {
 	}
 
 	if m.screen == screenConsole {
+		// The view-level keys sit next to what they act on: tab on the tab bar, f
+		// beside the filter state, the scroll keys on the row above the log, t and
+		// / by the input. What stays here is server-level: start or stop it, its
+		// settings, the way back, and force-kill once a stop has hung.
+		var short []key.Binding
 		spec, ok := m.selected()
-		power := m.keys.Power
 		if ok {
-			if act, valid := m.primaryAction(m.reports[spec.ID].Derived); valid {
-				switch act {
-				case actStart:
-					power = hint("s", "start")
-				case actStop:
-					power = hint("s", "stop")
-				case actMarkStopped:
-					power = hint("s", "mark stopped")
-				}
-			}
+			short = append(short, m.powerHint(m.reports[spec.ID].Derived), m.keys.Actions)
 		}
-		// f is a toggle: name the state it switches to, not a fixed label, so it
-		// is clear you can switch back.
-		filter := m.keys.LogFilter
-		if m.logImportantOnly {
-			filter = hint("f", "show all")
-		}
-		short := []key.Binding{
-			power, m.keys.Actions, m.keys.Chat, m.keys.Console,
-			hint("↑↓", "scroll"), m.keys.LogBottom, m.keys.LogTab, filter, m.keys.LogSearch,
-			hint("esc", "back"), m.keys.Quit,
-		}
+		short = append(short, hint("esc", "back"))
 		if ok && m.timedOut[spec.ID] {
 			short = append(short, m.keys.Kill)
 		}
@@ -421,6 +406,8 @@ func (m *model) View() string {
 		rows = append(rows, consoleBarStyle.Render(m.console.View()))
 	case m.logSearch != nil:
 		rows = append(rows, "", consoleBarStyle.Render(m.logSearch.View()))
+	case m.screen == screenConsole && m.consoleInputReady():
+		rows = append(rows, "", m.hintBar(hint("t", "type a message"), hint("/", "run a command")))
 	}
 	rows = append(rows, "", m.statusView())
 	return frameStyle.Render(lipgloss.JoinVertical(lipgloss.Left, rows...))

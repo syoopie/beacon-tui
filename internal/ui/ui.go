@@ -455,13 +455,8 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateActions(msg)
 	}
 
-	// Screen-independent keys. On the populated list every printable key feeds
-	// the always-on search, so q only quits elsewhere.
-	offList := m.screen == screenConsole || len(m.specs) == 0
-	if key.Matches(msg, m.keys.Quit) && offList {
-		return m, tea.Quit
-	}
-
+	// esc is the one way out everywhere: it quits the list and the landing
+	// screen, and steps back from the console. ctrl+c stays the hard quit.
 	switch m.screen {
 	case screenConsole:
 		return m.handleConsoleKey(msg)
@@ -877,6 +872,8 @@ func (m *model) relayout() {
 		if m.commandMode() {
 			bodyH -= completionPanelH // the completion panel only shows in command mode
 		}
+	} else if m.logSearch == nil && m.screen == screenConsole && m.consoleInputReady() {
+		bodyH -= 2 // spacer + the "t / to type" hint that sits where the input opens
 	}
 	bodyH = max(bodyH, 3)
 	m.bodyH = bodyH
