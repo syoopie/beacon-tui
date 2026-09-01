@@ -129,20 +129,30 @@ func (m *model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Down):
 		m.vp.ScrollDown(logScrollStep)
 		return m, nil
+	case key.Matches(msg, m.keys.Chat):
+		return m.enterConsole("")
 	case key.Matches(msg, m.keys.Console):
-		spec, ok := m.selected()
-		if !ok {
-			return m, nil
-		}
-		if m.reports[spec.ID].Derived != server.StatusRunning {
-			m.status = "typing a command works only while the server is running"
-			return m, nil
-		}
-		return m, m.openConsole(spec)
+		return m.enterConsole("/")
 	}
 	var cmd tea.Cmd
 	m.vp, cmd = m.vp.Update(msg)
 	return m, cmd
+}
+
+// enterConsole opens the console input for the selected server, seeded with
+// prefill ("/" to land straight in command mode, "" for a free-text line). The
+// input only opens while the server is running, since it has nowhere to send to
+// otherwise.
+func (m *model) enterConsole(prefill string) (tea.Model, tea.Cmd) {
+	spec, ok := m.selected()
+	if !ok {
+		return m, nil
+	}
+	if m.reports[spec.ID].Derived != server.StatusRunning {
+		m.status = "the console only opens while the server is running"
+		return m, nil
+	}
+	return m, m.openConsole(spec, prefill)
 }
 
 // openLogSearch focuses a one-line input that narrows the visible log to lines

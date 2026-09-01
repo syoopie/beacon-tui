@@ -24,19 +24,22 @@ arbitrary text from outside the program.
   keep arriving, the tab bar shows `↓ new  end`.
 - **The rail**: player list over RCON, then memory and CPU from `ps`. It only
   appears above 64 inner columns.
-- **Sending a command** to a running server, opened with `/`. Only opens while
-  the server is running.
-- **Command completion**, shown in a fixed 6-row panel above the input while it
-  is open (`internal/ui/complete.go`, `completionPanelH`). One status line (the
+- **The input**, only open while the server is running, sends whatever is typed
+  straight to the server's stdin on `enter` and stays open. It works like
+  Minecraft's own chat box: `t` opens it empty, `/` opens it already holding a
+  slash. A line that starts with `/` is **command mode** (`model.commandMode`) -
+  the completion panel shows and `↑` / `↓` cycle it; any other line is plain and
+  `↑` / `↓` walk the per-server command history (`internal/mccmd`, persisted to
+  `state/history/<id>.txt`). Typing or deleting the leading slash flips between
+  the two and resizes the log above.
+- **Command completion**, a fixed 6-row panel above the input in command mode
+  only (`internal/ui/complete.go`, `completionPanelH`). One status line (the
   Brigadier-style usage hint, e.g. `<targets> <item> [<count>]`, or a fix-it
-  note when the tree is off) over a windowed suggestion list. On a line with
-  text, `↑` / `↓` (and `tab` / `shift+tab`) cycle the highlighted suggestion
-  into the token being typed, the way the vanilla client's tab key works. On an
-  empty line, `↑` / `↓` walk the per-server command history (`internal/mccmd`,
-  persisted to `state/history/<id>.txt`). The engine is a bundled vanilla
-  command tree picked by the spec's `[commands] mc_version`; with no version set
-  the panel shows a "could not detect this server's Minecraft version" note that
-  points at `a` → Launch settings.
+  note when the tree is off) over a windowed suggestion list; `↑` / `↓` and
+  `tab` / `shift+tab` cycle the highlight into the token being typed. The engine
+  is a bundled vanilla command tree picked by the spec's `[commands] mc_version`;
+  with no version set the panel shows a "could not detect this server's
+  Minecraft version" note that points at `a` → Launch settings.
 - **Modded commands over RCON.** When the server is running with RCON on, Beacon
   reads its `/help` once per session (`rcon.Help`, multi-packet) and folds the
   listed commands into the tree one level deep (`mccmd.HelpSource`, priority
@@ -75,13 +78,16 @@ Command completion needs a running server (start a throwaway tmux session
 fixture spec:
 
 ```sh
-key:right key:enter 'key:/'               # open the input
-key:g key:a key:m snap:typed              # suggestions narrow to gamemode|gamerule
+key:right key:enter 'key:/'               # open in command mode, holding "/"
+key:g key:a key:m snap:typed              # "/gam" -> gamemode|gamerule
 key:down key:down snap:cycle              # down cycles the token in place
-'key:bs*8' key:g key:i key:v key:e key:space snap:hint   # "give " -> usage hint
-key:enter                                 # sends; the line is added to history
-key:up snap:recall                        # empty line: last sent command back in the input
+'key:bs*9' key:g key:i key:v key:e key:space snap:hint   # "/give " -> usage hint
+key:enter                                 # sends "/give"; the line is added to history
+key:t key:up snap:recall                  # t opens a plain line; up recalls the last command
 ```
+
+`t` instead of `/` opens the input empty for a chat line: no completion panel,
+and `↑` / `↓` are history from the first keystroke.
 
 Modded-command completion needs a *real* server with RCON on (a `sleep` tmux
 session will not answer `/help`). Against the BMC4 pack
@@ -89,8 +95,8 @@ session will not answer `/help`). Against the BMC4 pack
 tmux session is `beacon-bmc4_serverpack_v61`:
 
 ```sh
-key:right key:enter 'key:/' wait:3         # open; the tick fetches /help over RCON
-key:f key:t key:b snap:modded              # "ftb" -> ftbfiltersystem|ftblibrary|ftbquests|ftbteams
+key:right key:enter 'key:/' wait:3         # command mode; the tick fetches /help over RCON
+key:f key:t key:b snap:modded              # "/ftb" -> ftbfiltersystem|ftblibrary|ftbquests|ftbteams
 'key:bs*3' key:f key:o key:r key:g key:e key:space snap:forgesub  # "/forge " -> tps|track|entity|…
 ```
 

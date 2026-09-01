@@ -79,7 +79,7 @@ func (m *model) ensureConsoleData() {
 // recomputeCompletion refreshes m.cmp from the current input. The cursor is
 // treated as end-of-line, which is where console typing almost always sits.
 func (m *model) recomputeCompletion() {
-	if m.completer == nil || m.console == nil {
+	if m.completer == nil || m.console == nil || !m.commandMode() {
 		m.cmp = mccmd.Result{}
 		return
 	}
@@ -100,15 +100,11 @@ func (m *model) onConsoleEdit() {
 	m.recomputeCompletion()
 }
 
-// consoleUp is the up (delta -1) and down (delta +1) arrows in the command
-// input. What they do depends on where the operator is:
-//
-//   - already walking history, or mid tab-cycle: keep doing that.
-//   - a line with text and a suggestion list: step through the list, the way
-//     the arrows move a selection in any completion menu. This is the
-//     discoverable path; tab and shift+tab still do the same thing.
-//   - otherwise (empty line, or nothing to suggest): recall history, the shell
-//     convention.
+// consoleUp is the up (delta -1) and down (delta +1) arrows in the console
+// input. In command mode with something to suggest they step the suggestion
+// list, the way the arrows move a selection in any completion menu (tab and
+// shift+tab do the same). Every other time, including the whole of a plain
+// chat line, they walk the command history, the shell convention.
 func (m *model) consoleUp(delta int) {
 	if m.console == nil {
 		return
@@ -117,11 +113,11 @@ func (m *model) consoleUp(delta int) {
 		m.cycleSuggestion(delta)
 		return
 	}
-	if m.histIdx >= 0 || strings.TrimSpace(m.console.Value()) == "" || len(m.cmp.Suggestions) == 0 {
-		m.recallHistory(delta)
+	if m.commandMode() && m.histIdx < 0 && len(m.cmp.Suggestions) > 0 {
+		m.cycleSuggestion(delta)
 		return
 	}
-	m.cycleSuggestion(delta)
+	m.recallHistory(delta)
 }
 
 // cycleSuggestion is tab (delta +1) and shift+tab (delta -1): it steps the

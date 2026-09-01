@@ -41,8 +41,9 @@ func setCommands(t *testing.T, dirs config.Dirs, s server.Spec, c server.Command
 	}
 }
 
-// runningConsoleInput boots a running server, opens its console, and presses /
-// to focus the command input.
+// runningConsoleInput boots a running server and opens its console input in
+// command mode: it presses "/", which opens the input already holding the
+// slash. Command completion tests type the rest of the command after it.
 func runningConsoleInput(t *testing.T, cmds server.Commands) (*model, tea.Model) {
 	t.Helper()
 	m, tm, sup, dirs, _ := bootModel(t)
@@ -58,6 +59,9 @@ func runningConsoleInput(t *testing.T, cmds server.Commands) (*model, tea.Model)
 	if m.console == nil {
 		t.Fatal("pressing / did not open the command input")
 	}
+	if m.console.Value() != "/" {
+		t.Fatalf("command input opened holding %q, want a leading slash", m.console.Value())
+	}
 	return m, tm
 }
 
@@ -67,30 +71,81 @@ func typeRunes(t *testing.T, tm tea.Model, s string) tea.Model {
 	return tm
 }
 
+func TestConsoleChatModeVersusCommandMode(t *testing.T) {
+	m, tm, sup, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	setCommands(t, dirs, spec, server.Commands{MCVersion: "1.20.1"})
+	tm = loadRegistry(t, m, tm)
+	sup.present[spec.Session] = true
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
+	tm = openConsole(t, m, tm)
+
+	// t opens a free-text line: no slash, no completion panel, arrows are history.
+	tm, _ = pressRune(t, m, tm, "t")
+	if m.console == nil || m.console.Value() != "" {
+		t.Fatalf("t should open an empty input, got %v / %q", m.console != nil, valueOr(m))
+	}
+	tm = typeRunes(t, tm, "hello there")
+	if m.commandMode() {
+		t.Fatal("a line without a slash is not command mode")
+	}
+	if len(m.cmp.Suggestions) != 0 {
+		t.Fatalf("chat line offered completions: %+v", m.cmp.Suggestions)
+	}
+	if strings.Contains(tm.View(), "▸") {
+		t.Fatalf("the completion panel showed for a chat line:\n%s", tm.View())
+	}
+
+	// Typing a leading slash flips into command mode: the panel and its
+	// suggestions come back.
+	m.console.SetValue("/ga")
+	m.onConsoleEdit()
+	if !m.commandMode() {
+		t.Fatal("a line starting with / is command mode")
+	}
+	if len(m.cmp.Suggestions) < 2 {
+		t.Fatalf("command mode lost its suggestions: %+v", m.cmp.Suggestions)
+	}
+
+	// esc closes; / reopens straight into command mode holding the slash.
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEsc})
+	pressRune(t, m, tm, "/")
+	if !m.commandMode() || m.console.Value() != "/" {
+		t.Fatalf("/ should reopen in command mode holding the slash, got mode=%v val=%q", m.commandMode(), valueOr(m))
+	}
+}
+
+func valueOr(m *model) string {
+	if m.console == nil {
+		return "<no input>"
+	}
+	return m.console.Value()
+}
+
 func TestConsoleCompletionSuggestsAndTabCycles(t *testing.T) {
 	m, tm := runningConsoleInput(t, server.Commands{MCVersion: "1.20.1"})
 
-	tm = typeRunes(t, tm, "ga")
+	tm = typeRunes(t, tm, "ga") // "/ga"
 	got := make([]string, len(m.cmp.Suggestions))
 	for i, s := range m.cmp.Suggestions {
 		got[i] = s.Text
 	}
 	if len(got) < 2 || got[0] != "gamemode" || got[1] != "gamerule" {
-		t.Fatalf("suggestions for %q = %v, want gamemode then gamerule", "ga", got)
+		t.Fatalf("suggestions for %q = %v, want gamemode then gamerule", "/ga", got)
 	}
 
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyTab})
-	if m.console.Value() != "gamemode" {
-		t.Fatalf("first tab put %q in the input, want gamemode", m.console.Value())
+	if m.console.Value() != "/gamemode" {
+		t.Fatalf("first tab put %q in the input, want /gamemode", m.console.Value())
 	}
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyTab})
-	if m.console.Value() != "gamerule" {
-		t.Fatalf("second tab put %q in the input, want gamerule", m.console.Value())
+	if m.console.Value() != "/gamerule" {
+		t.Fatalf("second tab put %q in the input, want /gamerule", m.console.Value())
 	}
 	// shift+tab walks back.
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyShiftTab})
-	if m.console.Value() != "gamemode" {
-		t.Fatalf("shift+tab put %q in the input, want gamemode", m.console.Value())
+	if m.console.Value() != "/gamemode" {
+		t.Fatalf("shift+tab put %q in the input, want /gamemode", m.console.Value())
 	}
 
 	// Typing ends the cycle; the token stays and suggestions refresh.
@@ -98,7 +153,7 @@ func TestConsoleCompletionSuggestsAndTabCycles(t *testing.T) {
 	if m.cmpCycle {
 		t.Error("cycle did not end when the operator typed")
 	}
-	if m.console.Value() != "gamemodex" {
+	if m.console.Value() != "/gamemodex" {
 		t.Fatalf("input = %q after typing past a cycle", m.console.Value())
 	}
 }
@@ -106,21 +161,21 @@ func TestConsoleCompletionSuggestsAndTabCycles(t *testing.T) {
 func TestConsoleCompletionArrowsCycleWhenTyping(t *testing.T) {
 	m, tm := runningConsoleInput(t, server.Commands{MCVersion: "1.20.1"})
 
-	tm = typeRunes(t, tm, "ga")
+	tm = typeRunes(t, tm, "ga") // "/ga"
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyDown})
-	if m.console.Value() != "gamemode" {
-		t.Fatalf("down put %q in the input, want gamemode", m.console.Value())
+	if m.console.Value() != "/gamemode" {
+		t.Fatalf("down put %q in the input, want /gamemode", m.console.Value())
 	}
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyDown})
-	if m.console.Value() != "gamerule" {
-		t.Fatalf("second down put %q in the input, want gamerule", m.console.Value())
+	if m.console.Value() != "/gamerule" {
+		t.Fatalf("second down put %q in the input, want /gamerule", m.console.Value())
 	}
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyUp})
-	if m.console.Value() != "gamemode" {
-		t.Fatalf("up put %q in the input, want gamemode", m.console.Value())
+	if m.console.Value() != "/gamemode" {
+		t.Fatalf("up put %q in the input, want /gamemode", m.console.Value())
 	}
 
-	// On an empty line the same arrows walk history instead.
+	// Back on a plain line the same arrows walk history instead.
 	m.console.SetValue("")
 	m.onConsoleEdit()
 	m.history.Add("seed")
@@ -133,9 +188,9 @@ func TestConsoleCompletionArrowsCycleWhenTyping(t *testing.T) {
 func TestConsoleCompletionUsageHintForArguments(t *testing.T) {
 	m, tm := runningConsoleInput(t, server.Commands{MCVersion: "1.20.1"})
 
-	typeRunes(t, tm, "give ")
+	typeRunes(t, tm, "give ") // "/give "
 	if !strings.Contains(m.cmp.Hint, "<targets>") {
-		t.Fatalf("hint for %q = %q, want it to mention <targets>", "give ", m.cmp.Hint)
+		t.Fatalf("hint for %q = %q, want it to mention <targets>", "/give ", m.cmp.Hint)
 	}
 }
 
@@ -157,6 +212,8 @@ func TestConsoleCompletionOffWithoutVersion(t *testing.T) {
 
 func TestConsoleHistoryRecall(t *testing.T) {
 	m, tm := runningConsoleInput(t, server.Commands{MCVersion: "1.20.1"})
+	m.console.SetValue("") // drop the opening slash; these are plain lines
+	m.onConsoleEdit()
 
 	send := func(line string) {
 		t.Helper()
@@ -207,7 +264,7 @@ func TestConsoleHistoryPersistsAcrossReopen(t *testing.T) {
 	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
 
 	tm = openConsole(t, m, tm)
-	tm, _ = pressRune(t, m, tm, "/")
+	tm, _ = pressRune(t, m, tm, "t")
 	tm = typeRunes(t, tm, "seed")
 	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
 	for _, msg := range msgs {
@@ -220,7 +277,7 @@ func TestConsoleHistoryPersistsAcrossReopen(t *testing.T) {
 	tm2 = loadRegistry(t, m2, tm2)
 	m2.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
 	tm2 = openConsole(t, m2, tm2)
-	pressRune(t, m2, tm2, "/")
+	pressRune(t, m2, tm2, "t")
 
 	if m2.history == nil || len(m2.history.All()) != 1 || m2.history.All()[0] != "seed" {
 		t.Fatalf("reopened history = %v, want [seed]", historyLines(m2))
@@ -267,7 +324,7 @@ func TestConsoleCompletionFoldsInRCONHelp(t *testing.T) {
 	m, tm := runningConsoleInput(t, server.Commands{MCVersion: "1.20.1", Loader: "forge"})
 
 	// A modded command is unknown until the /help text arrives.
-	tm = typeRunes(t, tm, "ftbques")
+	tm = typeRunes(t, tm, "ftbques") // "/ftbques"
 	if len(m.cmp.Suggestions) != 0 {
 		t.Fatalf("ftbquests suggested before /help was fetched: %+v", m.cmp.Suggestions)
 	}
@@ -279,14 +336,14 @@ func TestConsoleCompletionFoldsInRCONHelp(t *testing.T) {
 	if m.cmdHelp[spec.ID] != raw {
 		t.Fatal("help text not cached on the model")
 	}
-	m.console.SetValue("ftbques")
+	m.console.SetValue("/ftbques")
 	m.recomputeCompletion()
 	if len(m.cmp.Suggestions) == 0 || m.cmp.Suggestions[0].Text != "ftbquests" {
 		t.Fatalf("ftbquests not suggested after /help arrived: %+v", m.cmp.Suggestions)
 	}
 
 	// The vanilla grammar still wins for a shared command.
-	m.console.SetValue("give ")
+	m.console.SetValue("/give ")
 	m.recomputeCompletion()
 	if m.cmp.Hint == "" {
 		t.Fatalf("give lost its bundled usage hint after folding in /help")
@@ -297,7 +354,7 @@ func TestConsoleCompletionSuggestsOnlinePlayers(t *testing.T) {
 	m, tm := runningConsoleInput(t, server.Commands{MCVersion: "1.20.1"})
 
 	// An entity slot shows only its usage hint until a roster arrives.
-	tm = typeRunes(t, tm, "kill ")
+	tm = typeRunes(t, tm, "kill ") // "/kill "
 	if len(m.cmp.Suggestions) != 0 {
 		t.Fatalf("kill suggested names before any RCON poll: %+v", m.cmp.Suggestions)
 	}
@@ -305,7 +362,7 @@ func TestConsoleCompletionSuggestsOnlinePlayers(t *testing.T) {
 	spec, _ := m.selected()
 	drive(t, tm, rconMsg{id: spec.ID, snap: rcon.Snapshot{Players: []string{"Notch", "jeb_"}}})
 
-	m.console.SetValue("kill ")
+	m.console.SetValue("/kill ")
 	m.recomputeCompletion()
 	got := make([]string, len(m.cmp.Suggestions))
 	for i, s := range m.cmp.Suggestions {

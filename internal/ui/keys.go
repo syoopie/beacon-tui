@@ -14,6 +14,7 @@ type keymap struct {
 	Power     key.Binding
 	Kill      key.Binding
 	Actions   key.Binding
+	Chat      key.Binding
 	Console   key.Binding
 	LogTab    key.Binding
 	LogFilter key.Binding
@@ -34,6 +35,7 @@ func newKeymap() keymap {
 		Power:     key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start/stop")),
 		Kill:      key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "force-kill")),
 		Actions:   key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "settings")),
+		Chat:      key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "type")),
 		Console:   key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "command")),
 		LogTab:    key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch tab")),
 		LogFilter: key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "important only")),

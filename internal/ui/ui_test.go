@@ -668,9 +668,9 @@ func TestConsoleSendsTypedLineToRunningServer(t *testing.T) {
 	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
 
 	tm = openConsole(t, m, tm)
-	tm, _ = pressRune(t, m, tm, "/")
+	tm, _ = pressRune(t, m, tm, "t")
 	if m.console == nil {
-		t.Fatal("pressing / in the console view did not open the input")
+		t.Fatal("pressing t in the console view did not open the input")
 	}
 
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("say hi")})

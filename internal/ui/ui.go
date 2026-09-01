@@ -565,13 +565,18 @@ func (m *model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // --- modal input: console ---
 
-// openConsole focuses a one-line input that sends commands to the selected
-// server's console. It stays open after a send so the operator can type again.
-func (m *model) openConsole(spec server.Spec) tea.Cmd {
+// openConsole focuses a one-line input for the selected server's console,
+// seeded with prefill. It stays open after a send so the operator can type
+// again. A line that starts with "/" is command mode: the completion panel
+// shows and the arrows cycle it. Otherwise it is a plain line and the arrows
+// walk history, the way Minecraft's own chat box behaves.
+func (m *model) openConsole(spec server.Spec, prefill string) tea.Cmd {
 	ti := textinput.New()
 	ti.Prompt = string(spec.ID) + " › "
-	ti.Placeholder = "server command, e.g. list"
+	ti.Placeholder = "message, or / for a command"
 	ti.CharLimit = 512
+	ti.SetValue(prefill)
+	ti.CursorEnd()
 	ti.Focus()
 	m.console = &ti
 	m.status = "console open"
@@ -579,7 +584,15 @@ func (m *model) openConsole(spec server.Spec) tea.Cmd {
 	m.resetCompletionState()
 	m.recomputeCompletion()
 	m.relayout()
+	m.vp.GotoBottom() // opening to type means you want the live tail
 	return textinput.Blink
+}
+
+// commandMode reports whether the open console input is a command line: it
+// starts with a slash. Only then does the completion panel show and the arrows
+// cycle suggestions.
+func (m *model) commandMode() bool {
+	return m.console != nil && strings.HasPrefix(m.console.Value(), "/")
 }
 
 func (m *model) closeConsole(reason string) (tea.Model, tea.Cmd) {
@@ -587,10 +600,24 @@ func (m *model) closeConsole(reason string) (tea.Model, tea.Cmd) {
 	m.status = reason
 	m.resetCompletionState()
 	m.relayout()
+	m.vp.GotoBottom() // the panel folded away; land on the newest line, not mid-scroll
 	return m, nil
 }
 
+// updateConsole runs one key through the console input and, if that key flipped
+// the line between command mode and a plain line, resizes: the completion panel
+// appears or folds away and the log above it changes height.
 func (m *model) updateConsole(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	wasCommand := m.commandMode()
+	next, cmd := m.updateConsoleKey(msg)
+	if m.console != nil && m.commandMode() != wasCommand {
+		m.relayout()
+		m.vp.GotoBottom()
+	}
+	return next, cmd
+}
+
+func (m *model) updateConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return m.closeConsole("console closed")
@@ -846,7 +873,10 @@ func (m *model) relayout() {
 		bodyH -= 2 // spacer + input bar
 	}
 	if m.console != nil {
-		bodyH -= 2 + completionPanelH // spacer + completion panel + input bar
+		bodyH -= 2 // spacer + input bar
+		if m.commandMode() {
+			bodyH -= completionPanelH // the completion panel only shows in command mode
+		}
 	}
 	bodyH = max(bodyH, 3)
 	m.bodyH = bodyH

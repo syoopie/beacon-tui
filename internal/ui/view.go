@@ -289,13 +289,12 @@ func (m *model) commandBar() helpSet {
 	switch {
 	case m.console != nil:
 		short := []key.Binding{hint("enter", "send")}
-		switch {
-		case m.completer != nil:
-			short = append(short, hint("↑↓", "complete · history"))
-		case m.history != nil:
-			short = append(short, hint("↑↓", "history"))
+		if m.commandMode() {
+			short = append(short, hint("↑↓", "complete"), hint("tab", "cycle"))
+		} else {
+			short = append(short, hint("↑↓", "history"), hint("/", "command"))
 		}
-		return helpSet{short: append(short, hint("esc", "close console"))}
+		return helpSet{short: append(short, hint("esc", "close"))}
 	case m.logSearch != nil:
 		return helpSet{short: []key.Binding{hint("enter", "keep filter"), hint("esc", "clear search")}}
 	case m.pat != nil, m.launch != nil, m.config != nil:
@@ -328,7 +327,7 @@ func (m *model) commandBar() helpSet {
 			}
 		}
 		short := []key.Binding{
-			power, m.keys.Actions, m.keys.Console,
+			power, m.keys.Actions, m.keys.Chat, m.keys.Console,
 			hint("↑↓", "scroll"), m.keys.LogBottom, m.keys.LogTab, m.keys.LogFilter, m.keys.LogSearch,
 			hint("esc", "back"), m.keys.Quit,
 		}
@@ -409,7 +408,11 @@ func (m *model) View() string {
 	rows = append(rows, m.bodyView())
 	switch {
 	case m.console != nil:
-		rows = append(rows, "", m.completionPanelView(m.bodyW), consoleBarStyle.Render(m.console.View()))
+		rows = append(rows, "")
+		if m.commandMode() {
+			rows = append(rows, m.completionPanelView(m.bodyW))
+		}
+		rows = append(rows, consoleBarStyle.Render(m.console.View()))
 	case m.logSearch != nil:
 		rows = append(rows, "", consoleBarStyle.Render(m.logSearch.View()))
 	}
