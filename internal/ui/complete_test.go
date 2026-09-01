@@ -262,6 +262,36 @@ func TestConsoleCompletionBackfillsMissingVersion(t *testing.T) {
 	}
 }
 
+func TestConsoleCompletionFoldsInRCONHelp(t *testing.T) {
+	m, tm := runningConsoleInput(t, server.Commands{MCVersion: "1.20.1", Loader: "forge"})
+
+	// A modded command is unknown until the /help text arrives.
+	tm = typeRunes(t, tm, "ftbques")
+	if len(m.cmp.Suggestions) != 0 {
+		t.Fatalf("ftbquests suggested before /help was fetched: %+v", m.cmp.Suggestions)
+	}
+
+	spec, _ := m.selected()
+	raw := "/give <targets> <item> [<count>]\n/ftbquests (reload|open_book|locked)\n"
+	drive(t, tm, cmdHelpMsg{id: spec.ID, raw: raw})
+
+	if m.cmdHelp[spec.ID] != raw {
+		t.Fatal("help text not cached on the model")
+	}
+	m.console.SetValue("ftbques")
+	m.recomputeCompletion()
+	if len(m.cmp.Suggestions) == 0 || m.cmp.Suggestions[0].Text != "ftbquests" {
+		t.Fatalf("ftbquests not suggested after /help arrived: %+v", m.cmp.Suggestions)
+	}
+
+	// The vanilla grammar still wins for a shared command.
+	m.console.SetValue("give ")
+	m.recomputeCompletion()
+	if m.cmp.Hint == "" {
+		t.Fatalf("give lost its bundled usage hint after folding in /help")
+	}
+}
+
 func historyLines(m *model) []string {
 	if m.history == nil {
 		return nil

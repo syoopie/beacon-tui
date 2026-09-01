@@ -128,6 +128,14 @@ type model struct {
 	// detection existed is backfilled once, not on every reload tick.
 	cmdDetectTried map[server.ID]bool
 
+	// cmdHelp caches each server's "/help" output, fetched over RCON while its
+	// console is open so the completer knows the modded commands the bundled
+	// vanilla tree cannot. It is fetched once per server per session;
+	// cmdHelpAt/InFlight pace the attempt like the player poll.
+	cmdHelp         map[server.ID]string
+	cmdHelpAt       time.Time
+	cmdHelpInFlight bool
+
 	rconSnap     rcon.Snapshot
 	rconErr      string
 	rconAt       time.Time
@@ -197,6 +205,7 @@ func newModel(app App) *model {
 		procByID:       map[server.ID]procstat.Stat{},
 		procErrByID:    map[server.ID]string{},
 		cmdDetectTried: map[server.ID]bool{},
+		cmdHelp:        map[server.ID]string{},
 		status:         initialStatus,
 		list:           l,
 		help:           newHelp(),
@@ -248,6 +257,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if c := m.rconPollCmd(); c != nil {
 			cmds = append(cmds, c)
 		}
+		if c := m.helpFetchCmd(); c != nil {
+			cmds = append(cmds, c)
+		}
 		if c := m.procPollCmd(); c != nil {
 			cmds = append(cmds, c)
 		}
@@ -272,6 +284,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rconErr = "can't reach RCON"
 		} else {
 			m.rconSnap, m.rconErr = msg.snap, ""
+		}
+		return m, nil
+
+	case cmdHelpMsg:
+		m.cmdHelpInFlight = false
+		if msg.err != nil || msg.raw == "" {
+			return m, nil // leave it uncached; the next cadence retries
+		}
+		m.cmdHelp[msg.id] = msg.raw
+		if msg.id == m.selID {
+			m.cmpKey = "" // fold the modded commands into the engine now
+			m.ensureConsoleData()
+			m.recomputeCompletion()
 		}
 		return m, nil
 
@@ -1106,6 +1131,40 @@ func (m *model) rconPollCmd() tea.Cmd {
 	return func() tea.Msg {
 		snap, err := rcon.Poll(addr, pw)
 		return rconMsg{id: id, snap: snap, err: err}
+	}
+}
+
+type cmdHelpMsg struct {
+	id  server.ID
+	raw string
+	err error
+}
+
+// helpFetchCmd reads the selected server's "/help" over RCON so the completer
+// can offer its modded commands. It runs once per server per session: only
+// while the console is open, the server is running with RCON on and completion
+// left enabled, nothing is cached yet, and the last attempt has aged out.
+func (m *model) helpFetchCmd() tea.Cmd {
+	if m.console == nil || m.cmdHelpInFlight || time.Since(m.cmdHelpAt) < rconPollEvery {
+		return nil
+	}
+	spec, ok := m.selected()
+	if !ok || m.cmdHelp[spec.ID] != "" {
+		return nil
+	}
+	if !spec.Commands.CompletionEnabled() || !spec.RCON.Enabled || spec.RCON.Port == 0 {
+		return nil
+	}
+	if m.reports[spec.ID].Derived != server.StatusRunning {
+		return nil
+	}
+	m.cmdHelpInFlight = true
+	m.cmdHelpAt = time.Now()
+	addr := fmt.Sprintf("127.0.0.1:%d", spec.RCON.Port)
+	pw, id := spec.RCON.Password, spec.ID
+	return func() tea.Msg {
+		raw, err := rcon.Help(addr, pw)
+		return cmdHelpMsg{id: id, raw: raw, err: err}
 	}
 }
 

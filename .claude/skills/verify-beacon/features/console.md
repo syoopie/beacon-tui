@@ -29,6 +29,14 @@ arbitrary text from outside the program.
   command tree picked by the spec's `[commands] mc_version`; with no version set
   the panel shows a "could not detect this server's Minecraft version" note that
   points at `a` → Launch settings.
+- **Modded commands over RCON.** When the server is running with RCON on, Beacon
+  reads its `/help` once per session (`rcon.Help`, multi-packet) and folds the
+  listed commands into the tree one level deep (`mccmd.HelpSource`, priority
+  below bundled so the vanilla grammar still wins for shared commands). So on a
+  Forge pack `/ftb…` completes to `ftbquests` and `/forge ` lists
+  `tps|track|entity|…`. The fetch is on the `tickMsg` cadence, so it lands a
+  second or two after the console opens, not instantly. Paper's plugin-grouped
+  `/help` format is not parsed yet.
 
 ## How to get to it (user POV)
 
@@ -58,6 +66,17 @@ key:down key:down snap:cycle              # down cycles the token in place
 'key:bs*8' key:g key:i key:v key:e key:space snap:hint   # "give " -> usage hint
 key:enter                                 # sends; the line is added to history
 key:up snap:recall                        # empty line: last sent command back in the input
+```
+
+Modded-command completion needs a *real* server with RCON on (a `sleep` tmux
+session will not answer `/help`). Against the BMC4 pack
+(`~/MinecraftServer/BMC4_ServerPack_v61`, Forge, RCON 25575), started so its
+tmux session is `beacon-bmc4_serverpack_v61`:
+
+```sh
+key:right key:enter 'key:/' wait:3         # open; the tick fetches /help over RCON
+key:f key:t key:b snap:modded              # "ftb" -> ftbfiltersystem|ftblibrary|ftbquests|ftbteams
+'key:bs*3' key:f key:o key:r key:g key:e key:space snap:forgesub  # "/forge " -> tps|track|entity|…
 ```
 
 `check_console.py` is the automated version for the rail: several widths, both

@@ -1,0 +1,146 @@
+/advancement (grant|revoke)
+/attribute <target> <attribute> (get|base|modifier)
+/execute (run|if|unless|as|at|store|positioned|rotated|facing|align|anchored|in|summon|on)
+/bossbar (add|remove|list|set|get)
+/clear [<targets>]
+/clone (<begin>|from)
+/damage <target> <amount> [<damageType>]
+/data (merge|get|remove|modify)
+/datapack (enable|disable|list)
+/debug (start|stop|function)
+/defaultgamemode <gamemode>
+/difficulty [peaceful|easy|normal|hard|0|1|2|3]
+/effect (clear|give)
+/me <action>
+/enchant <targets> <enchantment> [<level>]
+/experience (add|set|query|<amount>|<lvlAmount>)
+/xp -> experience
+/fill <from> <to> <block> [replace|keep|outline|hollow|destroy]
+/fillbiome <from> <to> <biome> [replace]
+/forceload (add|remove|query)
+/function <name>
+/gamemode (<gamemode>|0|1|2|3)
+/gamerule (announceAdvancements|blockExplosionDropDecay|commandBlockOutput|commandModificationBlockLimit|decorative_blocks:disableThatch|disableElytraMovementCheck|disableRaids|doDaylightCycle|doEntityDrops|doFireTick|doImmediateRespawn|doInsomnia|doLimitedCrafting|doMobLoot|doMobSpawning|doPatrolSpawning|doSeasonCycle|doTileDrops|doTraderSpawning|doVinesSpread|doWardenSpawning|doWeatherCycle|drowningDamage|fallDamage|fireDamage|forgiveDeadPlayers|freezeDamage|globalSoundEvents|keepInventory|lavaSourceConversion|logAdminCommands|maxCommandChainLength|maxEntityCramming|mediumcoreMode|mobExplosionDropDecay|mobGriefing|naturalRegeneration|playersSleepingPercentage|randomTickSpeed|reducedDebugInfo|sendCommandFeedback|showDeathMessages|snowAccumulationHeight|snowrealmagic:blizzardFrequency|snowrealmagic:blizzardStrength|spawnRadius|spectatorsGenerateChunks|tfEnforcedProgression|tntExplosionDropDecay|universalAnger|usePassengerPlayerPortalCooldown|waterSourceConversion)
+/give <targets> <item> [<count>]
+/help [<command>]
+/item (replace|modify|<item>)
+/kick <targets> [<reason>]
+/kill [<targets>]
+/list [uuids]
+/locate (structure|biome|poi)
+/loot (replace|insert|give|spawn)
+/msg <targets> <message>
+/tell -> msg
+/w -> msg
+/particle <name> [<pos>]
+/place (feature|jigsaw|structure|template)
+/playsound <sound> (master|music|record|weather|block|hostile|neutral|player|ambient|voice)
+/reload
+/recipe (give|take)
+/return <value>
+/ride <target> (mount|dismount)
+/say <message>
+/schedule (function|clear)
+/scoreboard (objectives|players)
+/seed
+/setblock <pos> <block> [destroy|keep|replace]
+/spawnpoint [<targets>]
+/setworldspawn [<pos>]
+/spectate [<target>]
+/spreadplayers <center> <spreadDistance> <maxRange> (<respectTeams>|under)
+/stopsound <targets> [*|master|music|record|weather|block|hostile|neutral|player|ambient|voice]
+/summon <entity> [<pos>]
+/tag <targets> (add|remove|list)
+/team (list|add|remove|empty|join|leave|modify)
+/teammsg <message>
+/tm -> teammsg
+/teleport (<location>|<destination>|<targets>)
+/tp -> teleport
+/tellraw <targets> <message>
+/time (set|add|query)
+/title <targets> (clear|reset|title|subtitle|actionbar|times)
+/trigger <objective> [add|set]
+/weather (clear|rain|thunder)
+/worldborder (add|set|center|damage|get|warning)
+/jfr (start|stop)
+/ban-ip <target> [<reason>]
+/banlist [ips|players]
+/ban <targets> [<reason>]
+/deop <targets>
+/op <targets>
+/pardon <targets>
+/pardon-ip <target>
+/perf (start|stop)
+/save-all [flush]
+/save-off
+/save-on
+/setidletimeout <minutes>
+/stop
+/whitelist (on|off|list|add|remove|reload)
+/ftbfiltersystem (parse|get_filter|set_filter|try_match|dump_nbt)
+/ftblibrary (gamemode|rain|day|night|nbtedit|generate_loot_tables)
+/ftbteams (party|server|msg|info|list|force-disband)
+/ftbquests (editing_mode|locked|delete_empty_reward_tables|change_progress|export_reward_table_to_chest|import_reward_table_from_chest|generate_chapter_with_all_items_in_game|reload|block_rewards|open_book|clear_item_display_cache)
+/bn (place|test_place|find_surface|tpnext|place_all|place_matching)
+/be (locate_portal|locate_portal_frame|tpnext)
+/bclib (place|print|dump_datapack|request_garbage_collection|debug_ore|sliceZ|sliceX)
+/modernfix (upgradeStructures|mcfunctions)
+/mfsrc
+/flib (help|debug|tpx|health|hunger|hearts|scoreboard|gamemode|attribute)
+/structure_gel (savestructures|getspawns|getstructures|getbiomes|viewbounds|building_tool|distance|getfeatures)
+/end_island reset [<forceNewPortalPos>]
+/sandstorm (start|stop)
+/fallingtree toggle
+/mapdistancefix (status|reload|config)
+/mdf -> mapdistancefix
+/modcfg netheritetweaks (set|query|help)
+/atl (run_explicit_gc|force_refresh|reset_statistics|thread_dump)
+/smoothmovement (setArtificialTPS|stopArtificialLag)
+/structureessentials (getBiomeTags|showGenerationTimes|getBiomesForTag|getStructuresNearby|getSimilarForBiome)
+/kambrik (dump|test)
+/bookshelf (font|hand)
+/forgery (config|analyze)
+/i <item> [<count>]
+/more [<count>|main|off|both]
+/fenchant <targets> <enchantment> [<level>]
+/toggledownfall
+/hidearmor [all|head|chest|legs|feet|!head|!chest|!legs|!feet]
+/showarmor [all|head|chest|legs|feet|!head|!chest|!legs|!feet]
+/carryon (debug|clear|place)
+/configure_update <id> (list|inspect|accept|reject)
+/clientsort reload
+/modpack (version|show)
+/curios (list|replace|set|add|remove|clear|drop|reset)
+/balm (dev|export)
+/waystones (activate|forget|place|count|list|cooldown)
+/dumpstructuresets
+/underlay config edit place_on_replaceable_blocks <value>
+/season (set|get)
+/forge (tps|track|entity|generate|dimensions|mods|tags)
+/config showfile <mod> <type>
+/inmis (convert_backpacked|import_backpacked)
+/blue_skies (refresh_supporters|set_progression|weather|set_lore_used|get_mob_caps|loot_bag)
+/connectivity (packetsSummary|packetsAllPlayers|packetsPlayer|packetsClient|printpacket)
+/luna (stop|restart)
+/twilightforest [center|conquer|genbook|info|biomepng|shield]
+/tf -> twilightforest
+/tffeature -> twilightforest
+/kiwi (dev_env_rules|reload|eval)
+/bo (hand|gen|util)
+/aether (time|eternal_day|player|sun_altar_whitelist)
+/moogs_structures debug [on|off|status|keepjigsaws]
+/alternatecurrent [on|off]
+/pingwheel:server [help|default_channel|player_tracking|regen_time|rate_limit]
+/jade (show|hide)
+/yigd [latest|grave|moderate|restore|rob|whitelist]
+/coro config common (reload|save|get|set)
+/supplementaries (globe|registry|reload|configs|roll|cage|record|dimension|map)
+/supp -> supplementaries
+/polymorph conflicts
+/open-patchouli-book <targets> <book> [<entry>]
+/oparties (about|admin-mode|impersonate)
+/oclaims (non-ally-mode|about|sub-claim|server|player|claim|unclaim|forceload|unforceload|default-claim-mode|server-claim-mode|player-claim-mode|moderator-mode|admin-mode|impersonate|teleport|clear|transfer|transfer-accept|interrupt)
+/opac (server-claims-config|expired-claims-config|wilderness-config|default-player-config|player-config)
+/villagernames [unname|name|rename]
+/neruina (resume|kill|report|cancel_login|id|info|clear_tracked|show_suspended)
+/spark [<args>]

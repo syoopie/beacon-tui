@@ -21,9 +21,11 @@ var suggestSelStyle = lipgloss.NewStyle().Bold(true).Foreground(accentColor)
 
 // completerKey identifies a spec's completion inputs, so ensureConsoleData
 // rebuilds the engine only when one of them changed, not on every registry tick.
-func completerKey(s server.Spec) string {
+// help is the server's cached "/help" text, which arrives once over RCON and
+// then never changes for the session.
+func completerKey(s server.Spec, help string) string {
 	return strings.Join([]string{
-		string(s.ID), s.Commands.MCVersion, s.Commands.Loader, s.Commands.Completion,
+		string(s.ID), s.Commands.MCVersion, s.Commands.Loader, s.Commands.Completion, help,
 	}, "\x00")
 }
 
@@ -36,14 +38,19 @@ func (m *model) ensureConsoleData() {
 		return
 	}
 
-	if key := completerKey(spec); key != m.cmpKey {
+	help := m.cmdHelp[spec.ID]
+	if key := completerKey(spec, help); key != m.cmpKey {
 		m.cmpKey = key
 		m.completer = nil
 		m.cmp = mccmd.Result{}
 		m.cmpSel = 0
 		if spec.Commands.CompletionEnabled() {
+			sources := []mccmd.VocabularySource{mccmd.Bundled()}
+			if help != "" {
+				sources = append(sources, mccmd.HelpSource(help))
+			}
 			eng, err := mccmd.New(mccmd.Options{
-				Sources: []mccmd.VocabularySource{mccmd.Bundled()},
+				Sources: sources,
 				Context: mccmd.Context{
 					MCVersion: spec.Commands.MCVersion,
 					Loader:    spec.Commands.Loader,
