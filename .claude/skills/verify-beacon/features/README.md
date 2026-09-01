@@ -6,24 +6,30 @@ it, how to drive it, and what goes wrong.
 
 | Feature                                   | Covers                                          |
 | ----------------------------------------- | ----------------------------------------------- |
-| [server-list.md](server-list.md)          | the list, selection, filter, the detail column  |
-| [console.md](console.md)                  | the log screen, tabs, noise filter, search, rail |
+| [server-list.md](server-list.md)          | the list, selection, the always-on filter        |
+| [console.md](console.md)                  | the log screen, tabs, noise filter, search, rail, the input |
 | [lifecycle.md](lifecycle.md)              | start, stop, force kill, mark stopped           |
 | [adding-a-server.md](adding-a-server.md)  | the folder picker, import, the start-script fix |
 | [config-editor.md](config-editor.md)     | the server.properties editor: sections, scrolling, validation |
 
-Not yet mapped: launch settings, the self-update banner, the `?` help grid.
-Write the file when you first need to verify one.
+Not yet mapped: launch settings (`m.launch`, `internal/ui/launch.go`, reached
+from the console's `a` overlay) and the self-update banner
+(`internal/selfupdate`, `m.update`). Write the file when you first need to
+verify one.
 
 ## Screens
 
-Beacon has three screens and a handful of modals. `internal/ui/ui.go` holds the
-`screen` enum; the modal is whichever of `m.pat`, `m.pick`, `m.launch`,
-`m.console`, `m.logSearch`, `m.actions`, `m.config` is non-nil. `m.actions` is
-the overlay that `a` opens on the console; `m.config` is the server.properties
-editor it leads to.
+Beacon has two screens and a handful of modals. `internal/ui/menu.go` holds the
+`screen` enum: `screenList` and `screenConsole`, nothing between them. The modal
+is whichever of `m.pat`, `m.pick`, `m.launch`, `m.console`, `m.logSearch`,
+`m.actions`, `m.config` is non-nil. `m.actions` is the settings overlay that `a`
+opens on the console; `m.config` is the server.properties editor it leads to,
+`m.launch` the launch-settings dialog.
 
 ```
-screenList  --right/enter-->  screenMenu  --enter on "Open console"-->  screenConsole
-            <--left/esc----               <--esc-----------------------
+screenList  --right/enter on a server-->  screenConsole
+            <--esc--------------------- (left is a no-op on the console)
 ```
+
+The list has no detail column and no per-server menu any more: `→` or `enter`
+goes straight to the selected server's console, and every action lives there.

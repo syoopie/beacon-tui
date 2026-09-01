@@ -23,28 +23,33 @@ port and RCON block into the spec.
 - **The RCON group**: turning `enable-rcon` on writes `rcon.port` and
   `rcon.password` with it, even when they still hold the shown values, and the
   save is refused if the password is empty.
+- **The restart notice**: while the server is running, a warning line under the
+  subtitle reads `<id> is running; changes take effect after a restart`
+  (`restartNoticeRow`, shared with the launch-settings dialog). The write still
+  happens now; the running process just keeps its old properties until it
+  restarts.
 - **Save** (`enter`) writes and returns to the console. **Cancel** (`esc`)
   steps back to the settings overlay with nothing written.
 
 ## How to get to it (user POV)
 
-From the list: `→` to focus the detail column, `enter` on **Open console**, `a`
-for the settings overlay, `enter` on **Edit config** (it is the first row).
-`esc` backs out one level at a time: editor, then settings, then console.
+From the list: `→` or `enter` opens the console, `a` opens the settings overlay,
+`enter` on **Edit config** (the first row). `esc` backs out one level at a time:
+editor, then settings, then console.
 
 ## Driving it with drive.py
 
 ```sh
-key:right key:enter key:a key:enter snap:cfg_top   # open the editor
+key:right key:a key:enter snap:cfg_top             # console -> settings -> editor
 'key:down*9' snap:cfg_mid                          # scroll: sections move with the fields
-'key:down*24' snap:cfg_bot                         # last field (rcon.password) and hint bar in view
+'key:down*22' snap:cfg_bot                         # last field (RCON password) and hint bar in view
 ```
 
 Edit and save a value. `←`/`→` cycle an enum or bool; a text field takes typed
 characters after the cursor lands on it:
 
 ```sh
-key:right key:enter key:a key:enter \
+key:right key:a key:enter \
   'key:down*5' key:right \                         # cursor to Hardcore, flip false -> true
   key:enter wait:1 snap:saved                      # status line reads "config saved"
 ```

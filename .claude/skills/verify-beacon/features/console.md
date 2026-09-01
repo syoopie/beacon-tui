@@ -72,15 +72,15 @@ arbitrary text from outside the program.
 
 ## How to get to it (user POV)
 
-From the list: `→` to focus the detail column, then `enter` on **Open console**.
-`esc` goes back. With a search filter active, the first `esc` clears the filter
-and the second leaves.
+From the list: `→` or `enter` on a server opens its console. `esc` goes back
+(`left` is a no-op here on purpose). With a log search active, the first `esc`
+clears the search and the second leaves.
 
 ## Driving it with drive.py
 
 ```sh
-key:right key:enter snap:console          # open at the tail
-key:f snap:full                           # unfiltered
+key:right snap:console                    # -> the console, opened at the tail
+key:f snap:full                           # toggle the noise filter
 'key:up*8' snap:scrolled                  # into the stack trace
 key:tab snap:chat                         # chat tab
 'key:ctrl+f' key:y key:o key:o snap:search  # search for "yoo"
@@ -92,7 +92,7 @@ Command completion needs a running server (start a throwaway tmux session
 fixture spec:
 
 ```sh
-key:right key:enter 'key:/'               # open in command mode, holding "/"
+key:right 'key:/'               # open in command mode, holding "/"
 key:g key:a key:m snap:typed              # "/gam" -> gamemode|gamerule
 key:down key:down snap:cycle              # down cycles the token in place
 'key:bs*9' key:g key:i key:v key:e key:space snap:hint   # "/give " -> usage hint
@@ -109,7 +109,7 @@ session will not answer `/help`). Against the BMC4 pack
 tmux session is `beacon-bmc4_serverpack_v61`:
 
 ```sh
-key:right key:enter 'key:/' wait:3         # command mode; the tick fetches /help over RCON
+key:right 'key:/' wait:3         # command mode; the tick fetches /help over RCON
 key:f key:t key:b snap:modded              # "/ftb" -> ftbfiltersystem|ftblibrary|ftbquests|ftbteams
 'key:bs*3' key:f key:o key:r key:g key:e key:space snap:forgesub  # "/forge " -> tps|track|entity|…
 ```

@@ -1,8 +1,7 @@
 # Start, stop, force kill, mark stopped
 
-The actions in the detail column that move a server between states. Each one
-runs under the host operation lock in `internal/lifecycle`, with tmux owning the
-process.
+The keys on the console that move a server between states. Each one runs under
+the host operation lock in `internal/lifecycle`, with tmux owning the process.
 
 **This is the one feature that touches real state.** A drive that starts a
 server starts a JVM and a tmux session on the machine you are on. Decide that
@@ -10,25 +9,31 @@ deliberately, and tear it down.
 
 ## Sub-features
 
-- **Start**: refuses when the start script does not hand off with `exec`, or
-  when the port is already taken.
-- **Stop**: types `stop` into the session and waits out `StopTimeout`.
-- **Force kill**: offered once a stop has run long.
-- **Mark stopped**: clears an unknown status the operator has checked by hand.
-
-Which rows appear depends on the derived status, so the action list is itself
-worth snapshotting per state.
+- **`s`** is the primary action, labelled for the derived status
+  (`primaryAction`): `s start` while stopped, `s stop` while running, `s mark
+  stopped` for a status Beacon has lost. It shows in the console command bar.
+- **Start** refuses when the start script does not hand off with `exec`, or when
+  the port is already taken; the reason lands on the status line.
+- **Stop** arms a confirm: `s` sets the status line to `stop <id>?  y = yes, any
+  other key = no`, then `y` types `stop` into the session and waits out
+  `StopTimeout`, and any other key cancels.
+- **Force kill** is **`K`**, and it only appears in the command bar once a stop
+  has timed out (`m.timedOut[id]`, set by the `opDoneMsg` a slow stop returns).
+- **Mark stopped** is what `s` does for an unknown status: it clears the status
+  once the operator has checked by hand.
 
 ## How to get to it (user POV)
 
-Select the server, `→`, then `enter` on the row.
+Select the server, `→` to open its console, then `s` (or `K` after a stop
+hangs). There is no menu row for these any more.
 
 ## Driving it with drive.py
 
-Read-only half, safe anywhere:
+Read-only half, safe anywhere. Open the console and read the command bar to see
+which action `s` offers for the current status:
 
 ```sh
-key:right snap:actions-stopped         # which rows exist while stopped
+wait:1.5 key:right snap:console        # command bar shows "s start" for a stopped server
 ```
 
 The mutating half needs a throwaway fixture and a server you are willing to
@@ -36,7 +41,9 @@ run:
 
 ```sh
 W=/tmp/beacon-lifecycle; rm -rf $W; cp -R /tmp/beacon-fixture $W
-# ... drive with --config-dir $W/config --state-dir $W/state ...
+# drive with --config-dir $W/config --state-dir $W/state:
+#   key:right key:s wait:30 snap:starting ...   (s on a stopped server)
+#   key:right key:s key:y wait:20 snap:stopping (s then y on a running one)
 tmux kill-session -t beacon-bmc4_serverpack_v61
 ```
 
@@ -46,9 +53,14 @@ and prefer watching the console log for the "Done (" line over guessing.
 ## Gotchas
 
 - Never verify Start against the user's real config dir. Copy the fixture.
+- `s` on a running server only arms the confirm; the stop does not run until
+  `y`. A drive that sends `key:s` and asserts immediately sees the prompt, not a
+  stopped server.
 - `tmux kill-session` is the teardown; killing the JVM by name can hit an
   unrelated Minecraft server.
 - The status shown is derived from tmux each tick, not from what the action
   returned, so assert on the screen after a `wait:`, not immediately.
-- Port collision detection needs something actually listening on 25565 to
-  exercise; `nc -l 25565` in another shell is enough.
+- Port collision detection needs something actually listening on the server's
+  port to exercise; `nc -l <port>` in another shell is enough.
+- `K` does nothing until `m.timedOut[id]` is set, which only happens after a
+  real stop overruns `StopTimeout`. You cannot shortcut to the force-kill path.

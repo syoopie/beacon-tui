@@ -9,7 +9,7 @@ writes into pyte (a VT100/ECMA-48 emulator that measures character width the way
 terminals do), and prints the resulting grid.
 
   ./drive.py --cols 123 --rows 40 --server ~/MinecraftServer/PACK \
-      key:right key:enter snap:menu key:enter snap:console key:up*10 snap:scrolled
+      key:right snap:console key:up*10 snap:scrolled
 
 Each snap writes evidence/<label>.txt. Steps run in order:
 
@@ -107,7 +107,7 @@ class Session:
 
     def close(self):
         try:
-            os.write(self.fd, b"q")
+            os.write(self.fd, b"\x03")  # ctrl+c: Beacon's only quit key
             self.pump(0.3)
         except OSError:
             pass
