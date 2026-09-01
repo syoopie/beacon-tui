@@ -474,9 +474,10 @@ func (m *model) tabBarView(w int) string {
 		right = mutedStyle.Render("search: "+q) + mutedStyle.Render("   ·   ") + right
 	}
 	// A live tail that has scrolled off the newest line: flag it, since new
-	// lines are landing out of view, and name the key that jumps back.
+	// lines are landing out of view, then name the key that jumps back down.
 	if !m.vp.AtBottom() {
-		behind := lipgloss.NewStyle().Foreground(accentColor).Render("↓ new  end") + mutedStyle.Render("   ·   ")
+		alert := lipgloss.NewStyle().Foreground(accentColor).Render("↓ new lines")
+		behind := alert + " " + m.hintBar(hint("end", "jump down")) + mutedStyle.Render("   ·   ")
 		right = behind + right
 	}
 
