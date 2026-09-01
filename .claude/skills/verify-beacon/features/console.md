@@ -37,6 +37,13 @@ arbitrary text from outside the program.
   `tps|track|entity|…`. The fetch is on the `tickMsg` cadence, so it lands a
   second or two after the console opens, not instantly. Paper's plugin-grouped
   `/help` format is not parsed yet.
+- **Online player names.** An argument slot that takes a player
+  (`minecraft:entity`, `minecraft:game_profile`, `minecraft:score_holder`) is
+  completed with the names of whoever is online, from the same RCON player poll
+  that feeds the rail (`Engine.SetPlayers`). So with two people on, `/kill `
+  lists their names above the `<targets>` usage hint, and `/kill No` narrows to
+  the one that matches. Empty until the first poll returns and while nobody is
+  online.
 
 ## How to get to it (user POV)
 
@@ -78,6 +85,12 @@ key:right key:enter 'key:/' wait:3         # open; the tick fetches /help over R
 key:f key:t key:b snap:modded              # "ftb" -> ftbfiltersystem|ftblibrary|ftbquests|ftbteams
 'key:bs*3' key:f key:o key:r key:g key:e key:space snap:forgesub  # "/forge " -> tps|track|entity|…
 ```
+
+Player-name completion needs someone actually connected to the server, which a
+scripted drive cannot arrange. `TestConsoleCompletionSuggestsOnlinePlayers` in
+`internal/ui` drives a real `rconMsg` roster through the model instead; on a
+server with players on, `'key:/' key:k key:i key:l key:l key:space` shows their
+names above the `[<targets>]` hint.
 
 `check_console.py` is the automated version for the rail: several widths, both
 filter modes, twenty scroll steps each, asserting the rail border holds one

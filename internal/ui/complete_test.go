@@ -11,6 +11,7 @@ import (
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/rcon"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
 	"github.com/syoopie/beacon-tui/internal/server"
 )
@@ -289,6 +290,32 @@ func TestConsoleCompletionFoldsInRCONHelp(t *testing.T) {
 	m.recomputeCompletion()
 	if m.cmp.Hint == "" {
 		t.Fatalf("give lost its bundled usage hint after folding in /help")
+	}
+}
+
+func TestConsoleCompletionSuggestsOnlinePlayers(t *testing.T) {
+	m, tm := runningConsoleInput(t, server.Commands{MCVersion: "1.20.1"})
+
+	// An entity slot shows only its usage hint until a roster arrives.
+	tm = typeRunes(t, tm, "kill ")
+	if len(m.cmp.Suggestions) != 0 {
+		t.Fatalf("kill suggested names before any RCON poll: %+v", m.cmp.Suggestions)
+	}
+
+	spec, _ := m.selected()
+	drive(t, tm, rconMsg{id: spec.ID, snap: rcon.Snapshot{Players: []string{"Notch", "jeb_"}}})
+
+	m.console.SetValue("kill ")
+	m.recomputeCompletion()
+	got := make([]string, len(m.cmp.Suggestions))
+	for i, s := range m.cmp.Suggestions {
+		got[i] = s.Text
+	}
+	if len(got) != 2 || got[0] != "Notch" || got[1] != "jeb_" {
+		t.Fatalf("kill suggestions = %v, want the online roster", got)
+	}
+	if m.cmp.Hint == "" {
+		t.Error("kill lost its <targets> usage hint next to the names")
 	}
 }
 

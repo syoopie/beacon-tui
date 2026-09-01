@@ -59,6 +59,9 @@ func (m *model) ensureConsoleData() {
 			})
 			if err == nil {
 				m.completer = eng
+				// A rebuild drops the roster the running engine had; re-seed it
+				// from the last poll so player-name completion survives.
+				m.completer.SetPlayers(m.rconSnap.Players)
 			}
 		}
 	}

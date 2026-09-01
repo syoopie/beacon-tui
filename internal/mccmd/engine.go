@@ -18,6 +18,7 @@ type Options struct {
 type Engine struct {
 	root     *Node
 	degraded string
+	players  []string // online roster from RCON, for player-valued argument slots
 }
 
 // New folds every source's tree into one, highest [VocabularySource.Priority]
@@ -99,6 +100,11 @@ func (e *Engine) Complete(line string, cursor int) Result {
 	}
 
 	res.Suggestions = literalSuggestions(pos, partial)
+	if len(res.Suggestions) == 0 {
+		// A branch of literal children is its own list; only fill an argument
+		// slot with names when there is nothing else to offer.
+		res.Suggestions = e.playerSuggestions(pos.argChild(), partial)
+	}
 
 	switch {
 	case len(res.Suggestions) == 0 && partial != "" && pos.argChild() == nil:

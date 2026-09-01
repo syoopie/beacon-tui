@@ -63,6 +63,40 @@ func TestParseHelpOptionalLiteralChoice(t *testing.T) {
 	}
 }
 
+func TestParseHelpOptionalArgKeepsItsName(t *testing.T) {
+	// "/kill [<targets>]" must yield an argument slot named "targets", not a
+	// junk "arg" leaf: the junk name sorts ahead of the bundled "targets" in
+	// argChild and reads as a redirect back to the root.
+	root := parseHelp("/kill [<targets>]\n", "vanilla")
+	kill := root.Children["kill"]
+	if !kill.Executable {
+		t.Error("kill with an optional-only argument should be executable on its own")
+	}
+	arg := kill.argChild()
+	if arg == nil || arg.Name != "targets" {
+		t.Fatalf("kill argument = %+v, want one named targets", arg)
+	}
+	if arg.isRunRedirect() {
+		t.Error("the /help argument leaf reads as a run-redirect to root")
+	}
+}
+
+func TestHelpMergeKeepsEntityArgForPlayerCompletion(t *testing.T) {
+	// After folding in a Forge /help that lists "/kill [<targets>]", "kill "
+	// must still land on the bundled entity slot so player names complete.
+	eng, err := New(Options{
+		Sources: []VocabularySource{Bundled(), HelpSource("/kill [<targets>]\n")},
+		Context: Context{MCVersion: "1.20.1", Loader: "forge"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eng.SetPlayers([]string{"Steve"})
+	if got := texts(eng.Complete("kill ", 5).Suggestions); len(got) != 1 || got[0] != "Steve" {
+		t.Fatalf("kill suggestions after merge = %v, want [Steve]", got)
+	}
+}
+
 func TestHelpSourceEmptyContributesNothing(t *testing.T) {
 	tree, err := HelpSource("   ").Tree(Context{})
 	if err != nil || tree != nil {

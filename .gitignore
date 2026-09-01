@@ -1,5 +1,6 @@
 /dist/
 /beacon
+/.claude/skills/verify-beacon/evidence/
 *.bak
 .DS_Store
 docs/demo/out.gif

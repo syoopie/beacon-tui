@@ -119,9 +119,14 @@ func applyUsage(node *Node, toks []string) {
 			optional := tok[0] == '['
 			alts := strings.Split(tok[1:len(tok)-1], "|")
 			if anyContains(alts, "<") {
-				// "(<location>|<destination>|<targets>)": alternative argument
-				// forms, not literals. One opaque slot is the best we can do.
-				childArg(cur, "arg")
+				// "[<targets>]" or "(<location>|<destination>)": one or more
+				// argument forms, not literals. Model it as a single slot named
+				// after the first form, so it merges with the bundled tree's
+				// argument of the same name instead of shadowing it. Mark it
+				// executable: a /help usage line's last token ends the command,
+				// and a bare non-executable leaf reads as a redirect to root.
+				a := childArg(cur, strings.Trim(alts[0], "<> "))
+				a.Executable = true
 			} else {
 				for _, a := range alts {
 					if a = strings.TrimSpace(a); a != "" {

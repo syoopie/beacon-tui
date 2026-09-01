@@ -6,6 +6,12 @@ type Completer interface {
 	// be typed next, and what does the current command take". It is pure and
 	// cheap; call it on every keystroke.
 	Complete(line string, cursor int) Result
+
+	// SetPlayers hands over the current online roster, so an argument slot that
+	// takes a player can be completed with the names of the people online.
+	// Call it whenever the RCON player poll returns; passing the same list
+	// again is cheap and harmless.
+	SetPlayers(names []string)
 }
 
 // Result is one completion query's answer.
@@ -25,7 +31,7 @@ type SuggestionKind uint8
 
 const (
 	SuggestLiteral  SuggestionKind = iota // a subcommand or enum literal from the tree
-	SuggestArgument                       // a value for the argument under the cursor (a later phase: player names)
+	SuggestArgument                       // a value for the argument under the cursor, e.g. an online player's name
 	SuggestHistory                        // a past console line (fallback when the tree is silent)
 )
 

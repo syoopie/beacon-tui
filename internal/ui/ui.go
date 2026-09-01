@@ -284,6 +284,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rconErr = "can't reach RCON"
 		} else {
 			m.rconSnap, m.rconErr = msg.snap, ""
+			if m.completer != nil {
+				m.completer.SetPlayers(msg.snap.Players)
+				m.recomputeCompletion() // a new name may match what is half-typed
+			}
 		}
 		return m, nil
 
