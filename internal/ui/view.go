@@ -480,7 +480,7 @@ func (m *model) noticeText() string {
 	r := m.reports[spec.ID]
 	switch {
 	case r.Derived == server.StatusUnknown && r.Warning != "":
-		return "⚠  " + r.Warning + "  Once you have checked, choose Mark stopped."
+		return "⚠  " + r.Warning + "  Once you have checked, press s in its console to mark it stopped."
 	case !spec.Exec.Launchable():
 		return "⚠  " + string(spec.ID) + "'s start script does not hand off to Java with exec, so Beacon can't start it. Choose Fix start script, or Launch settings to point it at another one."
 	case !m.eula[spec.ID]:
