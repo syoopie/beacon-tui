@@ -329,7 +329,7 @@ func (m *model) commandBar() helpSet {
 		}
 		short := []key.Binding{
 			power, m.keys.Actions, m.keys.Console,
-			hint("↑↓", "scroll"), m.keys.LogTab, m.keys.LogFilter, m.keys.LogSearch,
+			hint("↑↓", "scroll"), m.keys.LogBottom, m.keys.LogTab, m.keys.LogFilter, m.keys.LogSearch,
 			hint("esc", "back"), m.keys.Quit,
 		}
 		if ok && m.timedOut[spec.ID] {

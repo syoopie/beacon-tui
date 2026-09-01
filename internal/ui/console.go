@@ -117,6 +117,12 @@ func (m *model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(msg, m.keys.LogSearch):
 		return m, m.openLogSearch()
+	case key.Matches(msg, m.keys.LogBottom):
+		m.vp.GotoBottom()
+		return m, nil
+	case msg.String() == "home" || msg.String() == "g":
+		m.vp.GotoTop()
+		return m, nil
 	case key.Matches(msg, m.keys.Up):
 		m.vp.ScrollUp(logScrollStep)
 		return m, nil
@@ -393,17 +399,25 @@ func (m *model) tabBarView(w int) string {
 	}
 	left := tab("Server log", tabServer) + " " + tab("Chat", tabChat)
 
+	// The right side names the current view; the key that changes it lives in
+	// the command bar, not here.
 	var right string
 	switch {
 	case m.logTab == tabChat:
 		right = mutedStyle.Render("player activity")
 	case m.logImportantOnly:
-		right = mutedStyle.Render("important only") + mutedStyle.Render("  ·  ") + m.hintBar(hint("f", "show all"))
+		right = mutedStyle.Render("important only")
 	default:
-		right = mutedStyle.Render("full log") + mutedStyle.Render("  ·  ") + m.hintBar(hint("f", "important only"))
+		right = mutedStyle.Render("full log")
 	}
 	if q := strings.TrimSpace(m.logQuery); q != "" {
 		right = mutedStyle.Render("search: "+q) + mutedStyle.Render("   ·   ") + right
+	}
+	// A live tail that has scrolled off the newest line: flag it, since new
+	// lines are landing out of view, and name the key that jumps back.
+	if !m.vp.AtBottom() {
+		behind := lipgloss.NewStyle().Foreground(accentColor).Render("↓ new  end") + mutedStyle.Render("   ·   ")
+		right = behind + right
 	}
 
 	gap := w - lipgloss.Width(left) - lipgloss.Width(right)

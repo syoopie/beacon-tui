@@ -81,6 +81,40 @@ func TestConsoleRailStaysPutWhileScrolling(t *testing.T) {
 	}
 }
 
+func TestEndKeyJumpsToTheNewestLine(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	tm, _ = drive(t, tm, tea.WindowSizeMsg{Width: 100, Height: 24})
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+	tm = openConsole(t, m, tm)
+
+	var lines []string
+	for i := 0; i < 200; i++ {
+		lines = append(lines, "[12:00:00] [Server thread/INFO]: line")
+	}
+	m.appendLogs(lines)
+	m.renderLog()
+	m.vp.GotoBottom()
+
+	for i := 0; i < 8; i++ {
+		tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyUp})
+	}
+	if m.vp.AtBottom() {
+		t.Fatal("setup: scrolling up should have left the newest line")
+	}
+	if !strings.Contains(tm.View(), "↓ new") {
+		t.Fatalf("scrolled-up tail should flag the new lines below:\n%s", tm.View())
+	}
+
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEnd})
+	if !m.vp.AtBottom() {
+		t.Fatal("end should jump back to the newest line")
+	}
+	if strings.Contains(tm.View(), "↓ new") {
+		t.Error("the new-lines flag should clear once back at the bottom")
+	}
+}
+
 func TestConsoleLogScrollsSeveralLinesPerKey(t *testing.T) {
 	m, tm, _, dirs, _ := bootModel(t)
 	tm, _ = drive(t, tm, tea.WindowSizeMsg{Width: 100, Height: 24})
