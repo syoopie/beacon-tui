@@ -12,8 +12,16 @@ deliberately, and tear it down.
 - **`s`** is the primary action, labelled for the derived status
   (`primaryAction`): `s start` while stopped, `s stop` while running, `s mark
   stopped` for a status Beacon has lost. It shows in the console command bar.
-- **Start** refuses when the start script does not hand off with `exec`, or when
-  the port is already taken; the reason lands on the status line.
+- **Start** refuses when the start script does not hand off with `exec`, when the
+  server's Java setting points at a file that is not a runnable executable, or
+  when something already listens on the port; the reason lands on the status
+  line. Another stopped server configured for the same port is named but does
+  not block.
+- **Java runtime** per server, set in Launch settings (`a` → Launch settings, the
+  row under MC version, `←→` to cycle). Empty means the `java` on `PATH`. A pick
+  is stored as the spec's `java`, and `internal/tmux` prepends its directory to
+  `PATH` for the launch, so a bare `java` in the command or a `run.sh` resolves
+  to it. `internal/javadetect` finds the host's JDKs for the picker.
 - **Stop** arms a confirm: `s` sets the status line to `stop <id>?  y = yes, any
   other key = no`, then `y` types `stop` into the session and waits out
   `StopTimeout`, and any other key cancels.
@@ -60,7 +68,8 @@ and prefer watching the console log for the "Done (" line over guessing.
   unrelated Minecraft server.
 - The status shown is derived from tmux each tick, not from what the action
   returned, so assert on the screen after a `wait:`, not immediately.
-- Port collision detection needs something actually listening on the server's
-  port to exercise; `nc -l <port>` in another shell is enough.
+- Port collision detection only fires on a live listener; `nc -l <port>` in
+  another shell is enough. Two stopped specs sharing a port is allowed, so a
+  drive that wants the refusal has to bind the port for real.
 - `K` does nothing until `m.timedOut[id]` is set, which only happens after a
   real stop overruns `StopTimeout`. You cannot shortcut to the force-kill path.

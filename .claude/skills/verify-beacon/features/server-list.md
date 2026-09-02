@@ -25,8 +25,10 @@ every action lives.
 - **Columns** drop as the terminal narrows (`columnsFor`): below 55 columns the
   row is one loose line, then name+status, then +port, then +health-dot+detail.
 - **Notice banner** above the table when the selected server needs attention: an
-  unknown status with a warning, a start script that does not `exec` java, or an
-  unaccepted EULA.
+  unknown status, a start script that does not `exec` java, or an unaccepted
+  EULA. For an unknown status the warning quotes the last line of the server's
+  captured log (`vanishedWarning` in `internal/reconcile`), so a start that died
+  on a Java gate or a missing jar says why instead of reading as a mystery.
 - **The empty state**: a centred landing panel when no server is configured,
   with its own command bar `a add server · esc quit`.
 

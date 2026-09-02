@@ -12,8 +12,9 @@ it, how to drive it, and what goes wrong.
 | [adding-a-server.md](adding-a-server.md)  | the folder picker, import, the start-script fix |
 | [config-editor.md](config-editor.md)     | the server.properties editor: sections, scrolling, validation |
 
-Not yet mapped: launch settings (`m.launch`, `internal/ui/launch.go`, reached
-from the console's `a` overlay) and the self-update banner
+Not yet mapped as its own file: the launch-settings dialog (`m.launch`,
+`internal/ui/launch.go`) beyond its Java-runtime row, which
+[lifecycle.md](lifecycle.md) covers, and the self-update banner
 (`internal/selfupdate`, `m.update`). Write the file when you first need to
 verify one.
 

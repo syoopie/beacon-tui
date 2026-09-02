@@ -116,11 +116,12 @@ without `exec`, which breaks stop and status. Beacon flags this on the list;
 **Fix start script** in the actions overlay rewrites the one line and keeps your
 original as `run.sh.bak`. Do it before the first start.
 
-**Java.** Beacon runs every server with the `java` on your `PATH` at launch, with
-no per-server override. Minecraft 1.20 needs Java 17, 1.21 needs Java 21, and the
-newest builds need Java 25. When your packs disagree, start Beacon from a shell
-whose `java` is right for that pack, for example
-`PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" beacon`.
+**Java.** Minecraft 1.20 needs Java 17, 1.21 needs Java 21, and the newest builds
+need Java 25. By default Beacon runs a server with the `java` on your `PATH`.
+When your packs need different versions, open the server's actions overlay,
+choose Launch settings, and pick a Java runtime on the row under MC version.
+Beacon lists the JDKs it finds on the host; `←→` cycles them. The choice is
+per server, so each pack can run on its own JVM.
 
 A pack that ships more than one launcher, such as a `run.sh` and a `start.sh`,
 defaults to `run.sh`. Launch settings in the actions overlay switches that or
@@ -181,12 +182,12 @@ on Linux). Logs live under `~/.local/state/beacon/logs`. You rarely need to touc
 either.
 
 **My server flips straight to `unknown` when I start it.** It started and then
-exited on its own. Open its console with `→`; the reason is in the log. The usual
-cause is Java, either missing from `PATH` or the wrong version for that pack (see
-[First run](#first-run)). Install it (macOS: `brew install openjdk@21`, then
-follow the caveats `brew` prints so `java` is found), then try again. The status
-reads `unknown` rather than `stopped` because Beacon only knows the session
-ended, not that it ended on purpose.
+exited on its own. The notice banner quotes the last line of its log, and the
+full log is in the console. The usual cause is Java, either missing from `PATH`
+or the wrong version for that pack (see [First run](#first-run)); set the right
+one in Launch settings. The status reads `unknown` rather than `stopped` because
+Beacon only knows the session ended, not that it ended on purpose. Press `s` to
+mark it stopped once you have looked.
 
 **Can I use it on a remote box?** Yes. Beacon is a local program with no network
 of its own. However you already get a terminal on that machine (SSH, Tailscale,
