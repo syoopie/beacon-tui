@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"context"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -156,7 +157,7 @@ func TestStartRefusedWhenScriptDoesNotExec(t *testing.T) {
 	}
 }
 
-func TestStartRefusedOnPortClaimedByAnotherSpec(t *testing.T) {
+func TestStartAllowedWhenAPortRivalIsNotRunning(t *testing.T) {
 	dirs := testDirs(t)
 	sup := &fakeSup{}
 	m := newManager(sup, dirs)
@@ -164,9 +165,29 @@ func TestStartRefusedOnPortClaimedByAnotherSpec(t *testing.T) {
 	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
 	rival := spec
 	rival.ID = "creative"
-	_, err := m.Start(context.Background(), spec, []server.Spec{spec, rival})
-	if err == nil || sup.startCount != 0 {
-		t.Fatalf("Start with a port rival: err=%v, want refusal", err)
+	if _, err := m.Start(context.Background(), spec, []server.Spec{spec, rival}); err != nil {
+		t.Fatalf("Start blocked by an idle port rival: %v", err)
+	}
+	if sup.startCount != 1 {
+		t.Fatalf("startCount = %d, want the launch to go through", sup.startCount)
+	}
+}
+
+func TestStartRefusedWhenThePortIsActuallyBound(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	dirs := testDirs(t)
+	sup := &fakeSup{}
+	m := newManager(sup, dirs)
+
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
+	spec.Port = ln.Addr().(*net.TCPAddr).Port
+	if _, err := m.Start(context.Background(), spec, []server.Spec{spec}); err == nil || sup.startCount != 0 {
+		t.Fatalf("Start onto a bound port: err=%v startCount=%d, want refusal", err, sup.startCount)
 	}
 }
 

@@ -8,30 +8,33 @@ import (
 	"github.com/syoopie/beacon-tui/internal/server"
 )
 
-// PortBlock is why a port cannot be used for a start.
+// PortBlock is why a port cannot be used for a start. Only a live listener
+// blocks: another beacon spec configured for the same port is not a conflict
+// while it is stopped, and naming it just helps the operator find what is bound
+// when the port really is taken.
 type PortBlock struct {
-	OSListener bool        // something outside beacon is already bound
-	Specs      []server.ID // other beacon specs that claim the same port
+	OSListener bool        // something is already bound to the port
+	Specs      []server.ID // other beacon specs configured for the same port
 }
 
-func (b PortBlock) Blocked() bool { return b.OSListener || len(b.Specs) > 0 }
+func (b PortBlock) Blocked() bool { return b.OSListener }
 
 func (b PortBlock) String() string {
 	switch {
 	case b.OSListener && len(b.Specs) > 0:
-		return fmt.Sprintf("port in use by another process and claimed by %v", b.Specs)
+		return fmt.Sprintf("port already in use, likely by %v", b.Specs)
 	case b.OSListener:
 		return "port already in use by another process"
 	case len(b.Specs) > 0:
-		return fmt.Sprintf("port also claimed by %v", b.Specs)
+		return fmt.Sprintf("port also configured for %v (not running)", b.Specs)
 	default:
 		return "port available"
 	}
 }
 
-// CheckPort reports whether port is free to bind and which other specs claim it.
-// candidate is excluded from the spec comparison so a server does not collide
-// with its own recorded port.
+// CheckPort reports whether port is free to bind and which other specs are
+// configured for it. candidate is excluded so a server does not collide with
+// its own recorded port.
 func CheckPort(port int, candidate server.ID, all []server.Spec) PortBlock {
 	var claimants []server.ID
 	for _, s := range all {

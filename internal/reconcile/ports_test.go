@@ -21,7 +21,7 @@ func TestCheckPortDetectsOSListener(t *testing.T) {
 	}
 }
 
-func TestCheckPortReportsRivalSpecs(t *testing.T) {
+func TestCheckPortNamesRivalSpecsButDoesNotBlock(t *testing.T) {
 	specs := []server.Spec{
 		{ID: "survival", Port: 25565},
 		{ID: "creative", Port: 25565},
@@ -30,6 +30,9 @@ func TestCheckPortReportsRivalSpecs(t *testing.T) {
 	block := CheckPort(25565, "survival", specs)
 	if block.OSListener {
 		t.Errorf("unexpected OS listener on 25565 during test")
+	}
+	if block.Blocked() {
+		t.Errorf("a stopped rival spec must not block the start: %+v", block)
 	}
 	if len(block.Specs) != 1 || block.Specs[0] != "creative" {
 		t.Fatalf("rival specs = %v, want [creative]", block.Specs)
