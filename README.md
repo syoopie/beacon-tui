@@ -99,7 +99,28 @@ Run `beacon`. It opens on a welcome screen because you have no servers yet.
 3. Press `→` to open its console, then `s` to start it.
 
 Point Beacon at a folder that holds several server folders and it picks up every
-one. Add more later from the `+ Add a server` row.
+one. Add more later from the `+ Add a server` row, or press `ctrl+r` to re-scan.
+
+**What the folder needs.** Beacon launches a server through a `run.sh`, a
+`start.sh`, or a jar named `server.jar`, `paper-*.jar` or `fabric-server-*.jar`,
+found in the folder you add or one level below it. A freshly downloaded modpack
+ships an installer instead, so run the pack's own setup once first. For NeoForge
+or Forge 1.17 and later, `java -jar <name>-installer.jar --installServer` (or the
+pack's `startserver.sh`) writes the `run.sh` Beacon then finds. Paper, Fabric and
+vanilla jars are already launchers. Older Forge packs, which produce only a
+versioned `forge-<version>.jar` and ship a `ServerStart.sh`, are not detected
+yet.
+
+**Fix start script.** NeoForge and Forge write a `run.sh` that starts Java
+without `exec`, which breaks stop and status. Beacon flags this on the list;
+**Fix start script** in the actions overlay rewrites the one line and keeps your
+original as `run.sh.bak`. Do it before the first start.
+
+**Java.** Beacon runs every server with the `java` on your `PATH` at launch, with
+no per-server override. Minecraft 1.20 needs Java 17, 1.21 needs Java 21, and the
+newest builds need Java 25. When your packs disagree, start Beacon from a shell
+whose `java` is right for that pack, for example
+`PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH" beacon`.
 
 A pack that ships more than one launcher, such as a `run.sh` and a `start.sh`,
 defaults to `run.sh`. Launch settings in the actions overlay switches that or
@@ -160,10 +181,12 @@ on Linux). Logs live under `~/.local/state/beacon/logs`. You rarely need to touc
 either.
 
 **My server flips straight to `unknown` when I start it.** It started and then
-exited on its own. Open its console with `→` to see why. The usual cause is Java
-not being on your `PATH`; most modpacks need Java 17 or 21. Install it (macOS:
-`brew install openjdk@17`, then follow the caveats `brew` prints so `java` is
-found), then try again.
+exited on its own. Open its console with `→`; the reason is in the log. The usual
+cause is Java, either missing from `PATH` or the wrong version for that pack (see
+[First run](#first-run)). Install it (macOS: `brew install openjdk@21`, then
+follow the caveats `brew` prints so `java` is found), then try again. The status
+reads `unknown` rather than `stopped` because Beacon only knows the session
+ended, not that it ended on purpose.
 
 **Can I use it on a remote box?** Yes. Beacon is a local program with no network
 of its own. However you already get a terminal on that machine (SSH, Tailscale,
