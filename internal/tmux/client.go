@@ -103,8 +103,14 @@ func (c *Client) Start(ctx context.Context, l supervisor.Launch) error {
 
 	// The first exec redirects the shell's own descriptors; the second replaces
 	// the shell, so the pane PID is the server process itself. Command is left
-	// unquoted on purpose: it is a shell command line, not a path.
-	script := "exec >>" + shellQuote(l.LogFile) + " 2>&1\nexec " + l.Command
+	// unquoted on purpose: it is a shell command line, not a path. A JavaBinDir
+	// goes on PATH between the two so a bare `java`, in Command or inside a
+	// launch script, resolves to the server's configured runtime.
+	script := "exec >>" + shellQuote(l.LogFile) + " 2>&1\n"
+	if l.JavaBinDir != "" {
+		script += "export PATH=" + shellQuote(l.JavaBinDir) + `:"$PATH"` + "\n"
+	}
+	script += "exec " + l.Command
 
 	_, err = c.run(ctx, "new-session", "-d", "-s", string(l.Session), "-c", l.Dir, "/bin/sh", "-c", script)
 	if e, ok := asExitError(err); ok && e.code == 1 && strings.Contains(e.stderr, "duplicate session") {

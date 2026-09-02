@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -23,12 +24,14 @@ type fakeSup struct {
 	sentKeys   []string
 	onStop     func()
 	startCount int
+	lastLaunch supervisor.Launch
 }
 
-func (f *fakeSup) Start(_ context.Context, _ supervisor.Launch) error {
+func (f *fakeSup) Start(_ context.Context, l supervisor.Launch) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.startCount++
+	f.lastLaunch = l
 	if f.startErr != nil {
 		return f.startErr
 	}
@@ -186,6 +189,46 @@ func TestStartRecordsRunning(t *testing.T) {
 	}
 	if reloaded.State.LastKnown != server.StatusRunning {
 		t.Fatalf("persisted state = %v, want running", reloaded.State.LastKnown)
+	}
+}
+
+func TestStartPassesConfiguredJavaBinDir(t *testing.T) {
+	dirs := testDirs(t)
+	sup := &fakeSup{}
+	m := newManager(sup, dirs)
+
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
+	javaDir := filepath.Join(t.TempDir(), "jdk", "bin")
+	if err := os.MkdirAll(javaDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(javaDir, "java"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	spec.Java = filepath.Join(javaDir, "java")
+
+	if _, err := m.Start(context.Background(), spec, []server.Spec{spec}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if sup.lastLaunch.JavaBinDir != javaDir {
+		t.Fatalf("launch JavaBinDir = %q, want %q", sup.lastLaunch.JavaBinDir, javaDir)
+	}
+}
+
+func TestStartRefusedWhenConfiguredJavaIsMissing(t *testing.T) {
+	dirs := testDirs(t)
+	sup := &fakeSup{}
+	m := newManager(sup, dirs)
+
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
+	spec.Java = filepath.Join(t.TempDir(), "no-such-jdk", "bin", "java")
+
+	_, err := m.Start(context.Background(), spec, []server.Spec{spec})
+	if err == nil || sup.startCount != 0 {
+		t.Fatalf("Start with a missing Java: err=%v startCount=%d, want refusal before launch", err, sup.startCount)
+	}
+	if !strings.Contains(err.Error(), "does not exist") {
+		t.Fatalf("error = %q, want it to name the missing path", err)
 	}
 }
 

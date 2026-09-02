@@ -8,6 +8,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -108,12 +110,20 @@ func (m *Manager) Start(ctx context.Context, spec server.Spec, all []server.Spec
 	if block := reconcile.CheckPort(spec.Port, spec.ID, all); block.Blocked() {
 		return spec, fmt.Errorf("%s: cannot start on port %d: %s", spec.ID, spec.Port, block)
 	}
+	if spec.Java != "" {
+		if err := runnableFile(spec.Java); err != nil {
+			return spec, fmt.Errorf("%s: its Java setting points at %s, which %s; fix it in Launch settings", spec.ID, spec.Java, err)
+		}
+	}
 
 	launch := supervisor.Launch{
 		Session: spec.Session,
 		Dir:     spec.Dir,
 		Command: spec.Start,
 		LogFile: spec.LogFile,
+	}
+	if spec.Java != "" {
+		launch.JavaBinDir = filepath.Dir(spec.Java)
 	}
 	if err := m.sup.Start(ctx, launch); err != nil {
 		return spec, fmt.Errorf("%s: launching: %w", spec.ID, err)
@@ -360,6 +370,25 @@ func (m *Manager) RotateLog(logPath string) (bool, error) {
 func (m *Manager) sessionGone(ctx context.Context, s server.Session) (bool, error) {
 	exists, err := m.sup.Exists(ctx, s)
 	return !exists, err
+}
+
+// runnableFile reports why path is not an executable regular file, or nil when
+// it is one. The error reads as a clause after "which".
+func runnableFile(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return errors.New("does not exist")
+		}
+		return errors.New("cannot be read")
+	}
+	if info.IsDir() {
+		return errors.New("is a directory, not the java binary")
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		return errors.New("is not executable")
+	}
+	return nil
 }
 
 func (m *Manager) writeState(spec server.Spec, status server.Status) (server.Spec, error) {

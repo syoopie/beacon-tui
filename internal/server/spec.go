@@ -15,6 +15,7 @@ type Spec struct {
 	Dir     string    `toml:"dir"`    // absolute path to the server directory
 	Start   string    `toml:"start"`  // shell command run inside Dir
 	Script  string    `toml:"script"` // start script relative to Dir, empty when launching a jar directly
+	Java    string    `toml:"java"`   // absolute path to a java executable; empty means the java on PATH
 	Port    int       `toml:"port"`
 	Session Session   `toml:"session"`
 	LogFile string    `toml:"log_file"` // absolute
@@ -97,6 +98,9 @@ func (s Spec) Validate() error {
 	}
 	if s.Start == "" {
 		return fmt.Errorf("start: empty")
+	}
+	if s.Java != "" && !filepath.IsAbs(s.Java) {
+		return fmt.Errorf("java %q: not an absolute path", s.Java)
 	}
 	if !validPort(s.Port) {
 		return fmt.Errorf("port %d: outside 1..65535", s.Port)

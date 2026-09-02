@@ -14,10 +14,11 @@ import (
 
 // Launch is everything needed to bring one server up under a supervisor.
 type Launch struct {
-	Session server.Session
-	Dir     string // absolute working directory
-	Command string // shell command; the supervisor must exec it so it owns the PID
-	LogFile string // absolute; stdout and stderr are appended here
+	Session    server.Session
+	Dir        string // absolute working directory
+	Command    string // shell command; the supervisor must exec it so it owns the PID
+	LogFile    string // absolute; stdout and stderr are appended here
+	JavaBinDir string // absolute; prepended to PATH so Command finds this java, empty to leave PATH alone
 }
 
 // Supervisor owns process lifetime and stdin. It does not own logs, config, or
@@ -61,6 +62,9 @@ func (l Launch) Validate() error {
 	}
 	if strings.ContainsAny(l.Command, "\n\r") {
 		return fmt.Errorf("command %q: contains a newline", l.Command)
+	}
+	if l.JavaBinDir != "" && !filepath.IsAbs(l.JavaBinDir) {
+		return fmt.Errorf("java_bin_dir %q: not an absolute path", l.JavaBinDir)
 	}
 	return nil
 }

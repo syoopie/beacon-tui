@@ -170,6 +170,36 @@ func TestClientEndToEnd(t *testing.T) {
 	}
 }
 
+func TestStartPrependsJavaBinDirToPath(t *testing.T) {
+	c := liveClient(t)
+	s := liveSession(t, c, "javapath")
+
+	dir := t.TempDir()
+	javaDir := filepath.Join(dir, "jdk", "bin")
+	if err := os.MkdirAll(javaDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	shim := "#!/bin/sh\necho " + bootLine + "\nexec sleep 30\n"
+	if err := os.WriteFile(filepath.Join(javaDir, "java"), []byte(shim), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	l := supervisor.Launch{
+		Session:    s,
+		Dir:        dir,
+		Command:    "java",
+		LogFile:    filepath.Join(dir, "logs", "server.log"),
+		JavaBinDir: javaDir,
+	}
+	if err := c.Start(context.Background(), l); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitForLine(t, logtail.NewTailer(l.LogFile), bootLine)
+	if name := processName(t, panePID(t, c, s)); name != "sleep" {
+		t.Fatalf("pane process = %q, want %q: bare java did not resolve to the shim on the prepended PATH", name, "sleep")
+	}
+}
+
 func TestSendKeysRejectsEmbeddedNewline(t *testing.T) {
 	c := &Client{Bin: missingBin(t)}
 	err := c.SendKeys(context.Background(), testSession(t, "newline"), "first\nsecond")
