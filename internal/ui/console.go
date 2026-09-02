@@ -54,17 +54,6 @@ var (
 // overlay, tab switch, the important-only toggle, log search, and the command
 // input.
 func (m *model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// A pending stop confirm eats the next key: y goes through, anything else
-	// backs out.
-	if m.pendingStop {
-		m.pendingStop = false
-		if msg.String() == "y" {
-			return m, m.runAction(actStop)
-		}
-		m.status = "stop cancelled"
-		return m, nil
-	}
-
 	switch {
 	case msg.String() == "esc":
 		// esc alone backs out of the console; the left arrow stays a no-op here
@@ -87,8 +76,8 @@ func (m *model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if act == actStop {
-			m.pendingStop = true
-			m.status = "stop " + string(spec.ID) + "?  y = yes, any other key = no"
+			m.stop = &stopPrompt{id: spec.ID}
+			m.relayout()
 			return m, nil
 		}
 		return m, m.runAction(act)

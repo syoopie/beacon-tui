@@ -76,6 +76,28 @@ type actionsPrompt struct {
 	cursor int
 }
 
+// stopPrompt is the confirm modal Beacon shows before it stops a running
+// server. y goes through, esc or n backs out, and a stray key is ignored so a
+// fumbled press does not send a live server down.
+type stopPrompt struct {
+	id server.ID
+}
+
+func (m *model) updateStopConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y":
+		m.stop = nil
+		m.relayout()
+		return m, m.runAction(actStop)
+	case "esc", "n":
+		m.stop = nil
+		m.status = "stop cancelled"
+		m.relayout()
+		return m, nil
+	}
+	return m, nil
+}
+
 func (m *model) openActions() {
 	if _, ok := m.selected(); !ok {
 		return
@@ -186,5 +208,22 @@ func (m *model) actionsDialogView() string {
 	rows = append(rows, "", m.hintBar(hint("↑↓", "move"), hint("enter", "run"), hint("esc", "close")))
 	inner := lipgloss.NewStyle().Width(clampInt(m.bodyW-12, 30, 52)).
 		Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
+	return lipgloss.Place(m.bodyW, m.bodyH, lipgloss.Center, lipgloss.Center, dialogStyle.Render(inner))
+}
+
+// stopDialogView renders the stop confirm as a centred modal, in place of the
+// old faint status-line prompt.
+func (m *model) stopDialogView() string {
+	width := clampInt(m.bodyW-12, 30, 52)
+	title := lipgloss.NewStyle().Width(width).Bold(true)
+	prose := lipgloss.NewStyle().Width(width).Foreground(mutedColor)
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		title.Render("Stop "+string(m.stop.id)+"?"),
+		"",
+		prose.Render("Beacon asks the server to save and shut down, then waits up to "+
+			humanShortDuration(m.app.Cfg.StopTimeout.Std())+". Anyone playing is disconnected."),
+		"",
+		m.hintBar(hint("y", "stop it"), hint("esc", "keep it running")),
+	)
 	return lipgloss.Place(m.bodyW, m.bodyH, lipgloss.Center, lipgloss.Center, dialogStyle.Render(inner))
 }

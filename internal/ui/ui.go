@@ -86,6 +86,7 @@ type model struct {
 	launch   *launchPrompt
 	config   *configForm
 	actions  *actionsPrompt
+	stop     *stopPrompt
 	update   *updateNotice
 
 	// eula caches whether each server's eula.txt says eula=true, refreshed on
@@ -93,9 +94,8 @@ type model struct {
 	// drives the notice banner and the menu row.
 	eula map[server.ID]bool
 
-	screen      screen
-	pendingStop bool
-	listW       int
+	screen screen
+	listW  int
 
 	logTab           consoleTab
 	logImportantOnly bool
@@ -454,6 +454,8 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	switch {
+	case m.stop != nil:
+		return m.updateStopConfirm(msg)
 	case m.console != nil:
 		return m.updateConsole(msg)
 	case m.logSearch != nil:
@@ -951,6 +953,7 @@ func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 	if _, ok := m.selected(); !ok && m.screen != screenList {
 		m.screen = screenList
 		m.actions = nil
+		m.stop = nil
 	}
 	m.clampActionsCursor()
 	m.relayout()

@@ -22,9 +22,10 @@ deliberately, and tear it down.
   is stored as the spec's `java`, and `internal/tmux` prepends its directory to
   `PATH` for the launch, so a bare `java` in the command or a `run.sh` resolves
   to it. `internal/javadetect` finds the host's JDKs for the picker.
-- **Stop** arms a confirm: `s` sets the status line to `stop <id>?  y = yes, any
-  other key = no`, then `y` types `stop` into the session and waits out
-  `StopTimeout`, and any other key cancels.
+- **Stop** opens a confirm modal (`m.stop`, a centred `stopPrompt` dialog):
+  `s` sets it, `y` types `stop` into the session and waits out `StopTimeout`,
+  `esc` or `n` cancels with `stop cancelled` on the status line, and a stray key
+  is ignored so the modal stays up.
 - **Force kill** is **`K`**, and it only appears in the command bar once a stop
   has timed out (`m.timedOut[id]`, set by the `opDoneMsg` a slow stop returns).
 - **Mark stopped** is what `s` does for an unknown status: it clears the status
@@ -61,9 +62,11 @@ and prefer watching the console log for the "Done (" line over guessing.
 ## Gotchas
 
 - Never verify Start against the user's real config dir. Copy the fixture.
-- `s` on a running server only arms the confirm; the stop does not run until
-  `y`. A drive that sends `key:s` and asserts immediately sees the prompt, not a
-  stopped server.
+- `s` on a running server only opens the confirm modal; the stop does not run
+  until `y`. A drive that sends `key:s` and asserts immediately sees the modal
+  (`Stop <id>?`), not a stopped server. To verify the modal without a real JVM,
+  fake the session with `tmux new-session -d -s beacon-<id> 'sleep 900'` so
+  reconcile derives running, then drive `key:right key:s snap:` and `key:esc`.
 - `tmux kill-session` is the teardown; killing the JVM by name can hit an
   unrelated Minecraft server.
 - The status shown is derived from tmux each tick, not from what the action

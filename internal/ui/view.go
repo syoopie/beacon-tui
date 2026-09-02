@@ -296,7 +296,7 @@ func (m *model) commandBar() helpSet {
 		return helpSet{short: append(short, hint("esc", "close"))}
 	case m.logSearch != nil:
 		return helpSet{short: []key.Binding{hint("enter", "keep filter"), hint("esc", "clear search")}}
-	case m.pat != nil, m.launch != nil, m.config != nil:
+	case m.stop != nil, m.pat != nil, m.launch != nil, m.config != nil:
 		// These are centred dialogs that carry their own key hints in a footer,
 		// right under the fields. Repeating them up here just adds noise. They
 		// can sit on top of the actions overlay, so this case comes first.
@@ -423,6 +423,8 @@ func (m *model) breadcrumb() string {
 			segs = append(segs, "settings")
 		}
 		switch {
+		case m.stop != nil:
+			segs = append(segs, "stop server?")
 		case m.pat != nil:
 			segs = append(segs, "fix start script")
 		case m.launch != nil:
@@ -467,7 +469,7 @@ func (m *model) statusView() string {
 // noticeText is the banner for the selected server when something needs the
 // operator's attention. Empty when all is well.
 func (m *model) noticeText() string {
-	if m.pat != nil || m.pick != nil || m.launch != nil || m.config != nil || m.actions != nil {
+	if m.stop != nil || m.pat != nil || m.pick != nil || m.launch != nil || m.config != nil || m.actions != nil {
 		return ""
 	}
 	// The notice belongs to whichever server is highlighted, so it rides along
@@ -499,6 +501,8 @@ func (m *model) noticeView() string {
 func (m *model) bodyView() string {
 	var content string
 	switch {
+	case m.stop != nil:
+		content = m.stopDialogView()
 	case m.pat != nil:
 		content = m.patchDialogView()
 	case m.launch != nil:

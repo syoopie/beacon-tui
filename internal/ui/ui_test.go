@@ -447,17 +447,24 @@ func TestStopFromConsoleAsksToConfirm(t *testing.T) {
 	tm = openConsole(t, m, tm)
 
 	pressRune(t, m, tm, "s")
-	if !m.pendingStop {
-		t.Fatal("s on a running server should arm a stop confirm, not stop straight away")
+	if m.stop == nil {
+		t.Fatal("s on a running server should open the stop confirm, not stop straight away")
 	}
 	if m.busy {
-		t.Fatal("no op should be running yet, only the confirm is armed")
+		t.Fatal("no op should be running yet, only the confirm is open")
+	}
+	if v := tm.View(); !strings.Contains(v, "Stop survival?") {
+		t.Fatalf("the confirm should be a modal titled %q; view:\n%s", "Stop survival?", v)
 	}
 
-	// Any key but y backs out.
+	// A stray key leaves the modal up; only esc or n backs out.
+	pressRune(t, m, tm, "x")
+	if m.stop == nil {
+		t.Fatal("a stray key should not dismiss the stop confirm")
+	}
 	pressRune(t, m, tm, "n")
-	if m.pendingStop || m.busy {
-		t.Fatalf("n should cancel the confirm; pendingStop=%v busy=%v", m.pendingStop, m.busy)
+	if m.stop != nil || m.busy {
+		t.Fatalf("n should cancel the confirm; stop=%v busy=%v", m.stop, m.busy)
 	}
 
 	pressRune(t, m, tm, "s")
