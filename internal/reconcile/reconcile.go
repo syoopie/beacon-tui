@@ -6,6 +6,12 @@ package reconcile
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"strings"
+	"unicode"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/syoopie/beacon-tui/internal/server"
 	"github.com/syoopie/beacon-tui/internal/supervisor"
@@ -44,7 +50,11 @@ func Run(ctx context.Context, sup supervisor.Supervisor, specs []server.Spec) ([
 		if err != nil {
 			return nil, fmt.Errorf("reconcile %s: %w", s.ID, err)
 		}
-		derived, warning := derive(exists, s.State.LastKnown)
+		derived := derive(exists, s.State.LastKnown)
+		warning := ""
+		if derived == server.StatusUnknown {
+			warning = vanishedWarning(s.ID, s.LogFile)
+		}
 		reports = append(reports, Report{
 			ID:            s.ID,
 			SessionExists: exists,
@@ -62,16 +72,77 @@ func Run(ctx context.Context, sup supervisor.Supervisor, specs []server.Spec) ([
 // last believed the server was up, in which case it is Unknown: beacon will not
 // silently downgrade a server it may have lost track of to Stopped, because that
 // is how a second Start causes a port collision.
-func derive(sessionExists bool, lastKnown server.Status) (server.Status, string) {
+func derive(sessionExists bool, lastKnown server.Status) server.Status {
 	if sessionExists {
-		return server.StatusRunning, ""
+		return server.StatusRunning
 	}
 	switch lastKnown {
 	case server.StatusStarting, server.StatusRunning, server.StatusStopping:
-		return server.StatusUnknown, "Beacon lost track of this server: its tmux session vanished while it was running. Check whether it is really down before starting it again."
+		return server.StatusUnknown
 	default:
-		return server.StatusStopped, ""
+		return server.StatusStopped
 	}
+}
+
+// vanishedWarning is the operator-facing text for a server that reconciled to
+// Unknown: its session is gone and beacon did not stop it. The last line of its
+// captured log is the exit reason (a Java version gate, an out-of-memory kill, a
+// stack trace) and is quoted verbatim so a failed start explains itself instead
+// of reading as a mystery crash.
+func vanishedWarning(id server.ID, logFile string) string {
+	w := "Beacon did not stop " + string(id) + ", but its session is gone."
+	if tail := lastLogLine(logFile); tail != "" {
+		w += ` Its log ends: "` + tail + `"`
+	}
+	return w
+}
+
+// lastLogLine returns the final non-blank line of a captured console log,
+// stripped of ANSI and control bytes and shortened to fit a notice. Only the
+// tail of the file is read. Empty when the log cannot be read or holds nothing.
+func lastLogLine(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = f.Close() }()
+
+	info, err := f.Stat()
+	if err != nil {
+		return ""
+	}
+	const window = 8 << 10
+	if info.Size() > window {
+		if _, err := f.Seek(info.Size()-window, io.SeekStart); err != nil {
+			return ""
+		}
+	}
+	buf, err := io.ReadAll(f)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(buf), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if s := tidyLine(lines[i]); s != "" {
+			return ansi.Truncate(s, 200, "…")
+		}
+	}
+	return ""
+}
+
+func tidyLine(line string) string {
+	line = ansi.Strip(line)
+	line = strings.TrimPrefix(strings.TrimLeft(line, "\r "), "> ")
+	line = strings.Map(func(r rune) rune {
+		if r == '\t' {
+			return ' '
+		}
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, line)
+	return strings.TrimSpace(line)
 }
 
 // probePort dials the server's listen port when its session is live. A dead

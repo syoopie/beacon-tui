@@ -98,7 +98,6 @@ type serverItem struct {
 	spec    server.Spec
 	status  server.Status
 	health  reconcile.PortHealth
-	warn    string
 	proc    procstat.Stat
 	hasProc bool
 }

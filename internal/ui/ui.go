@@ -768,7 +768,7 @@ func (m *model) refreshItems() {
 	for _, s := range ordered {
 		r := m.reports[s.ID]
 		p, ok := m.procByID[s.ID]
-		items = append(items, serverItem{spec: s, status: r.Derived, health: r.PortHealth, warn: r.Warning, proc: p, hasProc: ok})
+		items = append(items, serverItem{spec: s, status: r.Derived, health: r.PortHealth, proc: p, hasProc: ok})
 	}
 	m.setListItems(items)
 
