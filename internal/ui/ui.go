@@ -24,6 +24,7 @@ import (
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/importdetect"
+	"github.com/syoopie/beacon-tui/internal/javadetect"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
 	"github.com/syoopie/beacon-tui/internal/mccmd"
 	"github.com/syoopie/beacon-tui/internal/mcprops"
@@ -150,6 +151,13 @@ type model struct {
 	procInFlight bool
 
 	rotateInFlight bool
+
+	// javas is the host's installed JDKs, discovered once the first time Launch
+	// settings opens and reused after. javasReq guards the request, javasDone
+	// marks the reply landing (which may legitimately be an empty list).
+	javas     []javadetect.JDK
+	javasReq  bool
+	javasDone bool
 
 	ready         bool
 	loaded        bool
@@ -399,6 +407,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case consoleSentMsg:
 		m.status = msg.label
+		return m, nil
+
+	case javaFoundMsg:
+		m.javas, m.javasDone = msg.jdks, true
+		if m.launch != nil {
+			m.launch.setJavas(m.javas)
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -1072,6 +1087,22 @@ func (m *model) addRootCmd(dir string) tea.Cmd {
 	return func() tea.Msg {
 		cfg, err := config.AddScanRoot(dirs, dir)
 		return rootAddedMsg{cfg: cfg, err: err}
+	}
+}
+
+type javaFoundMsg struct{ jdks []javadetect.JDK }
+
+// detectJavaCmd scans the host for JDKs. It runs once, the first time Launch
+// settings opens, so a normal session never pays for it.
+func (m *model) detectJavaCmd() tea.Cmd {
+	if m.javasReq || m.javasDone {
+		return nil
+	}
+	m.javasReq = true
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return javaFoundMsg{jdks: javadetect.Find(ctx)}
 	}
 }
 

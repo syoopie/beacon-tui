@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/syoopie/beacon-tui/internal/config"
+	"github.com/syoopie/beacon-tui/internal/javadetect"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
 	"github.com/syoopie/beacon-tui/internal/mcprops"
 	"github.com/syoopie/beacon-tui/internal/procstat"
@@ -1240,6 +1241,45 @@ func TestLaunchSettingsEditsTheArguments(t *testing.T) {
 	}
 	if reloaded.Start != "./run.sh nogui --world lobby" {
 		t.Fatalf("Start = %q, want ./run.sh nogui --world lobby", reloaded.Start)
+	}
+}
+
+func TestLaunchSettingsPicksAJavaRuntime(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	if err := os.WriteFile(filepath.Join(spec.Dir, "run.sh"),
+		[]byte("#!/bin/sh\nexec java -jar server.jar \"$@\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tm = loadRegistry(t, m, tm)
+
+	tm = openConsole(t, m, tm)
+	tm, _ = chooseAction(t, m, tm, "Launch settings")
+	if !strings.Contains(tm.View(), "Java runtime") {
+		t.Fatal("launch dialog has no Java runtime row")
+	}
+
+	tm, _ = drive(t, tm, javaFoundMsg{jdks: []javadetect.JDK{
+		{Path: "/opt/jdk21/bin/java", Major: 21, Label: "Java 21"},
+	}})
+	// Down past the launch method, the arguments field and the version field to
+	// the Java row, then right to move off "System Java (PATH)".
+	for range 3 {
+		tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyDown})
+	}
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRight})
+
+	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
+	for _, msg := range msgs {
+		tm, _ = drive(t, tm, msg)
+	}
+
+	reloaded, err := config.LoadSpec(dirs.ServerFile(spec.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Java != "/opt/jdk21/bin/java" {
+		t.Fatalf("Java = %q, want /opt/jdk21/bin/java", reloaded.Java)
 	}
 }
 

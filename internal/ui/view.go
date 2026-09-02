@@ -728,8 +728,10 @@ func (m *model) launchDialogView() string {
 		field(lp.argsRow(), lp.args.View()),
 		field(lp.versionRow(), lp.version.View()),
 		subNote("the Minecraft version, for console command help"),
+		field(lp.javaRow(), "Java runtime  "+selectedRow.Render(lp.javaLabel())),
+		subNote(lp.javaNote()),
 		"",
-		m.hintBar(hint("↑↓", "move"), hint("space", "pick method"), hint("enter", "save"), hint("esc", "cancel")),
+		ansi.Wrap(m.hintBar(hint("↑↓", "move"), hint("←→", "java"), hint("space", "method"), hint("enter", "save"), hint("esc", "cancel")), width, ""),
 	)
 	inner := lipgloss.JoinVertical(lipgloss.Left, rows...)
 	return lipgloss.Place(m.bodyW, m.bodyH, lipgloss.Center, lipgloss.Center, dialogStyle.Render(inner))
