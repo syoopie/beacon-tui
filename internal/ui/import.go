@@ -58,7 +58,7 @@ func (m *model) importCmd() tea.Cmd {
 		}
 		label := fmt.Sprintf("imported %d server(s)", len(specs))
 		if needPatch > 0 {
-			label += fmt.Sprintf("; %d need `exec` patching (select and press p)", needPatch)
+			label += fmt.Sprintf("; %d need `exec` patching (open its console, then a for Fix start script)", needPatch)
 		}
 		return opDoneMsg{label: label}
 	}

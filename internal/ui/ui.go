@@ -55,9 +55,10 @@ func Run(app App) error {
 const (
 	refreshEvery = time.Second
 	pollEvery    = 3 * time.Second
-	// rconPollEvery is slower than the process poll on purpose. Every RCON poll
-	// opens and closes a connection, and the server logs two lines for each one,
-	// so a fast cadence floods its own log with connect and disconnect noise.
+	// rconPollEvery is slower than the process poll on purpose: it is how often
+	// the player list needs to look fresh, not a connection cost. rcon.Client
+	// holds its connection open across polls, so a fast cadence would not add
+	// server-log noise the way it used to before persistent connections.
 	rconPollEvery = 10 * time.Second
 	maxLogLines   = 5000
 	initialStatus = "loading…"
