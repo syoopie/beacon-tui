@@ -39,8 +39,9 @@ var errAuthFailed = errors.New("rcon: authentication failed")
 //
 // gorcon's Execute reads only the first response packet, and a real modpack's
 // "/help" spans several, so Help speaks the (tiny, frozen since 2004) protocol
-// itself to reassemble them. Like [Poll] it opens a fresh connection and hangs
-// up straight away: beacon does not own the server.
+// itself to reassemble them. Unlike [Client], it opens a fresh connection and
+// hangs up straight away: it runs once per server per session, so there is no
+// steady cadence of connects to spare the server's log from.
 func Help(addr, password string) (string, error) {
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {

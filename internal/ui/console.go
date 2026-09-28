@@ -22,12 +22,23 @@ import (
 // so the first poll after arriving is fresh, and drops to the newest log line.
 func (m *model) openConsoleScreen() {
 	m.screen = screenConsole
+	m.closeRconClient()
 	m.rconSnap = rcon.Snapshot{}
 	m.rconErr = ""
 	m.rconAt = time.Time{}
 	m.ensureConsoleData()
 	m.relayout()
 	m.vp.GotoBottom()
+}
+
+// closeRconClient releases the held RCON connection, if any, so it does not
+// keep sitting open once nothing is going to poll over it.
+func (m *model) closeRconClient() {
+	if m.rconClient != nil {
+		_ = m.rconClient.Close()
+		m.rconClient = nil
+	}
+	m.rconClientAddr = ""
 }
 
 // consoleTab is the console screen's top-level split: the raw server log, or
@@ -64,6 +75,7 @@ func (m *model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.screen = screenList
+		m.closeRconClient()
 		m.relayout()
 		return m, nil
 	case key.Matches(msg, m.keys.Power):

@@ -141,6 +141,12 @@ type model struct {
 	rconErr      string
 	rconAt       time.Time
 	rconInFlight bool
+	// rconClient is held open across polls, one connect for the whole console
+	// session instead of one per poll, so the server does not log a connect and
+	// disconnect line every cycle. Poll redials it on failure internally; this
+	// is only replaced or cleared when that redial itself gives up.
+	rconClient     *rcon.Client
+	rconClientAddr string // addr rconClient was dialed with, to notice a port edit
 
 	// procByID samples every running server's JVM, not just the selected one,
 	// so the list can show each server's weight. Refreshed on the same cadence
@@ -285,6 +291,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case rconMsg:
 		m.rconInFlight = false
+		m.rconClient = msg.client
 		if msg.id != m.selID {
 			return m, nil
 		}
@@ -764,6 +771,7 @@ func (m *model) syncSelection() {
 	m.tail = newFollower(it.spec.LogFile)
 	m.logQuery = ""
 	m.logSearch = nil
+	m.closeRconClient()
 	m.rconSnap = rcon.Snapshot{}
 	m.rconErr = ""
 	m.rconAt = time.Time{}
@@ -952,6 +960,7 @@ func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 	// A server that vanished from under the console sends us home.
 	if _, ok := m.selected(); !ok && m.screen != screenList {
 		m.screen = screenList
+		m.closeRconClient()
 		m.actions = nil
 		m.stop = nil
 	}
@@ -961,6 +970,7 @@ func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 	switch {
 	case len(m.specs) == 0:
 		m.screen = screenList
+		m.closeRconClient()
 		m.tail = nil
 		if m.transientStatus() {
 			m.status = "no servers yet"
@@ -1166,13 +1176,19 @@ func (m *model) tailCmd() tea.Cmd {
 }
 
 type rconMsg struct {
-	id   server.ID
-	snap rcon.Snapshot
-	err  error
+	id     server.ID
+	snap   rcon.Snapshot
+	err    error
+	client *rcon.Client // the connection to keep polling with; nil once it has given up
 }
 
 // rconPollCmd asks the selected server who is online, but only while its console
-// is open, it is running, RCON is configured, and the last poll has aged out.
+// is open, it is running, RCON is configured, and the last poll has aged out. It
+// reuses the held connection (m.rconClient) rather than dialing fresh each time,
+// so a healthy poll never touches the network beyond the "list" round trip and
+// never adds a connect/disconnect line to the server's own log. Dialing and
+// redialing already retry with backoff inside the rcon package, so an error
+// here means that gave up too: only then does m.rconErr get set.
 func (m *model) rconPollCmd() tea.Cmd {
 	if m.screen != screenConsole || m.rconInFlight || time.Since(m.rconAt) < rconPollEvery {
 		return nil
@@ -1188,9 +1204,26 @@ func (m *model) rconPollCmd() tea.Cmd {
 	m.rconAt = time.Now()
 	addr := fmt.Sprintf("127.0.0.1:%d", spec.RCON.Port)
 	pw, id := spec.RCON.Password, spec.ID
+	client := m.rconClient
+	if client != nil && m.rconClientAddr != addr {
+		_ = client.Close()
+		client = nil
+	}
+	m.rconClientAddr = addr
 	return func() tea.Msg {
-		snap, err := rcon.Poll(addr, pw)
-		return rconMsg{id: id, snap: snap, err: err}
+		if client == nil {
+			var err error
+			client, err = rcon.Dial(addr, pw)
+			if err != nil {
+				return rconMsg{id: id, err: err}
+			}
+		}
+		snap, err := client.Poll()
+		if err != nil {
+			_ = client.Close()
+			return rconMsg{id: id, err: err}
+		}
+		return rconMsg{id: id, snap: snap, client: client}
 	}
 }
 

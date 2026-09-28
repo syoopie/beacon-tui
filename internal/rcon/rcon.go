@@ -1,6 +1,4 @@
 // Package rcon asks a running Minecraft server who is online over its RCON port.
-// It opens a fresh connection per poll and closes it straight away: beacon does
-// not own the server, so it should not sit on a socket against it.
 package rcon
 
 import (
@@ -22,18 +20,80 @@ type Snapshot struct {
 
 const timeout = 3 * time.Second
 
-// Poll dials addr, authenticates with password, runs "list", and hangs up.
-func Poll(addr, password string) (Snapshot, error) {
-	conn, err := gorcon.Dial(addr, password,
-		gorcon.SetDialTimeout(timeout), gorcon.SetDeadline(timeout))
-	if err != nil {
-		return Snapshot{}, err
-	}
-	defer func() { _ = conn.Close() }()
+// maxReconnectTries caps how many times Poll redials a broken connection
+// before giving up and returning the failure.
+const maxReconnectTries = 3
 
-	out, err := conn.Execute("list")
+// reconnectBackoff is the delay before the first redial; it doubles after
+// each failed try.
+const reconnectBackoff = 500 * time.Millisecond
+
+// Client holds one RCON connection to a server, reused across polls so a live
+// console does not open and close a connection, and so log two lines on the
+// server, every cycle. A broken connection is redialed with exponential
+// backoff inside Poll, invisibly to the caller unless every try fails.
+type Client struct {
+	conn     *gorcon.Conn
+	addr     string
+	password string
+}
+
+// Dial opens the connection a Client polls over, retrying with exponential
+// backoff up to maxReconnectTries: a server that has just started often has
+// not opened its RCON port yet.
+func Dial(addr, password string) (*Client, error) {
+	conn, err := dialWithBackoff(addr, password)
 	if err != nil {
-		return Snapshot{}, err
+		return nil, err
+	}
+	return &Client{conn: conn, addr: addr, password: password}, nil
+}
+
+func dialOnce(addr, password string) (*gorcon.Conn, error) {
+	return gorcon.Dial(addr, password,
+		gorcon.SetDialTimeout(timeout), gorcon.SetDeadline(timeout))
+}
+
+// dialWithBackoff tries dialOnce up to maxReconnectTries, sleeping
+// reconnectBackoff (doubling each time) between attempts.
+func dialWithBackoff(addr, password string) (*gorcon.Conn, error) {
+	backoff := reconnectBackoff
+	var lastErr error
+	for i := 0; i < maxReconnectTries; i++ {
+		if i > 0 {
+			time.Sleep(backoff)
+			backoff *= 2
+		}
+		conn, err := dialOnce(addr, password)
+		if err == nil {
+			return conn, nil
+		}
+		lastErr = err
+	}
+	return nil, fmt.Errorf("rcon: dial: %w", lastErr)
+}
+
+// Close releases the held connection.
+func (c *Client) Close() error {
+	return c.conn.Close()
+}
+
+// Poll runs "list" over the held connection. If the connection has gone bad
+// it is redialed with exponential backoff, up to maxReconnectTries, before
+// Poll gives up and returns the last error.
+func (c *Client) Poll() (Snapshot, error) {
+	out, err := c.conn.Execute("list")
+	if err != nil {
+		_ = c.conn.Close()
+		conn, dialErr := dialWithBackoff(c.addr, c.password)
+		if dialErr != nil {
+			return Snapshot{}, dialErr
+		}
+		c.conn = conn
+		out, err = c.conn.Execute("list")
+		if err != nil {
+			return Snapshot{}, err
+		}
 	}
 	return parseList(out)
 }
