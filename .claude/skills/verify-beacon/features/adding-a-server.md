@@ -33,7 +33,16 @@ scan root:
 ```
 
 To exercise the patch dialog, copy a pack to a scratch dir and rewrite its
-`run.sh` so the java line has no `exec`, then import that copy.
+`run.sh` so the java line has no `exec`, then import that copy. The status
+line names the fix but not the key (see Gotchas); the actual path is the
+server's own console, not the list:
+
+```sh
+key:right                                 # import already selects the new row; open its console
+key:a snap:actions                        # actions overlay: "Fix start script" is the top row
+key:enter snap:patch_dialog                # the diff/backup preview
+key:y wait:0.5 snap:patched                # applies; status line reads "<id> patched (ok)"
+```
 
 ## Gotchas
 
@@ -43,5 +52,9 @@ To exercise the patch dialog, copy a pack to a scratch dir and rewrite its
 - The picker's row count depends on the terminal height, so its snapshot is not
   stable across `--rows` values.
 - The patch writes to the user's real folder. Copy the pack first.
+- The post-import status line ("N need `exec` patching (select and press
+  p)") names a `p` key that does not exist (`internal/ui/import.go`); the real
+  path is the console's actions overlay, `a` → Fix start script. Product bug,
+  not a driving mistake if the recipe above stalls waiting for a `p` press.
 - Import writes `servers/<id>.toml` into the config dir. Use a per-run copy of
   the fixture, or the next drive starts from different state.

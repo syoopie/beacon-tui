@@ -13,8 +13,9 @@ deliberately, and tear it down.
   (`primaryAction`): `s start` while stopped, `s stop` while running, `s mark
   stopped` for a status Beacon has lost. It shows in the console command bar.
 - **Start** refuses when the start script does not hand off with `exec`, when the
-  server's Java setting points at a file that is not a runnable executable, or
-  when something already listens on the port; the reason lands on the status
+  server's Java setting points at a file that is not a runnable executable, when
+  something already listens on the port, or when the Minecraft EULA has not been
+  accepted (`internal/lifecycle/lifecycle.go`); the reason lands on the status
   line. Another stopped server configured for the same port is named but does
   not block.
 - **Java runtime** per server, set in Launch settings (`a` → Launch settings, the

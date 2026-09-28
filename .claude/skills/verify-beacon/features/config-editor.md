@@ -10,8 +10,8 @@ port and RCON block into the spec.
 ## Sub-features
 
 - **The field list**: five sections (General, Gameplay, Access, World, RCON)
-  drawn as bold headers, ~25 fields under them. Three kinds: free text, an enum
-  cycled with `←`/`→`, and a bool cycled the same way.
+  drawn as bold headers, 23 fields under them (`configFields`). Three kinds: free
+  text, an enum cycled with `←`/`→`, and a bool cycled the same way.
 - **Scrolling**: the fields sit in a viewport that keeps the cursor row on
   screen. The viewport takes whatever height is left once the title, subtitle
   and hint bar are measured, so the modal fits inside `m.bodyH` down to a
