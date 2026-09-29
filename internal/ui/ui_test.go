@@ -505,12 +505,36 @@ func TestPrimaryActionTracksStatus(t *testing.T) {
 	}{
 		{server.StatusStopped, actStart},
 		{server.StatusRunning, actStop},
-		{server.StatusStarting, actStop},
 		{server.StatusUnknown, actMarkStopped},
 	} {
 		got, ok := m.primaryAction(tc.status)
 		if !ok || got != tc.want {
 			t.Fatalf("primaryAction(%v) = %v %v, want %v", tc.status, got, ok, tc.want)
+		}
+	}
+}
+
+func TestPrimaryActionDisabledMidTransition(t *testing.T) {
+	m := &model{}
+	for _, s := range []server.Status{server.StatusStarting, server.StatusStopping} {
+		if _, ok := m.primaryAction(s); ok {
+			t.Fatalf("primaryAction(%v) should be disabled: a transition is already in flight", s)
+		}
+	}
+}
+
+func TestPortHealthLabelDistinguishesStartingFromStopping(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status server.Status
+		want   string
+	}{
+		{"closed port while running reads as starting", server.StatusRunning, "starting"},
+		{"closed port while stopping reads as stopping", server.StatusStopping, "stopping"},
+	} {
+		got, _ := portHealthLabel(reconcile.PortClosed, tc.status)
+		if got != tc.want {
+			t.Errorf("%s: portHealthLabel(PortClosed, %v) = %q, want %q", tc.name, tc.status, got, tc.want)
 		}
 	}
 }

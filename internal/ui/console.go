@@ -297,7 +297,7 @@ func (m *model) logHeaderView(w int) string {
 	}
 	r := m.reports[spec.ID]
 	port := mutedStyle.Render(fmt.Sprintf("port %d", spec.Port))
-	if word, color := portHealthLabel(r.PortHealth); word != "" {
+	if word, color := portHealthLabel(r.PortHealth, r.Derived); word != "" {
 		port += mutedStyle.Render(" ") + lipgloss.NewStyle().Foreground(color).Render(word)
 	}
 	line := strings.Join([]string{
@@ -416,7 +416,7 @@ func (m *model) railView() string {
 
 	rows := []string{sectionStyle.Render("Details")}
 	port := mutedStyle.Render(fmt.Sprintf("port  %d", spec.Port))
-	if word, color := portHealthLabel(r.PortHealth); word != "" {
+	if word, color := portHealthLabel(r.PortHealth, r.Derived); word != "" {
 		port += " " + lipgloss.NewStyle().Foreground(color).Render(word)
 	}
 	rows = append(rows,

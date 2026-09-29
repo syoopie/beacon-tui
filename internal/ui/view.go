@@ -63,14 +63,19 @@ func statusColor(s server.Status) lipgloss.TerminalColor {
 }
 
 // portHealthLabel turns a live port probe into a word and its colour: "ready"
-// once the server accepts connections, "starting" while its session is up but
-// the port has not opened. An unprobed port returns "", so a stopped server's
-// header stays just "port 25565".
-func portHealthLabel(h reconcile.PortHealth) (string, lipgloss.TerminalColor) {
+// once the server accepts connections. A closed port on a live session means a
+// boot still bringing it up ("starting") in every status but Stopping, where
+// the same signal means a shutdown already closed it ("stopping"): Minecraft's
+// listener typically closes before the tmux session and JVM fully exit. An
+// unprobed port returns "", so a stopped server's header stays just "port 25565".
+func portHealthLabel(h reconcile.PortHealth, status server.Status) (string, lipgloss.TerminalColor) {
 	switch h {
 	case reconcile.PortOpen:
 		return "ready", runColor
 	case reconcile.PortClosed:
+		if status == server.StatusStopping {
+			return "stopping", transColor
+		}
 		return "starting", transColor
 	default:
 		return "", mutedColor

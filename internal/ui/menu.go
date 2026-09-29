@@ -38,12 +38,14 @@ type menuRow struct {
 }
 
 // primaryAction is what the s key does for a server in the given state: start a
-// stopped one, stop a live one, mark a vanished one stopped.
+// stopped one, stop a live one, mark a vanished one stopped. Starting and
+// Stopping have no primary action of their own: a transition is already in
+// flight, so the key is disabled rather than offered as a second start or stop.
 func (m *model) primaryAction(s server.Status) (menuAction, bool) {
 	switch s {
 	case server.StatusStopped:
 		return actStart, true
-	case server.StatusRunning, server.StatusStarting, server.StatusStopping:
+	case server.StatusRunning:
 		return actStop, true
 	case server.StatusUnknown:
 		return actMarkStopped, true
