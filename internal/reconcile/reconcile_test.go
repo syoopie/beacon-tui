@@ -47,6 +47,8 @@ func TestDerive(t *testing.T) {
 		want   server.Status
 	}{
 		{"live session is running", true, server.StatusStopped, server.StatusRunning},
+		{"live session mid-stop stays stopping", true, server.StatusStopping, server.StatusStopping},
+		{"live session mid-start is running", true, server.StatusStarting, server.StatusRunning},
 		{"gone after stopped is stopped", false, server.StatusStopped, server.StatusStopped},
 		{"gone after running is unknown", false, server.StatusRunning, server.StatusUnknown},
 		{"gone after starting is unknown", false, server.StatusStarting, server.StatusUnknown},

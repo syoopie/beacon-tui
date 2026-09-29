@@ -68,12 +68,18 @@ func Run(ctx context.Context, sup supervisor.Supervisor, specs []server.Spec) ([
 }
 
 // derive turns "is the session there" plus "what did we last write" into a
-// status. A live session is Running. A missing session is Stopped unless we
-// last believed the server was up, in which case it is Unknown: beacon will not
-// silently downgrade a server it may have lost track of to Stopped, because that
-// is how a second Start causes a port collision.
+// status. A live session is Running, except while lifecycle.Stop has recorded
+// Stopping for it: that write happens before the stop command is sent, so a
+// live session with Stopping last known is still mid-shutdown, not settled
+// back into Running. A missing session is Stopped unless we last believed the
+// server was up, in which case it is Unknown: beacon will not silently
+// downgrade a server it may have lost track of to Stopped, because that is how
+// a second Start causes a port collision.
 func derive(sessionExists bool, lastKnown server.Status) server.Status {
 	if sessionExists {
+		if lastKnown == server.StatusStopping {
+			return server.StatusStopping
+		}
 		return server.StatusRunning
 	}
 	switch lastKnown {
