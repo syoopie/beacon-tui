@@ -27,7 +27,7 @@ type Candidate struct {
 	Loader    string // best-effort, "" when undetected
 }
 
-var scriptNames = []string{"run.sh", "start.sh"}
+var scriptNames = []string{"run.sh", "start.sh", "startserver.sh"}
 
 var jarPatterns = []string{"server.jar", "paper*.jar", "fabric-server*.jar"}
 

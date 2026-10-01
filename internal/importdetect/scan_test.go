@@ -286,3 +286,26 @@ func TestLaunchOptionsListsEveryMethodScriptsFirst(t *testing.T) {
 		t.Errorf("Command(\"nogui\") = %q, want java -jar server.jar nogui", cmd)
 	}
 }
+
+func TestScanFindsStartserverScript(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "AllTheMods10")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "#!/usr/bin/env bash\njava -jar neoforge-installer.jar\n"
+	if err := os.WriteFile(filepath.Join(dir, "startserver.sh"), []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "neoforge-installer.jar"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cands, err := Scan([]string{root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cands) != 1 || cands[0].Script != "startserver.sh" {
+		t.Fatalf("Scan = %+v, want one candidate launching startserver.sh", cands)
+	}
+}
