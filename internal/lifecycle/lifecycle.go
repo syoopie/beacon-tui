@@ -279,6 +279,41 @@ func (m *Manager) SaveSpec(spec server.Spec) (server.Spec, error) {
 	return spec, nil
 }
 
+// PruneMissing deletes the spec file of every server whose directory no longer
+// exists on disk and whose session is not alive, under the host lock. A live
+// session keeps its spec so the operator can still stop it. It returns the IDs
+// it removed.
+func (m *Manager) PruneMissing(ctx context.Context, specs []server.Spec) ([]server.ID, error) {
+	var gone []server.Spec
+	for _, s := range specs {
+		if _, err := os.Stat(s.Dir); !errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if alive, err := m.sup.Exists(ctx, s.Session); err != nil || alive {
+			continue
+		}
+		gone = append(gone, s)
+	}
+	if len(gone) == 0 {
+		return nil, nil
+	}
+
+	release, err := m.hold(m.lockDir(), oplock.OpWriteConfig)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	var removed []server.ID
+	for _, s := range gone {
+		if err := os.Remove(m.dirs.ServerFile(s.ID)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return removed, fmt.Errorf("%s: removing spec: %w", s.ID, err)
+		}
+		removed = append(removed, s.ID)
+	}
+	return removed, nil
+}
+
 // DetectCommands fills a spec's [commands] mc_version and loader from a fresh
 // scan of its directory when they are blank, and persists the result under the
 // host lock. It backfills a server imported before detection existed the first

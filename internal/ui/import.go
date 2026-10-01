@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -20,8 +21,30 @@ type patchPrompt struct {
 // directory that is not already in the registry, keyed by directory so a
 // re-scan does not duplicate anything.
 func (m *model) importCmd() tea.Cmd {
-	dirs, roots, known := m.app.Dirs, m.app.Cfg.ScanRoots, m.specs
+	dirs, roots, known, mgr := m.app.Dirs, m.app.Cfg.ScanRoots, m.specs, m.app.Mgr
 	return func() tea.Msg {
+		pruned, err := mgr.PruneMissing(context.Background(), known)
+		if err != nil {
+			return opDoneMsg{label: "scan", err: err}
+		}
+		if len(pruned) > 0 {
+			gone := make(map[server.ID]bool, len(pruned))
+			for _, id := range pruned {
+				gone[id] = true
+			}
+			kept := known[:0:0]
+			for _, s := range known {
+				if !gone[s.ID] {
+					kept = append(kept, s)
+				}
+			}
+			known = kept
+		}
+		removed := ""
+		if len(pruned) > 0 {
+			removed = fmt.Sprintf("removed %d server(s) whose folder is gone", len(pruned))
+		}
+
 		cands, err := importdetect.Scan(roots)
 		if err != nil {
 			return opDoneMsg{label: "import", err: err}
@@ -41,6 +64,9 @@ func (m *model) importCmd() tea.Cmd {
 			}
 		}
 		if len(fresh) == 0 {
+			if removed != "" {
+				return opDoneMsg{label: removed}
+			}
 			return opDoneMsg{label: "import: nothing new under the scan roots"}
 		}
 
@@ -59,6 +85,9 @@ func (m *model) importCmd() tea.Cmd {
 		label := fmt.Sprintf("imported %d server(s)", len(specs))
 		if needPatch > 0 {
 			label += fmt.Sprintf("; %d need `exec` patching (open its console, then a for Fix start script)", needPatch)
+		}
+		if removed != "" {
+			label += "; " + removed
 		}
 		return opDoneMsg{label: label}
 	}

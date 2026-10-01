@@ -505,3 +505,36 @@ func advancingClock(now time.Time, ahead time.Duration) func() time.Time {
 		return now.Add(ahead)
 	}
 }
+
+func TestPruneMissingRemovesOnlyDeadServersWithNoFolder(t *testing.T) {
+	dirs := testDirs(t)
+	sup := &fakeSup{}
+	m := newManager(sup, dirs)
+
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
+	if err := config.SaveSpec(dirs, spec); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := m.PruneMissing(context.Background(), []server.Spec{spec})
+	if err != nil || len(removed) != 0 {
+		t.Fatalf("folder still exists: removed %v, err %v", removed, err)
+	}
+
+	if err := os.RemoveAll(spec.Dir); err != nil {
+		t.Fatal(err)
+	}
+	sup.setExists(true)
+	if removed, _ := m.PruneMissing(context.Background(), []server.Spec{spec}); len(removed) != 0 {
+		t.Fatalf("a live session must keep its spec, removed %v", removed)
+	}
+
+	sup.setExists(false)
+	removed, err = m.PruneMissing(context.Background(), []server.Spec{spec})
+	if err != nil || len(removed) != 1 || removed[0] != spec.ID {
+		t.Fatalf("removed %v, err %v", removed, err)
+	}
+	if _, err := os.Stat(dirs.ServerFile(spec.ID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("spec file survived: %v", err)
+	}
+}
