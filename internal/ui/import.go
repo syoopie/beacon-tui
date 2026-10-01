@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -55,6 +56,10 @@ func (m *model) importCmd() tea.Cmd {
 		for _, s := range known {
 			takenID[s.ID] = true
 			takenDir[s.Dir] = true
+		}
+
+		if len(cands) == 0 {
+			return opDoneMsg{label: "no server found in " + strings.Join(roots, ", ") + " (needs a start script or a server jar)"}
 		}
 
 		fresh := cands[:0]

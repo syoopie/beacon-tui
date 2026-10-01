@@ -703,20 +703,32 @@ func (m *model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.relayout()
 		return m, nil
 	}
+	if msg.String() == "s" {
+		return m.addFromPicker(m.pick.CurrentDirectory)
+	}
 	fp, cmd := m.pick.Update(msg)
 	m.pick = &fp
 	if ok, path := fp.DidSelectFile(msg); ok {
-		m.pick = nil
-		m.busy = true
-		m.status = "adding " + path + "…"
-		m.relayout()
-		return m, m.addRootCmd(path)
+		// enter on a folder that holds a server adds it. On any other folder the
+		// picker has already opened it, so a person never adds "backups" by
+		// pressing enter inside a pack.
+		if len(importdetect.LaunchOptions(path)) > 0 {
+			return m.addFromPicker(path)
+		}
 	}
 	if ok, path := fp.DidSelectDisabledFile(msg); ok {
 		m.status = path + " can't be added (not a folder)"
 		return m, nil
 	}
 	return m, cmd
+}
+
+func (m *model) addFromPicker(path string) (tea.Model, tea.Cmd) {
+	m.pick = nil
+	m.busy = true
+	m.status = "adding " + path + "…"
+	m.relayout()
+	return m, m.addRootCmd(path)
 }
 
 // --- modal input: patch confirm ---

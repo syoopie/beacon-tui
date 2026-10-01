@@ -311,7 +311,7 @@ func (m *model) commandBar() helpSet {
 	case m.pick != nil:
 		return helpSet{short: []key.Binding{
 			hint("→", "open folder"), hint("←", "up a level"),
-			hint("enter", "choose this folder"), hint("esc", "cancel"),
+			hint("enter", "add server or open folder"), hint("s", "use the folder shown"), hint("esc", "cancel"),
 		}}
 	}
 
@@ -646,7 +646,7 @@ func (m *model) landingView() string {
 		lipgloss.NewStyle().Foreground(mutedColor).Align(lipgloss.Center).Render(
 			"You have no servers yet.\n\n"+
 				"Beacon needs the folder your server lives in —\n"+
-				"the one with a run.sh or a server.jar inside."),
+				"the one with its start script or server jar inside."),
 		"",
 		ctaStyle.Render("Press  a  to add your first server"),
 		"",
