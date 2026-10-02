@@ -781,6 +781,7 @@ func (m *model) syncSelection() {
 	if m.onAddRow {
 		m.selID = ""
 		m.tail = nil
+		m.relayout() // the delegate dims the list's cursor row while the add row has focus
 		return
 	}
 	it, ok := m.list.SelectedItem().(serverItem)
