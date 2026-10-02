@@ -332,6 +332,41 @@ func (m *Manager) PruneMissing(ctx context.Context, specs []server.Spec) ([]serv
 	return removed, nil
 }
 
+// PruneScanRoots drops every scan root whose folder no longer exists, so a
+// server folder deleted from disk does not leave a root that fails every later
+// scan. It returns the config as written; with nothing to drop it writes
+// nothing and returns the config as loaded.
+func (m *Manager) PruneScanRoots() (config.Config, error) {
+	release, err := m.hold(m.lockDir(), oplock.OpWriteConfig)
+	if err != nil {
+		return config.Config{}, err
+	}
+	defer release()
+
+	c, err := config.Load(m.dirs)
+	if err != nil {
+		if errors.Is(err, config.ErrNoConfig) {
+			return c, nil
+		}
+		return config.Config{}, err
+	}
+	kept := c.ScanRoots[:0:0]
+	for _, root := range c.ScanRoots {
+		if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		kept = append(kept, root)
+	}
+	if len(kept) == len(c.ScanRoots) {
+		return c, nil
+	}
+	c.ScanRoots = kept
+	if err := config.Save(m.dirs, c); err != nil {
+		return config.Config{}, err
+	}
+	return c, nil
+}
+
 // DetectCommands fills a spec's [commands] mc_version and loader from a fresh
 // scan of its directory when they are blank, and persists the result under the
 // host lock. It backfills a server imported before detection existed the first

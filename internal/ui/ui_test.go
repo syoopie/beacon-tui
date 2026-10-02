@@ -547,7 +547,7 @@ func TestScanKeyWritesSpecsForScannedDirs(t *testing.T) {
 	if err := writeRunScript(t, srv); err != nil {
 		t.Fatal(err)
 	}
-	m.app.Cfg.ScanRoots = []string{filepath.Join(root, "mc")}
+	saveScanRoots(t, dirs, filepath.Join(root, "mc"))
 
 	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyCtrlR})
 	for _, msg := range msgs {
@@ -559,6 +559,54 @@ func TestScanKeyWritesSpecsForScannedDirs(t *testing.T) {
 	}
 	if len(specs) != 1 || specs[0].ID != "vanilla" {
 		t.Fatalf("import wrote %+v, want one spec 'vanilla'", specs)
+	}
+}
+
+// A server added through the picker is its own scan root. Deleting its folder
+// used to leave that root behind, and every later scan failed on it before
+// reaching the roots that still exist.
+func TestScanDropsTheRootOfADeletedServer(t *testing.T) {
+	m, tm, _, dirs, root := bootModel(t)
+	tm = loadRegistry(t, m, tm)
+
+	gone := filepath.Join(root, "gone")
+	if err := writeRunScript(t, gone); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "mc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	saveScanRoots(t, dirs, gone, filepath.Join(root, "mc"))
+	tm = drainMsgs(t, tm, runCmd(t, m.importCmd()))
+	if err := os.RemoveAll(gone); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeRunScript(t, filepath.Join(root, "mc", "vanilla")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyCtrlR})
+	drainMsgs(t, tm, msgs)
+
+	if strings.Contains(m.status, "scan root") {
+		t.Fatalf("scan still trips on the deleted root: %q", m.status)
+	}
+	if len(m.app.Cfg.ScanRoots) != 1 || m.app.Cfg.ScanRoots[0] != filepath.Join(root, "mc") {
+		t.Fatalf("in-memory scan roots = %v", m.app.Cfg.ScanRoots)
+	}
+	specs, err := config.LoadSpecs(dirs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(specs) != 1 || specs[0].ID != "vanilla" {
+		t.Fatalf("specs after rescan = %+v, want only 'vanilla'", specs)
+	}
+}
+
+func saveScanRoots(t *testing.T, dirs config.Dirs, roots ...string) {
+	t.Helper()
+	if err := config.Save(dirs, config.Config{ScanRoots: roots, StopTimeout: config.Duration(time.Minute)}); err != nil {
+		t.Fatal(err)
 	}
 }
 

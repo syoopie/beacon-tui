@@ -570,6 +570,30 @@ func TestPruneMissingRemovesOnlyDeadServersWithNoFolder(t *testing.T) {
 	}
 }
 
+func TestPruneScanRootsDropsOnlyMissingFolders(t *testing.T) {
+	dirs := testDirs(t)
+	m := newManager(&fakeSup{}, dirs)
+
+	kept, gone := t.TempDir(), filepath.Join(t.TempDir(), "deleted")
+	if err := config.Save(dirs, config.Config{ScanRoots: []string{gone, kept}, StopTimeout: config.Default().StopTimeout}); err != nil {
+		t.Fatal(err)
+	}
+	c, err := m.PruneScanRoots()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.ScanRoots) != 1 || c.ScanRoots[0] != kept {
+		t.Fatalf("returned roots %v, want [%s]", c.ScanRoots, kept)
+	}
+	onDisk, err := config.Load(dirs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(onDisk.ScanRoots) != 1 || onDisk.ScanRoots[0] != kept {
+		t.Fatalf("saved roots %v, want [%s]", onDisk.ScanRoots, kept)
+	}
+}
+
 func TestStartPicksAJavaNewEnoughForTheGame(t *testing.T) {
 	dirs := testDirs(t)
 	sup := &fakeSup{}

@@ -379,6 +379,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case opDoneMsg:
 		m.busy = false
+		if msg.cfg != nil {
+			m.app.Cfg = *msg.cfg
+		}
 		if msg.err != nil {
 			m.status = msg.label + ": " + msg.err.Error()
 		} else {
@@ -1093,6 +1096,9 @@ type opDoneMsg struct {
 	label    string
 	timedOut bool
 	err      error
+	// cfg is the config a scan left on disk, after dropping scan roots that
+	// are gone; nil for every other operation.
+	cfg *config.Config
 }
 
 type patchPlannedMsg struct {

@@ -22,7 +22,7 @@ type patchPrompt struct {
 // directory that is not already in the registry, keyed by directory so a
 // re-scan does not duplicate anything.
 func (m *model) importCmd() tea.Cmd {
-	dirs, roots, mgr := m.app.Dirs, m.app.Cfg.ScanRoots, m.app.Mgr
+	dirs, mgr := m.app.Dirs, m.app.Mgr
 	return func() tea.Msg {
 		// Read the registry from disk, not m.specs: a scan at startup runs before
 		// the first reload has filled the cache.
@@ -52,9 +52,27 @@ func (m *model) importCmd() tea.Cmd {
 			removed = fmt.Sprintf("removed %d server(s) whose folder is gone", len(pruned))
 		}
 
+		// A deleted server folder is usually its own scan root (the picker adds
+		// the folder it was given), so drop roots that are gone before scanning.
+		cfg, err := mgr.PruneScanRoots()
+		if err != nil {
+			return opDoneMsg{label: "scan", err: err}
+		}
+		done := func(msg opDoneMsg) opDoneMsg {
+			msg.cfg = &cfg
+			return msg
+		}
+		roots := cfg.ScanRoots
+		if len(roots) == 0 {
+			if removed != "" {
+				return done(opDoneMsg{label: removed})
+			}
+			return done(opDoneMsg{label: "no folders to scan yet; add a server first"})
+		}
+
 		cands, err := importdetect.Scan(roots)
 		if err != nil {
-			return opDoneMsg{label: "import", err: err}
+			return done(opDoneMsg{label: "import", err: err})
 		}
 
 		takenID := make(map[server.ID]bool, len(known))
@@ -65,7 +83,7 @@ func (m *model) importCmd() tea.Cmd {
 		}
 
 		if len(cands) == 0 {
-			return opDoneMsg{label: "no server found in " + strings.Join(roots, ", ") + " (needs a start script or a server jar)"}
+			return done(opDoneMsg{label: "no server found in " + strings.Join(roots, ", ") + " (needs a start script or a server jar)"})
 		}
 
 		fresh := cands[:0]
@@ -76,15 +94,15 @@ func (m *model) importCmd() tea.Cmd {
 		}
 		if len(fresh) == 0 {
 			if removed != "" {
-				return opDoneMsg{label: removed}
+				return done(opDoneMsg{label: removed})
 			}
-			return opDoneMsg{label: "import: nothing new under the scan roots"}
+			return done(opDoneMsg{label: "import: nothing new under the scan roots"})
 		}
 
 		specs := importdetect.BuildSpecs(dirs, fresh, takenID)
 		for _, s := range specs {
 			if err := config.SaveSpec(dirs, s); err != nil {
-				return opDoneMsg{label: "import", err: err}
+				return done(opDoneMsg{label: "import", err: err})
 			}
 		}
 		needPatch := 0
@@ -100,7 +118,7 @@ func (m *model) importCmd() tea.Cmd {
 		if removed != "" {
 			label += "; " + removed
 		}
-		return opDoneMsg{label: label}
+		return done(opDoneMsg{label: label})
 	}
 }
 
