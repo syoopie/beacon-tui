@@ -637,7 +637,15 @@ func railGraph(data []float64, top float64, w, h int, color lipgloss.TerminalCol
 		sparkline.WithMaxValue(top),
 		sparkline.WithStyle(lipgloss.NewStyle().Foreground(color)),
 	)
-	sl.PushAll(data)
+	// A sample far under the top would round to an empty cell and read as no
+	// data; any non-zero sample gets at least the lowest bar.
+	floor := top / float64(8*h)
+	for _, v := range data {
+		if v > 0 {
+			v = max(v, floor)
+		}
+		sl.Push(v)
+	}
 	sl.Draw()
 	return []string{sl.View()}
 }
