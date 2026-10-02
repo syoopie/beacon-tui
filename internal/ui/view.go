@@ -15,6 +15,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 
+	"github.com/syoopie/beacon-tui/internal/importdetect"
 	"github.com/syoopie/beacon-tui/internal/procstat"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
 	"github.com/syoopie/beacon-tui/internal/server"
@@ -487,7 +488,12 @@ func (m *model) noticeText() string {
 	switch {
 	case r.Derived == server.StatusUnknown && r.Warning != "":
 		return "⚠  " + r.Warning + "  Once you have checked, press s in its console to mark it stopped."
+	case r.Derived == server.StatusStopped && r.Warning != "":
+		return "⚠  " + r.Warning + "  Press s in its console to start it again."
 	case !spec.Exec.Launchable():
+		if l := m.installerFix[spec.ID]; l != "" {
+			return "⚠  " + string(spec.ID) + "'s start script can't be run by Beacon. Press a, open Launch settings and choose " + l + "."
+		}
 		return "⚠  " + string(spec.ID) + "'s start script does not hand off to Java with exec, so Beacon can't start it. Choose Fix start script, or Launch settings to point it at another one."
 	case !m.eula[spec.ID]:
 		return "⚠  " + string(spec.ID) + " has not accepted the Minecraft EULA, so Beacon can't start it. Choose Accept the Minecraft EULA once you agree to https://aka.ms/MinecraftEULA."
@@ -627,6 +633,9 @@ func (m *model) columnHeaderView() string {
 // launchSummary names what starts the server: the start script, or the jar
 // pulled from its launch command.
 func launchSummary(s server.Spec) string {
+	if l := importdetect.InstallerLabel(s.Start); l != "" {
+		return l
+	}
 	if s.Script != "" {
 		return s.Script
 	}
@@ -720,6 +729,9 @@ func (m *model) launchDialogView() string {
 			label = selectedRow.Render(label)
 		}
 		note := o.Base
+		if importdetect.InstallerLabel(o.Base) != "" {
+			note = "runs the installer the first time, then starts the server directly"
+		}
 		if o.Script != "" && !o.Exec.Launchable() {
 			note += "   (not exec java; press p after saving to try to fix it)"
 		}

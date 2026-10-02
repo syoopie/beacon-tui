@@ -28,7 +28,7 @@ type launchPrompt struct {
 	args    textinput.Model
 	version textinput.Model
 
-	// javaChoices is the runtime picker on its own row: "System Java (PATH)"
+	// javaChoices is the runtime picker on its own row: "Automatic"
 	// first, then the host's JDKs, and the spec's current setting if it is not
 	// among them. javaPick indexes it. javaKnown is false until detection lands.
 	javaChoices []javaChoice
@@ -38,7 +38,7 @@ type launchPrompt struct {
 
 type javaChoice struct {
 	label string
-	path  string // "" means the java on PATH
+	path  string // "" means Beacon picks one for the Minecraft version
 }
 
 func (lp *launchPrompt) argsRow() int    { return len(lp.opts) }
@@ -76,13 +76,13 @@ func (lp *launchPrompt) javaNote() string {
 	if c := lp.javaChoices[lp.javaPick]; c.path != "" {
 		return c.path
 	}
-	return "the java found on PATH when Beacon starts a server"
+	return "Beacon picks an installed Java that this Minecraft version runs on"
 }
 
 // javaChoicesFor builds the picker list: PATH, then the current setting if it is
 // not a discovered JDK, then the discovered JDKs.
 func javaChoicesFor(current string, jdks []javadetect.JDK) []javaChoice {
-	choices := []javaChoice{{label: "System Java (PATH)", path: ""}}
+	choices := []javaChoice{{label: "Automatic", path: ""}}
 	seen := map[string]bool{"": true}
 	known := false
 	for _, j := range jdks {
@@ -139,7 +139,7 @@ func (lp *launchPrompt) pick() int {
 func (m *model) openLaunch(spec server.Spec) tea.Cmd {
 	opts := importdetect.LaunchOptions(spec.Dir)
 	if len(opts) == 0 {
-		m.status = "no run.sh, start.sh or server jar found in " + spec.Dir
+		m.status = "no start script, server jar or Forge installer found in " + spec.Dir
 		return nil
 	}
 

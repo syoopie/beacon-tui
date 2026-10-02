@@ -170,3 +170,78 @@ func label(major int, path string) string {
 		return name
 	}
 }
+
+// RequiredMajor is the oldest Java feature version a Minecraft server of the
+// given version runs on, or 0 when the version does not parse. Each step is
+// where Mojang raised the floor: 1.17 needs 16, 1.18 needs 17, 1.20.5 needs 21,
+// and the year-numbered 26.1 needs 25.
+func RequiredMajor(mcVersion string) int {
+	v := parseMC(mcVersion)
+	if v == nil {
+		return 0
+	}
+	at := func(want ...int) bool { return compareMC(v, want) >= 0 }
+	switch {
+	case at(26, 1):
+		return 25
+	case at(1, 20, 5):
+		return 21
+	case at(1, 18):
+		return 17
+	case at(1, 17):
+		return 16
+	default:
+		return 8
+	}
+}
+
+// Pick returns the oldest JDK at or above min, the same choice the official
+// launcher makes: a newer Java than the game was built for is the likeliest to
+// break a mod.
+func Pick(jdks []JDK, min int) (JDK, bool) {
+	var best JDK
+	found := false
+	for _, j := range jdks {
+		if j.Major < min {
+			continue
+		}
+		if !found || j.Major < best.Major {
+			best, found = j, true
+		}
+	}
+	return best, found
+}
+
+func parseMC(s string) []int {
+	if s == "" {
+		return nil
+	}
+	var out []int
+	for _, p := range strings.Split(s, ".") {
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return nil
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
+func compareMC(a, b []int) int {
+	for i := 0; i < len(a) || i < len(b); i++ {
+		var x, y int
+		if i < len(a) {
+			x = a[i]
+		}
+		if i < len(b) {
+			y = b[i]
+		}
+		if x != y {
+			if x < y {
+				return -1
+			}
+			return 1
+		}
+	}
+	return 0
+}

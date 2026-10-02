@@ -77,6 +77,8 @@ func run(configDir, stateDir string) error {
 		Mgr:     mgr,
 		Version: buildVersion(),
 		Repo:    repoSlug,
+
+		ScanOnStart: flag.Arg(0) != "",
 	})
 }
 

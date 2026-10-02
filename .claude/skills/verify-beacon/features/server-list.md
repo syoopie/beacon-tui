@@ -20,8 +20,9 @@ every action lives.
   no active filter. `↑` from the first server steps onto it, `↓` steps back,
   `enter` opens the folder picker. (`a` opens the picker only on the empty
   landing panel; on a populated list `a` is just a filter character.)
-- **Rescan** with `ctrl+r`: re-reads every configured scan root and imports
-  anything new without the picker.
+- **Rescan** with `ctrl+r`: drops servers whose folder is gone (unless still
+  running), then re-reads every configured scan root and imports anything new
+  without the picker.
 - **Columns** drop as the terminal narrows (`columnsFor`): below 55 columns the
   row is one loose line, then name+status, then +port, then +health-dot+detail.
 - **Notice banner** above the table when the selected server needs attention: an

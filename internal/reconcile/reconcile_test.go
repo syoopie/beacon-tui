@@ -52,7 +52,7 @@ func TestDerive(t *testing.T) {
 		{"gone after stopped is stopped", false, server.StatusStopped, server.StatusStopped},
 		{"gone after running is unknown", false, server.StatusRunning, server.StatusUnknown},
 		{"gone after starting is unknown", false, server.StatusStarting, server.StatusUnknown},
-		{"gone after stopping is unknown", false, server.StatusStopping, server.StatusUnknown},
+		{"gone after stopping is stopped", false, server.StatusStopping, server.StatusStopped},
 		{"gone after unknown stays stopped", false, server.StatusUnknown, server.StatusStopped},
 	}
 	for _, c := range cases {
@@ -113,8 +113,8 @@ func TestRunReportsPerSpec(t *testing.T) {
 	if reports[0].Derived != server.StatusRunning {
 		t.Errorf("survival derived = %v, want running", reports[0].Derived)
 	}
-	if reports[1].Derived != server.StatusUnknown || reports[1].Warning == "" {
-		t.Errorf("creative report = %+v, want unknown with a warning", reports[1])
+	if reports[1].Derived != server.StatusStopped || !strings.Contains(reports[1].Warning, "stopped on its own") {
+		t.Errorf("creative report = %+v, want stopped with a crash warning (its port is free)", reports[1])
 	}
 }
 
@@ -158,5 +158,23 @@ func TestRunAbortsOnSupervisorError(t *testing.T) {
 	_, err := Run(context.Background(), fakeSup{err: boom}, []server.Spec{spec(t, "survival", server.StatusStopped)})
 	if !errors.Is(err, boom) {
 		t.Fatalf("Run error = %v, want it to wrap %v", err, boom)
+	}
+}
+
+func TestGoneWithThePortHeldIsUnknown(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	lost := spec(t, "creative", server.StatusRunning)
+	lost.Port = ln.Addr().(*net.TCPAddr).Port
+
+	reports, err := Run(context.Background(), fakeSup{}, []server.Spec{lost})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if reports[0].Derived != server.StatusUnknown || reports[0].Warning == "" {
+		t.Errorf("report = %+v, want unknown with a warning", reports[0])
 	}
 }

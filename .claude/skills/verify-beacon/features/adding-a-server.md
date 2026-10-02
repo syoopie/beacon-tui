@@ -7,9 +7,12 @@ not hand off to Java with `exec`.
 ## Sub-features
 
 - **The picker**, a bubbles filepicker. `→` opens a folder, `←` goes up,
-  `enter` chooses the current one, `esc` cancels.
+  `enter` adds the highlighted folder if it holds a server and opens it
+  otherwise, `s` adds the folder shown in the header, `esc` cancels.
 - **Detection**: the scan reads `server.properties` for the port and the RCON
-  block, and finds a start script or a `server.jar`.
+  block, and finds a start script, a NeoForge or Forge installer jar, or a
+  `server.jar`. An installer becomes the first launch option, a `sh -c` line
+  that installs on first start and then `exec`s Java.
 - **The patch dialog**: shown when the chosen script starts Java as a child
   instead of `exec`ing it. It previews the one-line diff, backs the original up
   to `<script>.bak`, and applies on `y`.
@@ -46,9 +49,8 @@ key:y wait:0.5 snap:patched                # applies; status line reads "<id> pa
 
 ## Gotchas
 
-- `beacon <dir>` only seeds a scan root; nothing is imported until the user
-  presses `ctrl+r` or walks the picker. A drive that expects a server to appear
-  on boot will see the landing panel instead.
+- `beacon <dir>` seeds a scan root and scans it on launch, so its servers are
+  listed on boot.
 - The picker's row count depends on the terminal height, so its snapshot is not
   stable across `--rows` values.
 - The patch writes to the user's real folder. Copy the pack first.

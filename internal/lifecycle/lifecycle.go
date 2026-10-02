@@ -15,6 +15,7 @@ import (
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/importdetect"
+	"github.com/syoopie/beacon-tui/internal/javadetect"
 	"github.com/syoopie/beacon-tui/internal/logrotate"
 	"github.com/syoopie/beacon-tui/internal/mcprops"
 	"github.com/syoopie/beacon-tui/internal/oplock"
@@ -30,6 +31,7 @@ type Manager struct {
 	stopTimeout time.Duration
 	poll        time.Duration
 	now         func() time.Time
+	findJava    func(context.Context) []javadetect.JDK
 	busy        sync.Mutex
 }
 
@@ -46,6 +48,7 @@ func NewManager(sup supervisor.Supervisor, dirs config.Dirs, stopTimeout time.Du
 		stopTimeout: stopTimeout,
 		poll:        DefaultPoll,
 		now:         time.Now,
+		findJava:    javadetect.Find,
 	}
 }
 
@@ -97,7 +100,12 @@ func (m *Manager) Start(ctx context.Context, spec server.Spec, all []server.Spec
 	}
 	switch spec.State.LastKnown {
 	case server.StatusStarting, server.StatusRunning, server.StatusStopping:
-		return spec, fmt.Errorf("%s is in an unknown state (session gone, last seen up); mark it stopped or inspect the host before starting", spec.ID)
+		// The session is gone. If its port is free the server exited on its own
+		// and starting again is safe; if something still holds the port, Beacon
+		// has lost track of it.
+		if reconcile.CheckPort(spec.Port, spec.ID, nil).OSListener {
+			return spec, fmt.Errorf("%s is in an unknown state (session gone, port %d still in use); mark it stopped or inspect the host before starting", spec.ID, spec.Port)
+		}
 	}
 	if !spec.Exec.Launchable() {
 		return spec, fmt.Errorf("%s: start script does not exec its command; re-run import to patch it", spec.ID)
@@ -124,6 +132,16 @@ func (m *Manager) Start(ctx context.Context, spec server.Spec, all []server.Spec
 	}
 	if spec.Java != "" {
 		launch.JavaBinDir = filepath.Dir(spec.Java)
+	} else if need := javadetect.RequiredMajor(spec.Commands.MCVersion); need > 0 {
+		// No Java chosen: run the oldest installed one the game accepts, so a
+		// host whose default java is too old still starts the server.
+		jctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		jdk, ok := javadetect.Pick(m.findJava(jctx), need)
+		cancel()
+		if !ok {
+			return spec, fmt.Errorf("%s needs Java %d or newer, and this computer does not have it. Install it from https://adoptium.net, then start again", spec.ID, need)
+		}
+		launch.JavaBinDir = filepath.Dir(jdk.Path)
 	}
 	if err := m.sup.Start(ctx, launch); err != nil {
 		return spec, fmt.Errorf("%s: launching: %w", spec.ID, err)

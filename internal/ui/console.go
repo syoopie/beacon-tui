@@ -14,7 +14,9 @@ import (
 
 	"github.com/dustin/go-humanize"
 
+	"github.com/syoopie/beacon-tui/internal/importdetect"
 	"github.com/syoopie/beacon-tui/internal/rcon"
+	"github.com/syoopie/beacon-tui/internal/reconcile"
 	"github.com/syoopie/beacon-tui/internal/server"
 )
 
@@ -424,7 +426,7 @@ func (m *model) railView() string {
 		mutedStyle.Render("rcon  "+rconRailLabel(spec)),
 		mutedStyle.Render("eula  "+eulaRailLabel(m.eula[spec.ID])),
 		"",
-		mutedStyle.Render(spec.Start),
+		mutedStyle.Render(startLine(spec)),
 		mutedStyle.Render(filepath.Base(spec.Dir)),
 	)
 
@@ -434,6 +436,10 @@ func (m *model) railView() string {
 		rows = append(rows, mutedStyle.Render("RCON is off"))
 	case !running:
 		rows = append(rows, mutedStyle.Render("server not running"))
+	case r.PortHealth != reconcile.PortOpen:
+		// RCON opens only once the world has loaded; until then a failed poll
+		// is expected, not an error.
+		rows = append(rows, mutedStyle.Render("starting up…"))
 	case m.rconErr != "":
 		rows = append(rows, mutedStyle.Render(m.rconErr))
 	default:
@@ -500,4 +506,13 @@ func (m *model) tabBarView(w int) string {
 		gap = 1
 	}
 	return ansi.Truncate(left+strings.Repeat(" ", gap)+right, max(w, 1), "")
+}
+
+// startLine is the launch command for the rail, or the loader name when Beacon
+// manages the install, whose shell line means nothing to an operator.
+func startLine(spec server.Spec) string {
+	if l := importdetect.InstallerLabel(spec.Start); l != "" {
+		return l + ", installed by Beacon"
+	}
+	return spec.Start
 }

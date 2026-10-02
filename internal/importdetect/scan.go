@@ -138,11 +138,16 @@ func (o LaunchOption) Command(args string) string {
 	return o.Base + " " + args
 }
 
-// LaunchOptions lists every launch method in dir, scripts before jars, in the
-// order import uses. An unreadable script is reported as ExecMissing rather than
+// LaunchOptions lists every launch method in dir in the order import uses: a
+// Forge or NeoForge installer, then scripts, then jars. An unreadable script is reported as ExecMissing rather than
 // dropped, so refusing to launch it is a later, visible decision.
 func LaunchOptions(dir string) []LaunchOption {
 	var opts []LaunchOption
+	// A Forge or NeoForge installer comes first: Beacon's own launch execs Java
+	// directly, where the pack's scripts often loop or run Java as a child.
+	if f, ok := findInstaller(dir); ok {
+		opts = append(opts, LaunchOption{Label: f.label(), Base: f.command(), Exec: server.ExecOK})
+	}
 	for _, name := range scriptNames {
 		path := filepath.Join(dir, name)
 		info, err := os.Stat(path)

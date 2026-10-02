@@ -79,3 +79,24 @@ func TestFindNeverErrorsWithNothingInstalled(t *testing.T) {
 		t.Fatalf("want no JDKs, got %+v", got)
 	}
 }
+
+func TestRequiredMajor(t *testing.T) {
+	for v, want := range map[string]int{
+		"1.12.2": 8, "1.16.5": 8, "1.17.1": 16, "1.18.2": 17, "1.20.1": 17,
+		"1.20.4": 17, "1.20.5": 21, "1.21.1": 21, "26.1": 25, "26.2": 25, "": 0, "abc": 0,
+	} {
+		if got := RequiredMajor(v); got != want {
+			t.Errorf("RequiredMajor(%q) = %d, want %d", v, got, want)
+		}
+	}
+}
+
+func TestPickTakesTheOldestJDKThatIsNewEnough(t *testing.T) {
+	jdks := []JDK{{Path: "/a", Major: 26}, {Path: "/b", Major: 17}, {Path: "/c", Major: 21}}
+	if got, ok := Pick(jdks, 18); !ok || got.Path != "/c" {
+		t.Errorf("Pick(18) = %+v, %v; want /c", got, ok)
+	}
+	if _, ok := Pick(jdks, 27); ok {
+		t.Error("Pick(27) found a JDK; none is new enough")
+	}
+}

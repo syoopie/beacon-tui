@@ -860,7 +860,7 @@ func TestConsolePlayerRail(t *testing.T) {
 		m.specs[i].RCON = server.RCON{Enabled: true, Port: 25575, Password: "x"}
 	}
 	sup.present[spec.Session] = true
-	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning}
+	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning, PortHealth: reconcile.PortOpen}
 
 	snap := rcon.Snapshot{Online: 3, Max: 20, Players: []string{"Steve", "Alex", "Herobrine"}}
 	tm, _ = drive(t, tm, rconMsg{id: spec.ID, snap: snap})

@@ -22,8 +22,14 @@ type patchPrompt struct {
 // directory that is not already in the registry, keyed by directory so a
 // re-scan does not duplicate anything.
 func (m *model) importCmd() tea.Cmd {
-	dirs, roots, known, mgr := m.app.Dirs, m.app.Cfg.ScanRoots, m.specs, m.app.Mgr
+	dirs, roots, mgr := m.app.Dirs, m.app.Cfg.ScanRoots, m.app.Mgr
 	return func() tea.Msg {
+		// Read the registry from disk, not m.specs: a scan at startup runs before
+		// the first reload has filled the cache.
+		known, err := config.LoadSpecs(dirs)
+		if err != nil {
+			return opDoneMsg{label: "scan", err: err}
+		}
 		pruned, err := mgr.PruneMissing(context.Background(), known)
 		if err != nil {
 			return opDoneMsg{label: "scan", err: err}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/syoopie/beacon-tui/internal/config"
+	"github.com/syoopie/beacon-tui/internal/javadetect"
 	"github.com/syoopie/beacon-tui/internal/mcprops"
 	"github.com/syoopie/beacon-tui/internal/server"
 	"github.com/syoopie/beacon-tui/internal/supervisor"
@@ -139,11 +140,41 @@ func TestStartRefusedFromUnknown(t *testing.T) {
 	sup := &fakeSup{exists: false}
 	m := newManager(sup, dirs)
 
-	spec := testSpec(t, dirs, server.ExecOK, server.StatusRunning) // session gone, last seen up => Unknown
-	_, err := m.Start(context.Background(), spec, nil)
+	// Session gone, last seen up, and something still holds the port => Unknown.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusRunning)
+	spec.Port = ln.Addr().(*net.TCPAddr).Port
+	_, err = m.Start(context.Background(), spec, nil)
 	if err == nil || sup.startCount != 0 {
 		t.Fatalf("Start from Unknown: err=%v startCount=%d, want refusal", err, sup.startCount)
 	}
+}
+
+func TestStartAfterACrashWithThePortFree(t *testing.T) {
+	dirs := testDirs(t)
+	sup := &fakeSup{}
+	m := newManager(sup, dirs)
+
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusRunning) // exited on its own
+	spec.Port = freePort(t)
+	if _, err := m.Start(context.Background(), spec, nil); err != nil || sup.startCount != 1 {
+		t.Fatalf("Start after a crash: err=%v startCount=%d, want a start", err, sup.startCount)
+	}
+}
+
+func freePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	_ = ln.Close()
+	return port
 }
 
 func TestStartRefusedWhenScriptDoesNotExec(t *testing.T) {
@@ -536,5 +567,42 @@ func TestPruneMissingRemovesOnlyDeadServersWithNoFolder(t *testing.T) {
 	}
 	if _, err := os.Stat(dirs.ServerFile(spec.ID)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("spec file survived: %v", err)
+	}
+}
+
+func TestStartPicksAJavaNewEnoughForTheGame(t *testing.T) {
+	dirs := testDirs(t)
+	sup := &fakeSup{}
+	m := newManager(sup, dirs)
+	m.findJava = func(context.Context) []javadetect.JDK {
+		return []javadetect.JDK{{Path: "/jdk17/bin/java", Major: 17}, {Path: "/jdk26/bin/java", Major: 26}}
+	}
+
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
+	spec.Commands.MCVersion = "26.2"
+	if _, err := m.Start(context.Background(), spec, nil); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if sup.lastLaunch.JavaBinDir != "/jdk26/bin" {
+		t.Fatalf("JavaBinDir = %q, want /jdk26/bin", sup.lastLaunch.JavaBinDir)
+	}
+}
+
+func TestStartSaysWhichJavaIsMissing(t *testing.T) {
+	dirs := testDirs(t)
+	sup := &fakeSup{}
+	m := newManager(sup, dirs)
+	m.findJava = func(context.Context) []javadetect.JDK {
+		return []javadetect.JDK{{Path: "/jdk17/bin/java", Major: 17}}
+	}
+
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
+	spec.Commands.MCVersion = "1.21.1"
+	_, err := m.Start(context.Background(), spec, nil)
+	if err == nil || !strings.Contains(err.Error(), "Java 21") {
+		t.Fatalf("Start err = %v, want it to name Java 21", err)
+	}
+	if sup.startCount != 0 {
+		t.Fatal("Start launched without a usable Java")
 	}
 }

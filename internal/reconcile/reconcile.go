@@ -53,7 +53,14 @@ func Run(ctx context.Context, sup supervisor.Supervisor, specs []server.Spec) ([
 		derived := derive(exists, s.State.LastKnown)
 		warning := ""
 		if derived == server.StatusUnknown {
-			warning = vanishedWarning(s.ID, s.LogFile)
+			if osListening(s.Port) {
+				warning = vanishedWarning(s.ID, s.LogFile)
+			} else {
+				// Nothing holds its port, so whatever ran is gone: the server
+				// stopped on its own (a crash, a bad Java) and can start again.
+				derived = server.StatusStopped
+				warning = crashedWarning(s.ID, s.LogFile)
+			}
 		}
 		reports = append(reports, Report{
 			ID:            s.ID,
@@ -72,7 +79,8 @@ func Run(ctx context.Context, sup supervisor.Supervisor, specs []server.Spec) ([
 // Stopping for it: that write happens before the stop command is sent, so a
 // live session with Stopping last known is still mid-shutdown, not settled
 // back into Running. A missing session is Stopped unless we last believed the
-// server was up, in which case it is Unknown: beacon will not silently
+// server was up (a recorded Stopping means a stop was asked for, so its session
+// ending is the expected outcome), in which case it is Unknown: beacon will not silently
 // downgrade a server it may have lost track of to Stopped, because that is how
 // a second Start causes a port collision.
 func derive(sessionExists bool, lastKnown server.Status) server.Status {
@@ -83,7 +91,7 @@ func derive(sessionExists bool, lastKnown server.Status) server.Status {
 		return server.StatusRunning
 	}
 	switch lastKnown {
-	case server.StatusStarting, server.StatusRunning, server.StatusStopping:
+	case server.StatusStarting, server.StatusRunning:
 		return server.StatusUnknown
 	default:
 		return server.StatusStopped
@@ -97,6 +105,16 @@ func derive(sessionExists bool, lastKnown server.Status) server.Status {
 // of reading as a mystery crash.
 func vanishedWarning(id server.ID, logFile string) string {
 	w := "Beacon did not stop " + string(id) + ", but its session is gone."
+	if tail := lastLogLine(logFile); tail != "" {
+		w += ` Its log ends: "` + tail + `"`
+	}
+	return w
+}
+
+// crashedWarning is the text for a server whose session ended without Beacon
+// stopping it and whose port is free again: it exited on its own.
+func crashedWarning(id server.ID, logFile string) string {
+	w := string(id) + " stopped on its own."
 	if tail := lastLogLine(logFile); tail != "" {
 		w += ` Its log ends: "` + tail + `"`
 	}

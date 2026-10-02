@@ -44,6 +44,9 @@ type App struct {
 	Mgr     *lifecycle.Manager
 	Version string // running build, for the update check
 	Repo    string // "owner/name", for the update check and its install command
+	// ScanOnStart scans the folders at launch, for `beacon <folder>`, so the
+	// servers in the folder just named are listed without a key press.
+	ScanOnStart bool
 }
 
 // Run starts the TUI and blocks until the operator quits.
@@ -94,6 +97,9 @@ type model struct {
 	// every registry reload. The lifecycle manager is the real gate; this just
 	// drives the notice banner and the menu row.
 	eula map[server.ID]bool
+	// installerFix names the Beacon-managed installer launch a server could
+	// switch to when its current launch can't be started, refreshed on reload.
+	installerFix map[server.ID]string
 
 	screen screen
 	listW  int
@@ -253,7 +259,13 @@ func (m *model) hintBar(bindings ...key.Binding) string {
 }
 
 func (m *model) Init() tea.Cmd {
-	return tea.Batch(m.reloadCmd(), tick(), m.updateCheckCmd())
+	cmds := []tea.Cmd{m.reloadCmd(), tick(), m.updateCheckCmd()}
+	if m.app.ScanOnStart {
+		m.busy = true
+		m.status = "scanning your folders…"
+		cmds = append(cmds, m.importCmd())
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -969,6 +981,7 @@ func (m *model) applyReload(msg reloadedMsg) tea.Cmd {
 	m.loaded = true
 	m.specs = msg.specs
 	m.eula = msg.eula
+	m.installerFix = msg.installerFix
 	m.refreshItems()
 	// A server that vanished from under the console sends us home.
 	if _, ok := m.selected(); !ok && m.screen != screenList {
@@ -1052,7 +1065,9 @@ func tick() tea.Cmd {
 type reloadedMsg struct {
 	specs []server.Spec
 	eula  map[server.ID]bool
-	err   error
+
+	installerFix map[server.ID]string
+	err          error
 }
 
 type reconciledMsg struct {
@@ -1155,7 +1170,19 @@ func (m *model) reloadCmd() tea.Cmd {
 			ok, err := mcprops.EULAAccepted(s.Dir)
 			eula[s.ID] = err == nil && ok
 		}
-		return reloadedMsg{specs: specs, eula: eula}
+		fix := map[server.ID]string{}
+		for _, s := range specs {
+			if s.Exec.Launchable() {
+				continue
+			}
+			for _, o := range importdetect.LaunchOptions(s.Dir) {
+				if l := importdetect.InstallerLabel(o.Base); l != "" {
+					fix[s.ID] = o.Label
+					break
+				}
+			}
+		}
+		return reloadedMsg{specs: specs, eula: eula, installerFix: fix}
 	}
 }
 

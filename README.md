@@ -102,26 +102,26 @@ Point Beacon at a folder that holds several server folders and it picks up every
 one. Add more later from the `+ Add a server` row, or press `ctrl+r` to re-scan.
 
 **What the folder needs.** Beacon launches a server through a `run.sh`, a
-`start.sh`, or a jar named `server.jar`, `paper-*.jar` or `fabric-server-*.jar`,
-found in the folder you add or one level below it. A freshly downloaded modpack
-ships an installer instead, so run the pack's own setup once first. For NeoForge
-or Forge 1.17 and later, `java -jar <name>-installer.jar --installServer` (or the
-pack's `startserver.sh`) writes the `run.sh` Beacon then finds. Paper, Fabric and
-vanilla jars are already launchers. Older Forge packs, which produce only a
-versioned `forge-<version>.jar` and ship a `ServerStart.sh`, are not detected
-yet.
+`start.sh`, a `startserver.sh`, a NeoForge or Forge installer jar, or a jar
+named `server.jar`, `paper-*.jar` or `fabric-server-*.jar`, found in the folder
+you add or one level below it. A freshly downloaded NeoForge or Forge pack (1.17
+and later) that ships only `<name>-installer.jar` needs no setup: Beacon runs
+the installer the first time you start it, then starts the server directly.
+Older Forge packs, which produce only a versioned `forge-<version>.jar` and ship
+a `ServerStart.sh`, are not detected yet.
 
-**Fix start script.** NeoForge and Forge write a `run.sh` that starts Java
-without `exec`, which breaks stop and status. Beacon flags this on the list;
-**Fix start script** in the actions overlay rewrites the one line and keeps your
-original as `run.sh.bak`. Do it before the first start.
+**Fix start script.** Some packs' own scripts start Java without `exec`, which
+breaks stop and status. When the folder has a NeoForge or Forge installer,
+Beacon launches through that instead. Otherwise it flags the server, and **Fix
+start script** in the actions overlay rewrites the one line and keeps your
+original as `<script>.bak`.
 
-**Java.** Minecraft 1.20 needs Java 17, 1.21 needs Java 21, and the newest builds
-need Java 25. By default Beacon runs a server with the `java` on your `PATH`.
-When your packs need different versions, open the server's actions overlay,
-choose Launch settings, and pick a Java runtime on the row under MC version.
-Beacon lists the JDKs it finds on the host; `←→` cycles them. The choice is
-per server, so each pack can run on its own JVM.
+**Java.** Minecraft 1.20 needs Java 17, 1.21 needs Java 21, and 26.1 and later
+need Java 25. Beacon reads the server's Minecraft version and starts it with the
+oldest Java installed on this computer that is new enough, whatever your `PATH`
+says. If none is, starting tells you which version to install. To force a
+runtime, open the actions overlay, choose Launch settings, and pick one on the
+row under MC version (`←→` cycles the JDKs Beacon found).
 
 A pack that ships more than one launcher, such as a `run.sh` and a `start.sh`,
 defaults to `run.sh`. Launch settings in the actions overlay switches that or
@@ -181,13 +181,13 @@ config folder (`~/Library/Application Support/beacon` on macOS, `~/.config/beaco
 on Linux). Logs live under `~/.local/state/beacon/logs`. You rarely need to touch
 either.
 
-**My server flips straight to `unknown` when I start it.** It started and then
-exited on its own. The notice banner quotes the last line of its log, and the
-full log is in the console. The usual cause is Java, either missing from `PATH`
-or the wrong version for that pack (see [First run](#first-run)); set the right
-one in Launch settings. The status reads `unknown` rather than `stopped` because
-Beacon only knows the session ended, not that it ended on purpose. Press `s` to
-mark it stopped once you have looked.
+**My server stops right after I start it.** It started and then exited on its
+own. The notice banner quotes the last line of its log, and the full log is in
+the console. The usual cause is Java: none new enough is installed (Beacon says
+so when you start), or a runtime forced in Launch settings is too old. Press `s`
+to start it again once fixed. A server shows `unknown` only when its session is
+gone but something still holds its port; check what that is before you mark it
+stopped.
 
 **Can I use it on a remote box?** Yes. Beacon is a local program with no network
 of its own. However you already get a terminal on that machine (SSH, Tailscale,

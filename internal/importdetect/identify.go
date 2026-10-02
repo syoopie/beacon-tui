@@ -29,6 +29,9 @@ func cleanVersion(s string) string {
 }
 
 func detectLoader(dir string) string {
+	if f, ok := findInstaller(dir); ok {
+		return f.loader
+	}
 	switch {
 	case isDir(filepath.Join(dir, "libraries", "net", "neoforged", "neoforge")):
 		return "neoforge"
@@ -85,6 +88,12 @@ func paperFlavor(dir string) string {
 }
 
 func detectVersion(dir, loader string) string {
+	if f, ok := findInstaller(dir); ok {
+		if v := f.mcVersion(); v != "" {
+			return v
+		}
+	}
+
 	// 1. A loader install unpacks the vanilla server under a version directory.
 	// This is the most reliable source: the directory name is the MC version.
 	// (The neoforge directory is deliberately not consulted here: its name is
