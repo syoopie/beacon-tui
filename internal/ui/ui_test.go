@@ -962,12 +962,12 @@ func TestConsolePlayerRail(t *testing.T) {
 
 	tm, _ = drive(t, tm, procMsg{
 		stats: map[server.ID]procstat.Stat{
-			spec.ID: {RSS: 2 * 1024 * 1024 * 1024, CPUPercent: 31, Uptime: 90 * time.Minute},
+			spec.ID: {RSS: 2 * 1024 * 1024 * 1024, CPUPercent: 31, Uptime: 90 * time.Minute, MaxHeap: 4 << 30, MemPercent: 12},
 		},
 		errs: map[server.ID]string{},
 	})
 	view = tm.View()
-	for _, want := range []string{"Resources", "up   1h30m", "2.0 GiB", "cpu  31%"} {
+	for _, want := range []string{"Resources", "up   1h30m", "mem  2.0G", "heap 4.0G", "cpu  31%", "peak 31%", "host 12% of RAM"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("rail should show the sampled memory, CPU and uptime; missing %q:\n%s", want, view)
 		}
@@ -1435,5 +1435,34 @@ func TestLaunchSettingsSetsTheMinecraftVersion(t *testing.T) {
 	}
 	if reloaded.Commands.MCVersion != "1.20.1" {
 		t.Fatalf("Commands.MCVersion = %q, want 1.20.1", reloaded.Commands.MCVersion)
+	}
+}
+
+func TestRecordProcKeepsHistoryAndResetsOnRestart(t *testing.T) {
+	m, _, _, _, _ := bootModel(t)
+	id := server.ID("survival")
+	t0 := time.Unix(1000, 0)
+	sample := func(at, cpu, up time.Duration) map[server.ID]procstat.Stat {
+		return map[server.ID]procstat.Stat{id: {At: t0.Add(at), CPUTime: cpu, Uptime: up, CPUPercent: 99}}
+	}
+
+	m.recordProc(sample(0, 10*time.Second, time.Minute), map[server.ID]string{})
+	m.recordProc(sample(2*time.Second, 11*time.Second, time.Minute+2*time.Second), map[server.ID]string{})
+	if h := m.procHist[id]; len(h) != 2 || h[1].CPUPercent != 50 || m.procByID[id].CPUPercent != 50 {
+		t.Fatalf("second sample should carry the rate between the two, got %+v", h)
+	}
+
+	m.recordProc(sample(4*time.Second, time.Second, time.Second), map[server.ID]string{})
+	if h := m.procHist[id]; len(h) != 1 || h[0].CPUPercent != 99 {
+		t.Fatalf("a restart should start the history afresh, got %+v", h)
+	}
+
+	m.recordProc(map[server.ID]procstat.Stat{}, map[server.ID]string{id: "unavailable"})
+	if len(m.procHist[id]) != 1 {
+		t.Fatal("a failed sample should keep the history")
+	}
+	m.recordProc(map[server.ID]procstat.Stat{}, map[server.ID]string{})
+	if _, ok := m.procHist[id]; ok {
+		t.Fatal("a stopped server should drop its history")
 	}
 }

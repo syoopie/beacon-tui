@@ -166,6 +166,7 @@ type model struct {
 	// as the console rail.
 	procByID     map[server.ID]procstat.Stat
 	procErrByID  map[server.ID]string
+	procHist     map[server.ID][]procstat.Stat // oldest first, for the rail graphs
 	procAt       time.Time
 	procInFlight bool
 
@@ -230,6 +231,7 @@ func newModel(app App) *model {
 		timedOut:       map[server.ID]bool{},
 		eula:           map[server.ID]bool{},
 		procByID:       map[server.ID]procstat.Stat{},
+		procHist:       map[server.ID][]procstat.Stat{},
 		procErrByID:    map[server.ID]string{},
 		cmdDetectTried: map[server.ID]bool{},
 		cmdHelp:        map[server.ID]string{},
@@ -350,7 +352,7 @@ func (m *model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case procMsg:
 		m.procInFlight = false
-		m.procByID, m.procErrByID = msg.stats, msg.errs
+		m.recordProc(msg.stats, msg.errs)
 		m.refreshItems() // the cards carry these numbers
 		return m, nil
 
@@ -1376,7 +1378,7 @@ func (m *model) procPollCmd() tea.Cmd {
 				errs[s.ID] = "unavailable"
 				continue
 			}
-			if stat, err := procstat.Sample(ctx, pid); err != nil {
+			if stat, err := procstat.Sample(ctx, pid, s.Dir); err != nil {
 				errs[s.ID] = "unavailable"
 			} else {
 				stats[s.ID] = stat
@@ -1384,6 +1386,37 @@ func (m *model) procPollCmd() tea.Cmd {
 		}
 		return procMsg{stats: stats, errs: errs}
 	}
+}
+
+// procHistLen is how many samples the rail graphs keep per server: three
+// minutes at the poll cadence. The rail draws the newest that fit its width.
+const procHistLen = 60
+
+// recordProc takes a poll's samples, turns ps's CPU figure into the current
+// rate where an earlier sample allows, and extends each server's history. A
+// server that has stopped drops its history; one that restarted starts afresh.
+func (m *model) recordProc(stats map[server.ID]procstat.Stat, errs map[server.ID]string) {
+	for id := range m.procHist {
+		if _, ok := stats[id]; !ok && errs[id] == "" {
+			delete(m.procHist, id)
+		}
+	}
+	for id, st := range stats {
+		h := m.procHist[id]
+		if len(h) > 0 {
+			if pct, ok := procstat.Rate(h[len(h)-1], st); ok {
+				st.CPUPercent = pct
+			} else {
+				h = nil
+			}
+		}
+		h = append(h, st)
+		if len(h) > procHistLen {
+			h = h[len(h)-procHistLen:]
+		}
+		m.procHist[id], stats[id] = h, st
+	}
+	m.procByID, m.procErrByID = stats, errs
 }
 
 type logRotatedMsg struct{ err error }

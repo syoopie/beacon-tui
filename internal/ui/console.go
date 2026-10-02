@@ -6,15 +6,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NimbleMarkets/ntcharts/sparkline"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/dustin/go-humanize"
-
 	"github.com/syoopie/beacon-tui/internal/importdetect"
+	"github.com/syoopie/beacon-tui/internal/procstat"
 	"github.com/syoopie/beacon-tui/internal/rcon"
 	"github.com/syoopie/beacon-tui/internal/reconcile"
 	"github.com/syoopie/beacon-tui/internal/server"
@@ -266,6 +266,9 @@ func (m *model) lineVisible(e logEntry, lowerQuery string) bool {
 // the remainder.
 const railChrome = 5
 
+// railTextW is the width the rail's text is laid out in.
+func (m *model) railTextW() int { return max(m.railW-railChrome, 8) }
+
 func (m *model) consoleView() string {
 	w := max(m.vp.Width, 1)
 	head := []string{m.logHeaderView(w), m.tabBarView(w)}
@@ -281,11 +284,12 @@ func (m *model) consoleView() string {
 	if m.railW == 0 {
 		return logBlock
 	}
-	railW := max(m.railW-railChrome, 8)
+	// lipgloss counts padding inside Width and the margin and border outside it,
+	// and MaxWidth clips the whole block, margin included.
 	rail := lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).BorderLeft(true).BorderForeground(mutedColor).
 		MarginLeft(2).PaddingLeft(2).
-		Width(railW).MaxWidth(railW).Height(m.bodyH).
+		Width(m.railTextW() + 2).MaxWidth(m.railW).Height(m.bodyH).
 		Render(m.railView())
 	return lipgloss.JoinHorizontal(lipgloss.Top, logBlock, rail)
 }
@@ -399,7 +403,7 @@ func (m *model) railStrip(w int) string {
 	if p, ok := m.procByID[spec.ID]; ok {
 		parts = append(parts,
 			"up "+humanShortDuration(p.Uptime),
-			"mem "+humanize.IBytes(uint64(p.RSS)),
+			"mem "+shortIBytes(p.RSS),
 			fmt.Sprintf("cpu %.0f%%", p.CPUPercent),
 		)
 	}
@@ -457,15 +461,69 @@ func (m *model) railView() string {
 		if e := m.procErrByID[spec.ID]; e != "" {
 			rows = append(rows, mutedStyle.Render(e))
 		} else if p, ok := m.procByID[spec.ID]; ok {
-			rows = append(rows,
-				mutedStyle.Render("up   "+humanShortDuration(p.Uptime)),
-				mutedStyle.Render("mem  "+humanize.IBytes(uint64(p.RSS))),
-				mutedStyle.Render(fmt.Sprintf("cpu  %.0f%%", p.CPUPercent)),
-			)
+			rows = append(rows, m.resourceRows(p, m.procHist[spec.ID], m.railTextW())...)
 		}
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
+
+// railGraphH is how many rows each resource graph spans.
+const railGraphH = 2
+
+// resourceRows are the rail's live numbers for a running server: uptime, then a
+// CPU and a memory graph over the recent samples, each under a line with the
+// current value and the scale the graph is drawn against.
+func (m *model) resourceRows(p procstat.Stat, hist []procstat.Stat, w int) []string {
+	if len(hist) > w {
+		hist = hist[len(hist)-w:]
+	}
+	cpu := make([]float64, len(hist))
+	mem := make([]float64, len(hist))
+	var cpuPeak float64
+	var memPeak int64
+	for i, h := range hist {
+		cpu[i], mem[i] = h.CPUPercent, float64(h.RSS)
+		cpuPeak, memPeak = max(cpuPeak, h.CPUPercent), max(memPeak, h.RSS)
+	}
+
+	// CPU is drawn against one full core until it goes past it. Memory is drawn
+	// against the heap limit, or the peak when the limit is unknown; resident
+	// memory can pass the heap limit, so the peak still bounds the scale.
+	memScale, memRight := memPeak, "peak "+shortIBytes(memPeak)
+	if p.MaxHeap > 0 {
+		memScale, memRight = max(p.MaxHeap, memPeak), "heap "+shortIBytes(p.MaxHeap)
+	}
+	return []string{
+		mutedStyle.Render("up   " + humanShortDuration(p.Uptime)),
+		railStatLine(fmt.Sprintf("cpu  %.0f%%", p.CPUPercent), fmt.Sprintf("peak %.0f%%", cpuPeak), w),
+		railGraph(cpu, max(100, cpuPeak), w, accentColor),
+		railStatLine("mem  "+shortIBytes(p.RSS), memRight, w),
+		railGraph(mem, float64(max(memScale, 1)), w, runColor),
+		mutedStyle.Render(fmt.Sprintf("host %.0f%% of RAM", p.MemPercent)),
+	}
+}
+
+// railStatLine puts a value on the left of the rail and its scale on the right.
+func railStatLine(left, right string, w int) string {
+	gap := w - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 1 {
+		return mutedStyle.Render(left)
+	}
+	return mutedStyle.Render(left + strings.Repeat(" ", gap) + right)
+}
+
+// railGraph draws samples as columns rising from the bottom, newest at the
+// right, against a fixed top value.
+func railGraph(data []float64, top float64, w int, color lipgloss.TerminalColor) string {
+	sl := sparkline.New(w, railGraphH,
+		sparkline.WithNoAutoMaxValue(),
+		sparkline.WithMaxValue(top),
+		sparkline.WithStyle(lipgloss.NewStyle().Foreground(color)),
+	)
+	sl.PushAll(data)
+	sl.Draw()
+	return sl.View()
 }
 
 func (m *model) tabBarView(w int) string {
