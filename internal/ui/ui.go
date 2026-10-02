@@ -193,8 +193,7 @@ type model struct {
 }
 
 type updateNotice struct {
-	latest  string
-	command string
+	latest string
 }
 
 func newModel(app App) *model {
@@ -457,9 +456,9 @@ func (m *model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case updateMsg:
 		if msg.err == nil && msg.res.Available {
-			m.update = &updateNotice{latest: msg.res.Latest, command: selfupdate.UpdateCommand(m.app.Repo)}
+			m.update = &updateNotice{latest: msg.res.Latest}
 			if !m.busy {
-				m.status = "Beacon " + msg.res.Latest + " is out — run: " + m.update.command
+				m.status = "Beacon " + msg.res.Latest + " is out. To update, quit and run: " + selfupdate.UpdateCommand
 			}
 			m.relayout()
 		}

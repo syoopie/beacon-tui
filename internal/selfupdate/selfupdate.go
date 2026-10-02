@@ -1,16 +1,21 @@
-// Package selfupdate asks GitHub whether a newer tagged release exists. It only
-// reports; it never downloads or replaces the binary. The install script does
-// that.
+// Package selfupdate asks GitHub whether a newer tagged release exists, and
+// replaces the running binary with one.
 package selfupdate
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 
+	"github.com/minio/selfupdate"
 	"golang.org/x/mod/semver"
 )
 
@@ -21,12 +26,18 @@ type Result struct {
 	Available bool   // Latest is a well-formed version strictly newer than Current
 }
 
-// UpdateCommand is the one-liner that installs the newest release for a repo.
-func UpdateCommand(repo string) string {
+// UpdateCommand is what a user runs to move to the newest release.
+const UpdateCommand = "beacon update"
+
+// InstallCommand is the one-liner that installs the newest release for a repo.
+func InstallCommand(repo string) string {
 	return "curl -fsSL https://raw.githubusercontent.com/" + repo + "/main/install.sh | bash"
 }
 
-const apiBase = "https://api.github.com"
+const (
+	apiBase      = "https://api.github.com"
+	downloadBase = "https://github.com"
+)
 
 // Check reports whether repo has a release newer than current. A network error,
 // a missing release, or an unparseable current version yields a zero Result and,
@@ -79,4 +90,70 @@ func newer(latest, current string) bool {
 		return false
 	}
 	return semver.Compare(latest, current) > 0
+}
+
+// Apply downloads tag's binary for this OS and architecture, checks it against
+// the SHA-256 the release publishes beside it, and swaps it in for the file at
+// target. The swap is a rename, so a running beacon keeps its old binary and a
+// failed update leaves target as it was.
+func Apply(ctx context.Context, repo, tag, target string) error {
+	return apply(ctx, downloadBase, repo, tag, target, AssetName(runtime.GOOS, runtime.GOARCH))
+}
+
+// AssetName is the release file for one platform, as the release workflow and
+// install.sh name it.
+func AssetName(goos, goarch string) string {
+	return "beacon_" + goos + "_" + goarch
+}
+
+func apply(ctx context.Context, base, repo, tag, target, asset string) error {
+	opts := selfupdate.Options{TargetPath: target}
+	if err := opts.CheckPermissions(); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+
+	url := fmt.Sprintf("%s/%s/releases/download/%s/%s", base, repo, tag, asset)
+	sum, err := fetch(ctx, url+".sha256")
+	if err != nil {
+		return err
+	}
+	fields := strings.Fields(string(sum))
+	if len(fields) == 0 {
+		return fmt.Errorf("%s.sha256 is empty", asset)
+	}
+	if opts.Checksum, err = hex.DecodeString(fields[0]); err != nil || len(opts.Checksum) != 32 {
+		return fmt.Errorf("%s.sha256 does not hold a SHA-256", asset)
+	}
+
+	bin, err := fetch(ctx, url)
+	if err != nil {
+		return err
+	}
+	if err := selfupdate.Apply(bytes.NewReader(bin), opts); err != nil {
+		if rerr := selfupdate.RollbackError(err); rerr != nil {
+			return fmt.Errorf("%w; restoring the old binary also failed: %v", err, rerr)
+		}
+		return err
+	}
+	return nil
+}
+
+func fetch(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "beacon-selfupdate")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("download " + url + ": " + resp.Status)
+	}
+	return io.ReadAll(resp.Body)
 }

@@ -1,15 +1,21 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime/debug"
+
+	"golang.org/x/mod/semver"
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/lifecycle"
+	"github.com/syoopie/beacon-tui/internal/selfupdate"
 	"github.com/syoopie/beacon-tui/internal/tmux"
 	"github.com/syoopie/beacon-tui/internal/ui"
 )
@@ -31,7 +37,11 @@ func main() {
 		return
 	}
 
-	if err := run(*configDir, *stateDir); err != nil {
+	cmd := run
+	if flag.NArg() == 1 && flag.Arg(0) == "update" {
+		cmd = func(string, string) error { return update() }
+	}
+	if err := cmd(*configDir, *stateDir); err != nil {
 		fmt.Fprintln(os.Stderr, "beacon: "+err.Error())
 		os.Exit(1)
 	}
@@ -80,6 +90,43 @@ func run(configDir, stateDir string) error {
 
 		ScanOnStart: flag.Arg(0) != "",
 	})
+}
+
+// update replaces this binary with the newest release. Servers keep running:
+// tmux owns them, not this process.
+func update() error {
+	current := buildVersion()
+	if !semver.IsValid(current) {
+		return fmt.Errorf("this is a development build (%s), so there is no release to update from; install one with:\n  %s", current, selfupdate.InstallCommand(repoSlug))
+	}
+
+	ctx := context.Background()
+	res, err := selfupdate.Check(ctx, repoSlug, current)
+	if err != nil {
+		return fmt.Errorf("checking for a new release: %w", err)
+	}
+	if !res.Available {
+		fmt.Printf("beacon %s is the newest version.\n", current)
+		return nil
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if exe, err = filepath.EvalSymlinks(exe); err != nil {
+		return err
+	}
+
+	fmt.Printf("Updating beacon %s to %s...\n", current, res.Latest)
+	if err := selfupdate.Apply(ctx, repoSlug, res.Latest, exe); err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			return fmt.Errorf("cannot write %s; run: sudo beacon update", exe)
+		}
+		return err
+	}
+	fmt.Printf("Updated %s to %s. Running servers were not touched; restart beacon to use the new version.\n", exe, res.Latest)
+	return nil
 }
 
 func buildVersion() string {

@@ -1058,7 +1058,7 @@ func TestUpdateNoticeShowsCommand(t *testing.T) {
 	if !strings.Contains(view, "v0.2.0 available") {
 		t.Fatalf("title missing the update banner:\n%s", view)
 	}
-	if !strings.Contains(m.status, "install.sh | bash") {
+	if !strings.Contains(m.status, "run: beacon update") {
 		t.Fatalf("status = %q, want the update command", m.status)
 	}
 }

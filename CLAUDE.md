@@ -88,5 +88,5 @@ for fixtures: `~/MinecraftServer/BMC4_ServerPack_v61/logs/latest.log`.
 | `internal/mcprops`      | line-preserving editor for server.properties and eula.txt |
 | `internal/rcon`         | poll a running server for its player list         |
 | `internal/procstat`     | read a process's memory, CPU and uptime from `ps` |
-| `internal/selfupdate`   | the startup release check                         |
+| `internal/selfupdate`   | the startup release check and `beacon update`     |
 | `internal/ui`           | the Bubble Tea front end                          |

@@ -201,8 +201,11 @@ then open the console and press `s` to mark it stopped.
 **Can I rename a server?** Not yet. The name is taken from the folder when you
 add it, lowercased with odd characters turned to `-`.
 
-**Does it keep itself updated?** It tells you when a new version is out and shows
-the command to run. Updating is re-running the install line above.
+**Does it keep itself updated?** It tells you when a new version is out. To
+update, quit Beacon and run `beacon update`. Running servers keep running. If
+Beacon is installed somewhere you cannot write to, run `sudo beacon update`.
+v0.1.2 and earlier do not have `beacon update`, so re-run the install line
+above once.
 
 <details>
 <summary>Development</summary>
@@ -256,7 +259,7 @@ not on `PATH`. `make lint` runs golangci-lint if it is installed; CI always does
 | `internal/mcprops`      | line-preserving editor for server.properties and eula.txt |
 | `internal/rcon`         | poll a running server for its player list         |
 | `internal/procstat`     | read a process's memory, CPU and uptime from `ps` |
-| `internal/selfupdate`   | the startup release check                         |
+| `internal/selfupdate`   | the startup release check and `beacon update`     |
 | `internal/ui`           | the Bubble Tea front end                          |
 
 **Cutting a release**
