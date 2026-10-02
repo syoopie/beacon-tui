@@ -269,6 +269,11 @@ func TestServerRowsAreColumnarAndSorted(t *testing.T) {
 
 	m.reports[sp.ID] = reconcile.Report{ID: sp.ID, Derived: server.StatusRunning, PortHealth: reconcile.PortOpen}
 	m.procByID[sp.ID] = procstat.Stat{RSS: 3 * 1024 * 1024 * 1024, CPUPercent: 42, Uptime: 4*time.Hour + 12*time.Minute}
+	for i := range m.specs {
+		if m.specs[i].ID == "creative" {
+			m.specs[i].Port++ // its own port, so its detail is the launch method
+		}
+	}
 	m.refreshItems()
 
 	view := tm.View()
@@ -1562,5 +1567,18 @@ func TestNarrowingTheLogKeepsAFullPageInView(t *testing.T) {
 	m.renderLog()
 	if m.vp.PastBottom() {
 		t.Fatalf("view is scrolled past the filtered log: offset %d of %d lines, height %d", m.vp.YOffset, m.vp.TotalLineCount(), h)
+	}
+}
+
+func TestListFlagsAPortHeldByAnotherServer(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	busy := writeSpec(t, dirs, "survival")
+	idle := writeSpec(t, dirs, "creative")
+	tm = loadRegistry(t, m, tm) // writeSpec gives both the same port
+	m.reports[busy.ID] = reconcile.Report{ID: busy.ID, Derived: server.StatusRunning}
+	m.reports[idle.ID] = reconcile.Report{ID: idle.ID, Derived: server.StatusStopped}
+	m.refreshItems()
+	if view := tm.View(); !strings.Contains(view, "port in use by survival") {
+		t.Fatalf("list should say the stopped server's port is taken:\n%s", view)
 	}
 }

@@ -487,6 +487,10 @@ func (m *model) railContent(graphH int) (string, int) {
 	if word, color := portHealthLabel(r.PortHealth, r.Derived); word != "" {
 		port += " " + lipgloss.NewStyle().Foreground(color).Render(word)
 	}
+	if by := m.portTakenBy(spec); by != "" {
+		port += " " + lipgloss.NewStyle().Foreground(warnColor).Render("in use")
+		port += "\n" + lipgloss.NewStyle().Foreground(warnColor).Render("by "+string(by))
+	}
 	details = append(details,
 		port,
 		mutedStyle.Render("rcon  "+rconRailLabel(spec)),

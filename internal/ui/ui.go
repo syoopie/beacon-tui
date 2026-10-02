@@ -857,6 +857,24 @@ func (m *model) syncSelection() {
 	m.relayout() // the notice banner depends on which server is selected
 }
 
+// portTakenBy names another server with a live session on spec's port, for a
+// spec that is stopped and so could not start while it holds it.
+func (m *model) portTakenBy(spec server.Spec) server.ID {
+	if spec.Port == 0 || m.reports[spec.ID].Derived != server.StatusStopped {
+		return ""
+	}
+	for _, o := range m.specs {
+		if o.ID == spec.ID || o.Port != spec.Port {
+			continue
+		}
+		switch m.reports[o.ID].Derived {
+		case server.StatusStarting, server.StatusRunning, server.StatusStopping:
+			return o.ID
+		}
+	}
+	return ""
+}
+
 func (m *model) refreshItems() {
 	ordered := append([]server.Spec(nil), m.specs...)
 	sort.SliceStable(ordered, func(a, b int) bool {
@@ -870,7 +888,7 @@ func (m *model) refreshItems() {
 	for _, s := range ordered {
 		r := m.reports[s.ID]
 		p, ok := m.procByID[s.ID]
-		items = append(items, serverItem{spec: s, status: r.Derived, health: r.PortHealth, proc: p, hasProc: ok})
+		items = append(items, serverItem{spec: s, status: r.Derived, health: r.PortHealth, proc: p, hasProc: ok, portTakenBy: m.portTakenBy(s)})
 	}
 	m.setListItems(items)
 

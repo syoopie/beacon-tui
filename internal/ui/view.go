@@ -107,6 +107,9 @@ type serverItem struct {
 	health  reconcile.PortHealth
 	proc    procstat.Stat
 	hasProc bool
+	// portTakenBy is another live server on this one's port, which would make
+	// a start fail; empty when there is none.
+	portTakenBy server.ID
 }
 
 func (i serverItem) FilterValue() string { return string(i.spec.ID) }
@@ -226,6 +229,9 @@ func (d serverDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 			if selected {
 				ds = lipgloss.NewStyle()
 			}
+			if si.portTakenBy != "" {
+				ds = lipgloss.NewStyle().Foreground(warnColor)
+			}
 			line += "  " + ds.Render(ansi.Truncate(rowDetail(si), avail, "…"))
 		}
 	}
@@ -249,6 +255,9 @@ func pad(s string, n int) string {
 // starts a stopped one, or a short token for one Beacon has lost. The full text
 // lives in the console and, for the lost case, the notice banner.
 func rowDetail(si serverItem) string {
+	if si.portTakenBy != "" {
+		return "port in use by " + string(si.portTakenBy)
+	}
 	switch statusGroup(si.status) {
 	case 0:
 		if si.hasProc {
