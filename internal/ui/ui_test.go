@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1533,5 +1534,33 @@ func TestClipPathLeftKeepsTheCurrentFolder(t *testing.T) {
 	}
 	if got := clipPathLeft("~/packs", 20); got != "~/packs" {
 		t.Fatalf("a path that fits should be unchanged, got %q", got)
+	}
+}
+
+func TestNarrowingTheLogKeepsAFullPageInView(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+	openConsole(t, m, tm)
+
+	// Narrowing in two steps, as typing a query does: the second step leaves
+	// fewer lines than the first, but more than the offset it inherited.
+	h := m.vp.Height
+	var lines []string
+	for i := range 3 * h {
+		msg := "alpha beta"
+		if i >= 3*h-h/2 {
+			msg = "alpha"
+		}
+		lines = append(lines, fmt.Sprintf("[12:00:00] [Server thread/INFO] [minecraft/Foo]: %s %d", msg, i))
+	}
+	m.appendLogs(lines)
+	m.logQuery = "alpha"
+	m.renderLog()
+	m.vp.GotoBottom()
+	m.logQuery = "alpha beta"
+	m.renderLog()
+	if m.vp.PastBottom() {
+		t.Fatalf("view is scrolled past the filtered log: offset %d of %d lines, height %d", m.vp.YOffset, m.vp.TotalLineCount(), h)
 	}
 }

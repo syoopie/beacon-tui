@@ -950,6 +950,11 @@ func (m *model) renderLog() {
 		return
 	}
 	m.vp.SetContent(m.logBody())
+	// SetContent only resets an offset past the last line, so a filter that
+	// shrinks the log can leave the view scrolled past its last page.
+	if m.vp.PastBottom() {
+		m.vp.GotoBottom()
+	}
 }
 
 // relayout sizes every pane from the current terminal size and mode. It runs on
