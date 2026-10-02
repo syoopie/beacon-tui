@@ -794,7 +794,7 @@ func (m *model) launchDialogView() string {
 		field(lp.argsRow(), lp.args.View()),
 		field(lp.versionRow(), lp.version.View()),
 		subNote("the Minecraft version, for console command help"),
-		field(lp.javaRow(), "Java runtime  "+selectedRow.Render(lp.javaLabel())),
+		field(lp.javaRow(), launchLabel("Java runtime")+selectedRow.Render(lp.javaLabel())),
 		subNote(lp.javaNote()),
 		"",
 		ansi.Wrap(m.hintBar(hint("↑↓", "move"), hint("←→", "java"), hint("space", "method"), hint("enter", "save"), hint("esc", "cancel")), width, ""),

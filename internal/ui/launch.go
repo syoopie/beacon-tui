@@ -41,6 +41,10 @@ type javaChoice struct {
 	path  string // "" means Beacon picks one for the Minecraft version
 }
 
+// launchLabel pads a launch-settings field label so the three fields' values
+// start in one column.
+func launchLabel(s string) string { return fmt.Sprintf("%-14s", s) }
+
 func (lp *launchPrompt) argsRow() int    { return len(lp.opts) }
 func (lp *launchPrompt) versionRow() int { return len(lp.opts) + 1 }
 func (lp *launchPrompt) javaRow() int    { return len(lp.opts) + 2 }
@@ -156,13 +160,13 @@ func (m *model) openLaunch(spec server.Spec) tea.Cmd {
 	}
 
 	ti := textinput.New()
-	ti.Prompt = "arguments  "
+	ti.Prompt = launchLabel("arguments")
 	ti.Placeholder = "e.g. nogui"
 	ti.CharLimit = 256
 	ti.SetValue(args)
 
 	vi := textinput.New()
-	vi.Prompt = "MC version  "
+	vi.Prompt = launchLabel("MC version")
 	vi.Placeholder = "e.g. 1.20.1"
 	vi.CharLimit = 16
 	vi.SetValue(spec.Commands.MCVersion)
