@@ -22,14 +22,23 @@ func TestCheckPortDetectsOSListener(t *testing.T) {
 }
 
 func TestCheckPortNamesRivalSpecsButDoesNotBlock(t *testing.T) {
-	specs := []server.Spec{
-		{ID: "survival", Port: 25565},
-		{ID: "creative", Port: 25565},
-		{ID: "skyblock", Port: 25570},
+	// A port nothing listens on, not 25565: a server running on this machine
+	// would hold that one.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
 	}
-	block := CheckPort(25565, "survival", specs)
+	port := ln.Addr().(*net.TCPAddr).Port
+	_ = ln.Close()
+
+	specs := []server.Spec{
+		{ID: "survival", Port: port},
+		{ID: "creative", Port: port},
+		{ID: "skyblock", Port: port + 1},
+	}
+	block := CheckPort(port, "survival", specs)
 	if block.OSListener {
-		t.Errorf("unexpected OS listener on 25565 during test")
+		t.Errorf("unexpected OS listener on %d during test", port)
 	}
 	if block.Blocked() {
 		t.Errorf("a stopped rival spec must not block the start: %+v", block)

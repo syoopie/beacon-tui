@@ -99,7 +99,7 @@ func testSpec(t *testing.T, dirs config.Dirs, exec server.ExecState, last server
 		Dir:     dir,
 		Start:   "./run.sh",
 		Script:  "run.sh",
-		Port:    25565,
+		Port:    freePort(t), // not 25565: a server running on this machine would hold it
 		Session: server.SessionFor(id),
 		LogFile: dirs.LogFile(id),
 		Exec:    exec,
