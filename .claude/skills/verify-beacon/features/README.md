@@ -16,7 +16,9 @@ Not yet mapped as its own file: the launch-settings dialog (`m.launch`,
 `internal/ui/launch.go`) beyond its Java-runtime row, which
 [lifecycle.md](lifecycle.md) covers, and the self-update banner
 (`internal/selfupdate`, `m.update`). Write the file when you first need to
-verify one.
+verify one. Both the launch dialog and the config editor return to the
+settings overlay on `esc`, with the overlay cursor still on the row that
+opened them, so a drive that wants a different row moves the cursor first.
 
 ## Screens
 

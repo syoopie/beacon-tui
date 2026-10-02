@@ -39,7 +39,20 @@ arbitrary text from outside the program.
   the log (`newLinesRow`, a blank row otherwise, so the log height never
   shifts). Scrolling up alone does not show it; `model.newBelow` is set by an
   arriving line and cleared whenever the view is back at the bottom.
-- **The rail**: player list over RCON, then memory and CPU from `ps`. It only
+- **The rail**: details, the player list over RCON, then Resources while the
+  server runs: uptime, tick speed (`tps 20.0   2.7 ms/tick`) over a graph of
+  tick time against the 50 ms budget, then CPU and memory, each a value line
+  over a graph (`ntcharts` sparkline, newest sample on the right), and the
+  share of host RAM. CPU is the rate between two `ps` samples, drawn against
+  one core or its peak; memory is drawn against the JVM's `-Xmx`, read from
+  the command line or an `@argfile` such as `user_jvm_args.txt` (`heap 8.0G`),
+  or against its peak when there is none. Tick speed rides on the RCON player
+  poll (`rcon.Client.tick`): the first poll tries `neoforge tps`, `forge tps`,
+  `tick query`, `tps` and the client keeps the first that parses, so the TPS
+  line is missing with RCON off or on a server none of them answers. Graphs
+  are two rows, drop to one and then to none when the rail would outgrow the
+  body (`railView`), and the rail is clipped at the body height. A tick time
+  far under 50 ms draws as a blank graph row, not a missing one. It only
   appears above 64 inner columns. The port line (and the header's) adds
   `starting` while a live session has not opened its port, `stopping` once a
   shutdown has closed it, `ready` when it accepts connections
@@ -153,3 +166,16 @@ column throughout.
   to reach interesting content; `BMC4_ServerPack_v61/logs/latest.log` has ~6000.
 - The rail says "RCON is off" unless the spec has `[rcon] enabled = true`. Edit
   the fixture's `servers/*.toml` to exercise the player list.
+- **Beacon writes into the server log it shows.** Every RCON connection logs
+  `Thread RCON Client /127.0.0.1 started` / `shutting down` on the server, and
+  the `/help` fetch on a pack with FTB Essentials logs two `ERROR Error getting
+  permission value for node ftbessentials.rtp...` lines the first time the
+  input opens in a Beacon session (`helpFetchCmd` waits for `m.console`).
+  These are Beacon's own traffic, not the fixture's, and they land wherever
+  the drive is looking. Another Beacon open on the same machine
+  (`pgrep -fl beacon`) adds its own.
+- The Resources graphs need samples: the process graphs fill one column per
+  3 s poll, tick time one per 10 s RCON poll. `wait:25` after opening the
+  console shows a few columns of each. A one-row rail graph needs `--rows` in
+  the low 30s; at 24 rows Details and Players fill the rail and Resources is
+  clipped, which is the current behaviour, not a harness fault.

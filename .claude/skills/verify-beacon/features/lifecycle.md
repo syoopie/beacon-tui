@@ -66,6 +66,13 @@ W=/tmp/beacon-lifecycle; rm -rf $W; cp -R /tmp/beacon-fixture $W
 tmux kill-session -t beacon-bmc4_serverpack_v61
 ```
 
+Start can be driven without a JVM that stays up. A sandbox pack (see
+[adding-a-server.md](adding-a-server.md)) whose `server.jar` is an empty file,
+with its EULA accepted, starts for real and dies at once with `Error: Invalid
+or corrupt jarfile server.jar`. The session is gone by the next reconcile, so
+nothing needs tearing down, and the `stopped on its own` notice quotes that
+line. Note the status line still reads `<id> started` under it.
+
 A modpack server takes minutes to reach "Done", so `wait:` in tens of seconds,
 and prefer watching the console log for the "Done (" line over guessing.
 
