@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -15,7 +17,7 @@ type Spec struct {
 	Dir     string    `toml:"dir"`    // absolute path to the server directory
 	Start   string    `toml:"start"`  // shell command run inside Dir
 	Script  string    `toml:"script"` // start script relative to Dir, empty when launching a jar directly
-	Java    string    `toml:"java"`   // absolute path to a java executable; empty means the java on PATH
+	Java    string    `toml:"java"`   // absolute path to a java executable; empty means Beacon picks one for the Minecraft version
 	Port    int       `toml:"port"`
 	Session Session   `toml:"session"`
 	LogFile string    `toml:"log_file"` // absolute
@@ -64,10 +66,21 @@ func (c Commands) validate() error {
 // for this server. It is off only when the operator set it so.
 func (c Commands) CompletionEnabled() bool { return c.Completion != "off" }
 
-// ValidMCVersion reports whether s is a Minecraft version string Beacon accepts,
-// like "1.20" or "1.20.1". The empty string is not valid here; callers that
-// allow "unset" check for that themselves.
-func ValidMCVersion(s string) bool { return mcVersionRe.MatchString(s) }
+// ValidMCVersion reports whether s is a version Minecraft could have: "1.20",
+// "1.20.1", or a year-numbered release like "26.2" (the scheme Minecraft moved
+// to in 2026). A loader version such as NeoForge's "21.1.251" has the same
+// shape but no Minecraft release, so it is refused. The empty string is not
+// valid here; callers that allow "unset" check for that themselves.
+//
+// A spec on disk only has to match the shape (Commands.validate), so a value
+// an older import wrote still loads and DetectCommands can replace it.
+func ValidMCVersion(s string) bool {
+	if !mcVersionRe.MatchString(s) {
+		return false
+	}
+	major, err := strconv.Atoi(s[:strings.IndexByte(s, '.')])
+	return err == nil && (major == 1 || major >= 26)
+}
 
 // RCON mirrors server.properties. The password is plaintext on disk, which is
 // why spec files are 0600.

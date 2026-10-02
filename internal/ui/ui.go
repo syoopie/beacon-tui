@@ -1054,7 +1054,7 @@ func (m *model) detectCommandsCmd() tea.Cmd {
 	}
 	var cmds []tea.Cmd
 	for _, s := range m.specs {
-		if s.Commands.MCVersion != "" || m.cmdDetectTried[s.ID] {
+		if server.ValidMCVersion(s.Commands.MCVersion) || m.cmdDetectTried[s.ID] {
 			continue
 		}
 		m.cmdDetectTried[s.ID] = true

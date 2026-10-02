@@ -382,6 +382,37 @@ func TestDetectCommandsBackfillsAndPersists(t *testing.T) {
 	}
 }
 
+// An import before installer detection stored NeoForge's own version as the
+// Minecraft version. No Minecraft release is numbered 21.x, so the backfill
+// treats it as unset and replaces it.
+func TestDetectCommandsReplacesALoaderVersionStoredAsMinecraft(t *testing.T) {
+	dirs := testDirs(t)
+	m := newManager(&fakeSup{}, dirs)
+	spec := testSpec(t, dirs, server.ExecOK, server.StatusStopped)
+	spec.Commands = server.Commands{MCVersion: "21.1.251", Loader: "neoforge"}
+	if err := os.WriteFile(filepath.Join(spec.Dir, "neoforge-21.1.251-installer.jar"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.SaveSpec(dirs, spec); err != nil {
+		t.Fatalf("a spec holding the old value must still save and load: %v", err)
+	}
+
+	got, changed, err := m.DetectCommands(spec)
+	if err != nil || !changed {
+		t.Fatalf("DetectCommands = changed %v, err %v; want a change", changed, err)
+	}
+	if got.Commands.MCVersion != "1.21.1" {
+		t.Fatalf("mc_version = %q, want 1.21.1", got.Commands.MCVersion)
+	}
+	reloaded, err := config.LoadSpec(dirs.ServerFile(spec.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Commands.MCVersion != "1.21.1" {
+		t.Fatalf("persisted mc_version = %q", reloaded.Commands.MCVersion)
+	}
+}
+
 func TestDetectCommandsLeavesAHandSetValueAlone(t *testing.T) {
 	dirs := testDirs(t)
 	m := newManager(&fakeSup{}, dirs)

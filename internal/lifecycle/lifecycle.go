@@ -370,14 +370,17 @@ func (m *Manager) PruneScanRoots() (config.Config, error) {
 // DetectCommands fills a spec's [commands] mc_version and loader from a fresh
 // scan of its directory when they are blank, and persists the result under the
 // host lock. It backfills a server imported before detection existed the first
-// time Beacon loads it, and never touches a value the operator set by hand.
-// changed reports whether anything was written.
+// time Beacon loads it, and never touches a valid value the operator set by
+// hand. An mc_version no Minecraft release has (an older import stored the
+// NeoForge version there) counts as blank and is replaced, or cleared when
+// the scan finds nothing better. changed reports whether anything was written.
 func (m *Manager) DetectCommands(spec server.Spec) (out server.Spec, changed bool, err error) {
-	if spec.Commands.MCVersion != "" && spec.Commands.Loader != "" {
+	knownVersion := server.ValidMCVersion(spec.Commands.MCVersion)
+	if knownVersion && spec.Commands.Loader != "" {
 		return spec, false, nil
 	}
 	mcVersion, loader := importdetect.Identify(spec.Dir)
-	if spec.Commands.MCVersion == "" && mcVersion != "" {
+	if !knownVersion && spec.Commands.MCVersion != mcVersion {
 		spec.Commands.MCVersion = mcVersion
 		changed = true
 	}

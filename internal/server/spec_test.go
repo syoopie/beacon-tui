@@ -98,3 +98,21 @@ func TestSpecValidateCommands(t *testing.T) {
 		t.Fatalf("two-part mc_version rejected: %v", err)
 	}
 }
+
+func TestValidMCVersion(t *testing.T) {
+	for v, want := range map[string]bool{
+		"1.20.1":   true,
+		"1.21":     true,
+		"26.2":     true,
+		"26.1.1":   true,
+		"21.1.251": false, // a NeoForge version, not a Minecraft one
+		"20.4":     false,
+		"0.1":      false,
+		"1":        false,
+		"":         false,
+	} {
+		if got := ValidMCVersion(v); got != want {
+			t.Errorf("ValidMCVersion(%q) = %v, want %v", v, got, want)
+		}
+	}
+}
