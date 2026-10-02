@@ -851,20 +851,33 @@ func TestConsoleSendsTypedLineToRunningServer(t *testing.T) {
 		t.Fatal("pressing t in the console view did not open the input")
 	}
 
-	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("say hi")})
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("hi")})
 	_, msgs := drive(t, tm, tea.KeyMsg{Type: tea.KeyEnter})
 	for _, msg := range msgs {
 		tm, _ = drive(t, tm, msg)
 	}
 
 	if got := sup.sentLines(); len(got) != 1 || got[0] != "say hi" {
-		t.Fatalf("sent lines = %v, want [say hi]", got)
+		t.Fatalf("sent lines = %v, want a plain line sent as chat, [say hi]", got)
 	}
 	if m.console != nil {
 		t.Fatal("sending a line should close the input, like esc")
 	}
 	if !strings.Contains(m.status, "say hi") {
 		t.Fatalf("status = %q, want it to confirm the sent line", m.status)
+	}
+}
+
+func TestServerLineSendsSlashLinesAsCommands(t *testing.T) {
+	cases := map[string]string{
+		"hello there":   "say hello there",
+		"/time set day": "/time set day",
+		"/":             "/",
+	}
+	for typed, want := range cases {
+		if got := serverLine(typed); got != want {
+			t.Fatalf("serverLine(%q) = %q, want %q", typed, got, want)
+		}
 	}
 }
 

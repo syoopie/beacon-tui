@@ -631,8 +631,7 @@ func (m *model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // --- modal input: console ---
 
 // openConsole focuses a one-line input for the selected server's console,
-// seeded with prefill. It stays open after a send so the operator can type
-// again. A line that starts with "/" is command mode: the completion panel
+// seeded with prefill. Sending a line closes it, the same as esc. A line that starts with "/" is command mode: the completion panel
 // shows and the arrows cycle it. Otherwise it is a plain line and the arrows
 // walk history, the way Minecraft's own chat box behaves.
 func (m *model) openConsole(spec server.Spec, prefill string) tea.Cmd {
@@ -651,6 +650,16 @@ func (m *model) openConsole(spec server.Spec, prefill string) tea.Cmd {
 	m.relayout()
 	m.vp.GotoBottom() // opening to type means you want the live tail
 	return textinput.Blink
+}
+
+// serverLine is what a typed line becomes on the server's stdin. The console
+// runs whatever it reads as a command, so a slash line goes as typed and a plain
+// line is chat, sent through "say" the way the in-game chat box would send it.
+func serverLine(typed string) string {
+	if strings.HasPrefix(typed, "/") {
+		return typed
+	}
+	return "say " + typed
 }
 
 // commandMode reports whether the open console input is a command line: it
@@ -714,8 +723,9 @@ func (m *model) updateConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		// Sending closes the input, the same as esc; the confirmation lands on
 		// the status line and the log is back in full view for the reply.
-		next, _ := m.closeConsole(string(spec.ID) + " ‹ " + line)
-		return next, tea.Batch(m.consoleCmd(spec, line), save)
+		send := serverLine(line)
+		next, _ := m.closeConsole(string(spec.ID) + " ‹ " + send)
+		return next, tea.Batch(m.consoleCmd(spec, send), save)
 	}
 
 	ti, cmd := m.console.Update(msg)
