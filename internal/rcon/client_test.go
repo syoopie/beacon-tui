@@ -2,14 +2,22 @@ package rcon
 
 import (
 	"net"
+	"reflect"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 )
 
-// fakeListServer answers auth then "list" forever on every connection it
-// accepts, and counts how many connections it has accepted.
+// fakeListServer answers auth then every command with reply, forever, on every
+// connection it accepts, and counts how many connections it has accepted.
 func fakeListServer(t *testing.T, reply string) (addr string, connects *int32) {
+	t.Helper()
+	return fakeServer(t, func(string) string { return reply })
+}
+
+// fakeServer is fakeListServer with a reply chosen per command.
+func fakeServer(t *testing.T, reply func(cmd string) string) (addr string, connects *int32) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -31,7 +39,7 @@ func fakeListServer(t *testing.T, reply string) (addr string, connects *int32) {
 	return ln.Addr().String(), &count
 }
 
-func serveOneConn(conn net.Conn, reply string) {
+func serveOneConn(conn net.Conn, reply func(cmd string) string) {
 	defer func() { _ = conn.Close() }()
 	for {
 		id, typ, body, err := readPacket(conn)
@@ -50,7 +58,7 @@ func serveOneConn(conn net.Conn, reply string) {
 			// command and checks the reply mirrors it, so echo id rather than
 			// help.go's own rconCmdID (a constant meaningful only to Help's
 			// hand-rolled protocol client, not gorcon's).
-			_ = writeRaw(conn, id, rconTypeResponse, reply)
+			_ = writeRaw(conn, id, rconTypeResponse, reply(body))
 		}
 	}
 }
@@ -116,5 +124,65 @@ func TestDialGivesUpAfterMaxReconnectTries(t *testing.T) {
 	// 3 tries means 2 backoff sleeps (500ms, 1s) between them.
 	if elapsed < 1400*time.Millisecond {
 		t.Fatalf("Dial gave up too fast for 3 tries with backoff: %v", elapsed)
+	}
+}
+
+func TestClientPollFindsAndRemembersTickSource(t *testing.T) {
+	var asked []string
+	var mu sync.Mutex
+	addr, _ := fakeServer(t, func(cmd string) string {
+		mu.Lock()
+		asked = append(asked, cmd)
+		mu.Unlock()
+		switch cmd {
+		case "list":
+			return "There are 0 of a max of 20 players online:"
+		case "tick query":
+			return "The game is running normally\nTarget tick rate: 20.0 per second.\nAverage time per tick: 2.1ms (Target: 50.0ms)\n"
+		}
+		return "Unknown or incomplete command, see below for error\n" + cmd + "<--[HERE]"
+	})
+	c, err := Dial(addr, "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.Close() }()
+
+	for range 2 {
+		snap, err := c.Poll()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if snap.Tick == nil || snap.Tick.TPS != 20 || snap.Tick.MSPT != 2.1 {
+			t.Fatalf("Tick = %+v, want 20 TPS at 2.1 ms", snap.Tick)
+		}
+	}
+	want := []string{"list", "neoforge tps", "forge tps", "tick query", "list", "tick query"}
+	if !reflect.DeepEqual(asked, want) {
+		t.Fatalf("commands = %q, want %q", asked, want)
+	}
+}
+
+func TestClientPollStopsAskingWhenNoTickSource(t *testing.T) {
+	var ticks int32
+	addr, _ := fakeServer(t, func(cmd string) string {
+		if cmd == "list" {
+			return "There are 0 of a max of 20 players online:"
+		}
+		atomic.AddInt32(&ticks, 1)
+		return "Unknown command"
+	})
+	c, err := Dial(addr, "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.Close() }()
+	for range 3 {
+		if snap, err := c.Poll(); err != nil || snap.Tick != nil {
+			t.Fatalf("Poll = %+v %v, want a snapshot without a tick", snap, err)
+		}
+	}
+	if n := atomic.LoadInt32(&ticks); n != int32(len(tickSources)) {
+		t.Fatalf("tick commands sent = %d, want one probe of each (%d)", n, len(tickSources))
 	}
 }

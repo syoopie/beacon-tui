@@ -11,11 +11,12 @@ import (
 	gorcon "github.com/gorcon/rcon"
 )
 
-// Snapshot is one poll of a server's player list.
+// Snapshot is one poll of a server's player list and tick speed.
 type Snapshot struct {
 	Online  int
 	Max     int
 	Players []string
+	Tick    *Tick // nil when the server has no command that reports it
 }
 
 const timeout = 3 * time.Second
@@ -36,6 +37,11 @@ type Client struct {
 	conn     *gorcon.Conn
 	addr     string
 	password string
+
+	// tickSource indexes tickSources: the command that last answered, or
+	// len(tickSources) once every one has been tried and none did. -1 until the
+	// first poll finds out.
+	tickSource int
 }
 
 // Dial opens the connection a Client polls over, retrying with exponential
@@ -46,7 +52,7 @@ func Dial(addr, password string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{conn: conn, addr: addr, password: password}, nil
+	return &Client{conn: conn, addr: addr, password: password, tickSource: -1}, nil
 }
 
 func dialOnce(addr, password string) (*gorcon.Conn, error) {
@@ -95,7 +101,45 @@ func (c *Client) Poll() (Snapshot, error) {
 			return Snapshot{}, err
 		}
 	}
-	return parseList(out)
+	snap, err := parseList(out)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	snap.Tick = c.tick()
+	return snap, nil
+}
+
+// tick asks for the server's tick speed. The first call tries each of
+// tickSources until one answers, and later calls go straight to that one. A
+// failure is no tick this time rather than an error: the player list it rides
+// along with has already been read.
+func (c *Client) tick() *Tick {
+	if c.tickSource >= 0 {
+		if c.tickSource == len(tickSources) {
+			return nil
+		}
+		src := tickSources[c.tickSource]
+		out, err := c.conn.Execute(src.cmd)
+		if err != nil {
+			return nil
+		}
+		if t, ok := src.parse(out); ok {
+			return &t
+		}
+		return nil
+	}
+	for i, src := range tickSources {
+		out, err := c.conn.Execute(src.cmd)
+		if err != nil {
+			return nil // the connection broke mid-probe; probe again next poll
+		}
+		if t, ok := src.parse(out); ok {
+			c.tickSource = i
+			return &t
+		}
+	}
+	c.tickSource = len(tickSources)
+	return nil
 }
 
 // listRE matches both "There are 2 of a max of 20 players online: a, b" and the

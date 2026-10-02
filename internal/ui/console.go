@@ -26,6 +26,7 @@ func (m *model) openConsoleScreen() {
 	m.screen = screenConsole
 	m.closeRconClient()
 	m.rconSnap = rcon.Snapshot{}
+	m.tickHist = nil
 	m.rconErr = ""
 	m.rconAt = time.Time{}
 	m.ensureConsoleData()
@@ -407,12 +408,27 @@ func (m *model) railStrip(w int) string {
 			fmt.Sprintf("cpu %.0f%%", p.CPUPercent),
 		)
 	}
+	if n := len(m.tickHist); n > 0 {
+		parts = append(parts, fmt.Sprintf("tps %.1f", m.tickHist[n-1].TPS))
+	}
 	return lipgloss.NewStyle().MaxWidth(max(w, 1)).Render(mutedStyle.Render(strings.Join(parts, "  ·  ")))
 }
 
 // railView is the console's right column: the server's fixed details always, and
 // its players and live resource use while it is running.
 func (m *model) railView() string {
+	// Graphs shrink, then go, before the rail runs off the bottom.
+	var v string
+	for graphH := 2; graphH >= 0; graphH-- {
+		if v = m.railContent(graphH); lipgloss.Height(v) <= m.bodyH {
+			break
+		}
+	}
+	return v
+}
+
+// railContent is the rail with each graph graphH rows tall, or none at 0.
+func (m *model) railContent(graphH int) string {
 	spec, ok := m.selected()
 	if !ok {
 		return ""
@@ -461,22 +477,23 @@ func (m *model) railView() string {
 		if e := m.procErrByID[spec.ID]; e != "" {
 			rows = append(rows, mutedStyle.Render(e))
 		} else if p, ok := m.procByID[spec.ID]; ok {
-			rows = append(rows, m.resourceRows(p, m.procHist[spec.ID], m.railTextW())...)
+			rows = append(rows, m.resourceRows(p, m.procHist[spec.ID], m.tickHist, m.railTextW(), graphH)...)
 		}
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
-// railGraphH is how many rows each resource graph spans.
-const railGraphH = 2
-
-// resourceRows are the rail's live numbers for a running server: uptime, then a
-// CPU and a memory graph over the recent samples, each under a line with the
-// current value and the scale the graph is drawn against.
-func (m *model) resourceRows(p procstat.Stat, hist []procstat.Stat, w int) []string {
+// resourceRows are the rail's live numbers for a running server: uptime, then
+// graphs of tick time, CPU and memory over the recent samples, each under a line
+// with the current value and the scale the graph is drawn against. Tick speed
+// comes over RCON and is left out when the server does not report it.
+func (m *model) resourceRows(p procstat.Stat, hist []procstat.Stat, ticks []rcon.Tick, w, graphH int) []string {
 	if len(hist) > w {
 		hist = hist[len(hist)-w:]
+	}
+	if len(ticks) > w {
+		ticks = ticks[len(ticks)-w:]
 	}
 	cpu := make([]float64, len(hist))
 	mem := make([]float64, len(hist))
@@ -494,14 +511,45 @@ func (m *model) resourceRows(p procstat.Stat, hist []procstat.Stat, w int) []str
 	if p.MaxHeap > 0 {
 		memScale, memRight = max(p.MaxHeap, memPeak), "heap "+shortIBytes(p.MaxHeap)
 	}
-	return []string{
-		mutedStyle.Render("up   " + humanShortDuration(p.Uptime)),
-		railStatLine(fmt.Sprintf("cpu  %.0f%%", p.CPUPercent), fmt.Sprintf("peak %.0f%%", cpuPeak), w),
-		railGraph(cpu, max(100, cpuPeak), w, accentColor),
-		railStatLine("mem  "+shortIBytes(p.RSS), memRight, w),
-		railGraph(mem, float64(max(memScale, 1)), w, runColor),
-		mutedStyle.Render(fmt.Sprintf("host %.0f%% of RAM", p.MemPercent)),
+	rows := []string{mutedStyle.Render("up   " + humanShortDuration(p.Uptime))}
+	rows = append(rows, tickRows(ticks, w, graphH)...)
+	rows = append(rows, railStatLine(fmt.Sprintf("cpu  %.0f%%", p.CPUPercent), fmt.Sprintf("peak %.0f%%", cpuPeak), w))
+	rows = append(rows, railGraph(cpu, max(100, cpuPeak), w, graphH, accentColor)...)
+	rows = append(rows, railStatLine("mem  "+shortIBytes(p.RSS), memRight, w))
+	rows = append(rows, railGraph(mem, float64(max(memScale, 1)), w, graphH, runColor)...)
+	return append(rows, mutedStyle.Render(fmt.Sprintf("host %.0f%% of RAM", p.MemPercent)))
+}
+
+// tickBudgetMS is the time one tick may take at 20 TPS.
+const tickBudgetMS = 50
+
+// tickRows are the TPS line and, when the server reports tick time, a graph of
+// it against the 50 ms a tick may take before the server falls behind. The
+// graph's colour is the current health: green at full speed, amber when it has
+// slipped, red when players will notice.
+func tickRows(ticks []rcon.Tick, w, graphH int) []string {
+	if len(ticks) == 0 {
+		return nil
 	}
+	last := ticks[len(ticks)-1]
+	tps := fmt.Sprintf("tps  %.1f", last.TPS)
+	if last.MSPT == 0 {
+		return []string{mutedStyle.Render(tps)}
+	}
+	mspt := make([]float64, len(ticks))
+	peak := float64(tickBudgetMS)
+	for i, t := range ticks {
+		mspt[i], peak = t.MSPT, max(peak, t.MSPT)
+	}
+	color := runColor
+	switch {
+	case last.TPS < 15:
+		color = errColor
+	case last.TPS < 19.5:
+		color = warnColor
+	}
+	return append([]string{railStatLine(tps, fmt.Sprintf("%.1f ms/tick", last.MSPT), w)},
+		railGraph(mspt, peak, w, graphH, color)...)
 }
 
 // railStatLine puts a value on the left of the rail and its scale on the right.
@@ -515,15 +563,18 @@ func railStatLine(left, right string, w int) string {
 
 // railGraph draws samples as columns rising from the bottom, newest at the
 // right, against a fixed top value.
-func railGraph(data []float64, top float64, w int, color lipgloss.TerminalColor) string {
-	sl := sparkline.New(w, railGraphH,
+func railGraph(data []float64, top float64, w, h int, color lipgloss.TerminalColor) []string {
+	if h == 0 {
+		return nil
+	}
+	sl := sparkline.New(w, h,
 		sparkline.WithNoAutoMaxValue(),
 		sparkline.WithMaxValue(top),
 		sparkline.WithStyle(lipgloss.NewStyle().Foreground(color)),
 	)
 	sl.PushAll(data)
 	sl.Draw()
-	return sl.View()
+	return []string{sl.View()}
 }
 
 func (m *model) tabBarView(w int) string {

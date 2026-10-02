@@ -151,6 +151,7 @@ type model struct {
 	cmdHelpInFlight bool
 
 	rconSnap     rcon.Snapshot
+	tickHist     []rcon.Tick // the selected server's tick speed, oldest first
 	rconErr      string
 	rconAt       time.Time
 	rconInFlight bool
@@ -330,6 +331,12 @@ func (m *model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rconErr = "can't reach RCON"
 		} else {
 			m.rconSnap, m.rconErr = msg.snap, ""
+			if t := msg.snap.Tick; t != nil {
+				m.tickHist = append(m.tickHist, *t)
+				if len(m.tickHist) > procHistLen {
+					m.tickHist = m.tickHist[len(m.tickHist)-procHistLen:]
+				}
+			}
 			if m.completer != nil {
 				m.completer.SetPlayers(msg.snap.Players)
 				m.recomputeCompletion() // a new name may match what is half-typed
@@ -825,6 +832,7 @@ func (m *model) syncSelection() {
 	m.logSearch = nil
 	m.closeRconClient()
 	m.rconSnap = rcon.Snapshot{}
+	m.tickHist = nil
 	m.rconErr = ""
 	m.rconAt = time.Time{}
 	m.vp.SetContent("")
@@ -1388,8 +1396,8 @@ func (m *model) procPollCmd() tea.Cmd {
 	}
 }
 
-// procHistLen is how many samples the rail graphs keep per server: three
-// minutes at the poll cadence. The rail draws the newest that fit its width.
+// procHistLen is how many samples each rail graph keeps: three minutes of
+// process samples, ten of RCON tick samples. The rail draws the newest that fit.
 const procHistLen = 60
 
 // recordProc takes a poll's samples, turns ps's CPU figure into the current

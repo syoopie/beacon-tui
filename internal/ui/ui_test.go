@@ -946,7 +946,7 @@ func TestConsolePlayerRail(t *testing.T) {
 	sup.present[spec.Session] = true
 	m.reports[spec.ID] = reconcile.Report{ID: spec.ID, Derived: server.StatusRunning, PortHealth: reconcile.PortOpen}
 
-	snap := rcon.Snapshot{Online: 3, Max: 20, Players: []string{"Steve", "Alex", "Herobrine"}}
+	snap := rcon.Snapshot{Online: 3, Max: 20, Players: []string{"Steve", "Alex", "Herobrine"}, Tick: &rcon.Tick{TPS: 18.2, MSPT: 54.9}}
 	tm, _ = drive(t, tm, rconMsg{id: spec.ID, snap: snap})
 	view := tm.View()
 	for _, want := range []string{"3 / 20 online", "Steve", "Herobrine"} {
@@ -967,7 +967,7 @@ func TestConsolePlayerRail(t *testing.T) {
 		errs: map[server.ID]string{},
 	})
 	view = tm.View()
-	for _, want := range []string{"Resources", "up   1h30m", "mem  2.0G", "heap 4.0G", "cpu  31%", "peak 31%", "host 12% of RAM"} {
+	for _, want := range []string{"Resources", "up   1h30m", "mem  2.0G", "heap 4.0G", "cpu  31%", "peak 31%", "host 12% of RAM", "tps  18.2", "54.9 ms/tick"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("rail should show the sampled memory, CPU and uptime; missing %q:\n%s", want, view)
 		}
