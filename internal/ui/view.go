@@ -733,7 +733,7 @@ func (m *model) launchDialogView() string {
 			note = "runs the installer the first time, then starts the server directly"
 		}
 		if o.Script != "" && !o.Exec.Launchable() {
-			note += "   (not exec java; press p after saving to try to fix it)"
+			note += "   (does not exec java; after saving, press a and choose Fix start script)"
 		}
 		rows = append(rows, marker+radio+label, subNote(note))
 	}
