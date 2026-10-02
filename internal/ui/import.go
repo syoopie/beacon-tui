@@ -20,8 +20,9 @@ type patchPrompt struct {
 
 // importCmd scans the configured roots and writes a spec for every server
 // directory that is not already in the registry, keyed by directory so a
-// re-scan does not duplicate anything.
-func (m *model) importCmd() tea.Cmd {
+// re-scan does not duplicate anything. focus is the folder an add from the
+// picker named, or ""; the server found in it comes back to be selected.
+func (m *model) importCmd(focus string) tea.Cmd {
 	dirs, mgr := m.app.Dirs, m.app.Mgr
 	return func() tea.Msg {
 		// Read the registry from disk, not m.specs: a scan at startup runs before
@@ -58,8 +59,12 @@ func (m *model) importCmd() tea.Cmd {
 		if err != nil {
 			return opDoneMsg{label: "scan", err: err}
 		}
+		var specs []server.Spec
 		done := func(msg opDoneMsg) opDoneMsg {
 			msg.cfg = &cfg
+			if focus != "" {
+				msg.focus = serverIn(focus, append(specs, known...))
+			}
 			return msg
 		}
 		roots := cfg.ScanRoots
@@ -99,7 +104,7 @@ func (m *model) importCmd() tea.Cmd {
 			return done(opDoneMsg{label: "import: nothing new under the scan roots"})
 		}
 
-		specs := importdetect.BuildSpecs(dirs, fresh, takenID)
+		specs = importdetect.BuildSpecs(dirs, fresh, takenID)
 		for _, s := range specs {
 			if err := config.SaveSpec(dirs, s); err != nil {
 				return done(opDoneMsg{label: "import", err: err})
@@ -120,6 +125,25 @@ func (m *model) importCmd() tea.Cmd {
 		}
 		return done(opDoneMsg{label: label})
 	}
+}
+
+// serverIn picks the server an add of dir refers to: the one whose folder is
+// dir, failing that the first one inside it, in the order given.
+func serverIn(dir string, specs []server.Spec) server.ID {
+	if abs, err := filepath.Abs(dir); err == nil {
+		dir = abs
+	}
+	for _, s := range specs {
+		if s.Dir == dir {
+			return s.ID
+		}
+	}
+	for _, s := range specs {
+		if strings.HasPrefix(s.Dir, dir+string(filepath.Separator)) {
+			return s.ID
+		}
+	}
+	return ""
 }
 
 func (m *model) planPatchCmd(spec server.Spec) tea.Cmd {

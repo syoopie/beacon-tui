@@ -577,7 +577,7 @@ func TestScanDropsTheRootOfADeletedServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	saveScanRoots(t, dirs, gone, filepath.Join(root, "mc"))
-	tm = drainMsgs(t, tm, runCmd(t, m.importCmd()))
+	tm = drainMsgs(t, tm, runCmd(t, m.importCmd("")))
 	if err := os.RemoveAll(gone); err != nil {
 		t.Fatal(err)
 	}
@@ -664,6 +664,42 @@ func TestPickedFolderIsAddedAndScanned(t *testing.T) {
 	}
 	if len(specs) != 1 || specs[0].ID != "survival" {
 		t.Fatalf("import after add wrote %+v, want one spec 'survival'", specs)
+	}
+}
+
+// Adding a server from the add row used to leave the cursor on the add row, so
+// the server just added was not the one selected.
+func TestAddFromTheAddRowSelectsTheNewServer(t *testing.T) {
+	m, tm, _, dirs, root := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	saveScanRoots(t, dirs)
+	tm = loadRegistry(t, m, tm)
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyUp})
+	if !m.onAddRow {
+		t.Fatal("up from the first server should focus the add row")
+	}
+
+	added := filepath.Join(root, "creative")
+	if err := writeRunScript(t, added); err != nil {
+		t.Fatal(err)
+	}
+	// rootAddedMsg -> import -> reload, each a message the last one returns.
+	msgs := runCmd(t, m.addRootCmd(added))
+	for range 3 {
+		var next []tea.Msg
+		for _, msg := range msgs {
+			var out []tea.Msg
+			tm, out = drive(t, tm, msg)
+			next = append(next, out...)
+		}
+		msgs = next
+	}
+
+	if m.onAddRow {
+		t.Fatal("the cursor stayed on the add row after the add")
+	}
+	if m.selID != "creative" {
+		t.Fatalf("selected %q after adding creative", m.selID)
 	}
 }
 

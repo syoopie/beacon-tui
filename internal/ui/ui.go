@@ -97,6 +97,9 @@ type model struct {
 	// every registry reload. The lifecycle manager is the real gate; this just
 	// drives the notice banner and the menu row.
 	eula map[server.ID]bool
+	// focusID is a server just added from the picker. The next list refresh
+	// that shows it moves the cursor onto it, off the add row.
+	focusID server.ID
 	// installerFix names the Beacon-managed installer launch a server could
 	// switch to when its current launch can't be started, refreshed on reload.
 	installerFix map[server.ID]string
@@ -263,7 +266,7 @@ func (m *model) Init() tea.Cmd {
 	if m.app.ScanOnStart {
 		m.busy = true
 		m.status = "scanning your folders…"
-		cmds = append(cmds, m.importCmd())
+		cmds = append(cmds, m.importCmd(""))
 	}
 	return tea.Batch(cmds...)
 }
@@ -382,6 +385,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.cfg != nil {
 			m.app.Cfg = *msg.cfg
 		}
+		if msg.focus != "" {
+			m.focusID = msg.focus
+		}
 		if msg.err != nil {
 			m.status = msg.label + ": " + msg.err.Error()
 		} else {
@@ -416,7 +422,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.app.Cfg = msg.cfg
 		m.busy = true
 		m.status = "scanning the folder you added…"
-		return m, m.importCmd()
+		return m, m.importCmd(msg.dir)
 
 	case updateMsg:
 		if msg.err == nil && msg.res.Available {
@@ -517,7 +523,7 @@ func (m *model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.busy = true
 		m.status = "scanning your folders…"
-		return m, m.importCmd()
+		return m, m.importCmd("")
 
 	case len(m.specs) == 0 && key.Matches(msg, m.keys.Add):
 		// The landing screen has no search bar, so a still adds a server there.
@@ -833,7 +839,7 @@ func (m *model) refreshItems() {
 	// The sort and the filter can move the selected server, so re-point the
 	// cursor at it by ID, failing that at the first row.
 	vis := m.list.VisibleItems()
-	target, first := -1, -1
+	target, first, focus := -1, -1, -1
 	for i, it := range vis {
 		s, ok := it.(serverItem)
 		if !ok {
@@ -845,6 +851,14 @@ func (m *model) refreshItems() {
 		if m.selID != "" && s.spec.ID == m.selID {
 			target = i
 		}
+		if m.focusID != "" && s.spec.ID == m.focusID {
+			focus = i
+		}
+	}
+	if focus >= 0 {
+		target = focus
+		m.focusID = ""
+		m.onAddRow = false
 	}
 	if target < 0 {
 		target = first
@@ -1099,6 +1113,9 @@ type opDoneMsg struct {
 	// cfg is the config a scan left on disk, after dropping scan roots that
 	// are gone; nil for every other operation.
 	cfg *config.Config
+	// focus is the server an add from the picker found, to select once the
+	// reload lists it.
+	focus server.ID
 }
 
 type patchPlannedMsg struct {
@@ -1114,6 +1131,7 @@ type updateMsg struct {
 }
 
 type rootAddedMsg struct {
+	dir string // the folder the operator picked
 	cfg config.Config
 	err error
 }
@@ -1134,7 +1152,7 @@ func (m *model) addRootCmd(dir string) tea.Cmd {
 	dirs := m.app.Dirs
 	return func() tea.Msg {
 		cfg, err := config.AddScanRoot(dirs, dir)
-		return rootAddedMsg{cfg: cfg, err: err}
+		return rootAddedMsg{dir: dir, cfg: cfg, err: err}
 	}
 }
 
