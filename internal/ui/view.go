@@ -312,13 +312,10 @@ func (m *model) commandBar() helpSet {
 		return helpSet{short: append(short, hint("esc", "close"))}
 	case m.logSearch != nil:
 		return helpSet{short: []key.Binding{hint("enter", "keep filter"), hint("esc", "clear search")}}
-	case m.stop != nil, m.pat != nil, m.launch != nil, m.config != nil:
+	case m.stop != nil, m.pat != nil, m.launch != nil, m.config != nil, m.actions != nil:
 		// These are centred dialogs that carry their own key hints in a footer,
-		// right under the fields. Repeating them up here just adds noise. They
-		// can sit on top of the actions overlay, so this case comes first.
+		// right under the fields. Repeating them up here just adds noise.
 		return helpSet{}
-	case m.actions != nil:
-		return helpSet{short: []key.Binding{hint("↑↓", "move"), hint("enter", "run"), hint("esc", "close")}}
 	case m.pick != nil:
 		return helpSet{short: []key.Binding{
 			hint("→", "open folder"), hint("←", "up a level"),
