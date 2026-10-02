@@ -35,7 +35,7 @@ every action lives.
   (`vanishedWarning`). The other notices: a start script that does not `exec`
   java (or, when the folder has a Forge/NeoForge installer, `... press a,
   choose Launch settings and pick <installer option>`), and an unaccepted EULA
-  (`... press a and choose Accept the Minecraft EULA`). Every key is named for
+  (`... press a, then choose Accept the Minecraft EULA`). Every key is named for
   the screen it shows on (`pressIn`): `open its console and press a` on the
   list, `press a` on the console, which shows the same banner.
 - **The empty state**: a centred landing panel when no server is configured,

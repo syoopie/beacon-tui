@@ -502,9 +502,9 @@ func (m *model) noticeText() string {
 		if l := m.installerFix[spec.ID]; l != "" {
 			return "⚠  " + string(spec.ID) + "'s start script can't be run by Beacon. " + capitalize(press("a")) + ", choose Launch settings and pick " + l + "."
 		}
-		return "⚠  " + string(spec.ID) + "'s start script does not hand off to Java with exec, so Beacon can't start it. " + capitalize(press("a")) + " and choose Fix start script, or Launch settings to point it at another one."
+		return "⚠  " + string(spec.ID) + "'s start script does not hand off to Java with exec, so Beacon can't start it. " + capitalize(press("a")) + ", then choose Fix start script, or Launch settings to point it at another one."
 	case !m.eula[spec.ID]:
-		return "⚠  " + string(spec.ID) + " has not accepted the Minecraft EULA, so Beacon can't start it. Once you agree to https://aka.ms/MinecraftEULA, " + press("a") + " and choose Accept the Minecraft EULA."
+		return "⚠  " + string(spec.ID) + " has not accepted the Minecraft EULA, so Beacon can't start it. Once you agree to https://aka.ms/MinecraftEULA, " + press("a") + ", then choose Accept the Minecraft EULA."
 	}
 	return ""
 }
