@@ -34,8 +34,9 @@ port and RCON block into the spec.
 ## How to get to it (user POV)
 
 From the list: `→` or `enter` opens the console, `a` opens the settings overlay,
-`enter` on **Edit config** (the first row). `esc` backs out one level at a time:
-editor, then settings, then console.
+`enter` on **Edit config** (the first row, unless the server also shows Accept
+the Minecraft EULA or Fix start script above it). `esc` backs out one level at
+a time: editor, then settings, then console.
 
 ## Driving it with drive.py
 
@@ -65,14 +66,11 @@ height, so a clipping regression only shows on a short terminal.
 - **Model tests cannot see this screen.** The viewport, the scroll offset and
   the fit-to-`m.bodyH` math are all invisible to `tea.Model.View()`. A short
   terminal that clips the hint bar or the bottom border passes every Go test.
-- **Sandbox the whole scan tree, not just the spec.** Beacon re-scans every
-  path in `config.toml` `scan_roots` on each tick and rewrites the matching
-  spec's `dir` back to where it found the folder. Editing `dir` in
-  `servers/<id>.toml` alone is undone within a second. Point `scan_roots` at a
-  throwaway directory that holds a copy of the server folder, and put the
-  spec's `dir` inside it.
-- **Save writes the real `server.properties`** in the server's `dir`. Use the
-  sandboxed copy above, or a drive will edit the user's server.
+- **Save writes the real `server.properties`** in the server's `dir`. Drive a
+  spec whose `dir` is a throwaway copy, such as a pack imported from a sandbox
+  `HOME` ([adding-a-server.md](adding-a-server.md)), or a drive will edit the
+  user's server. Import never rewrites an existing spec, so pointing a copied
+  spec's `dir` at a copy also holds.
 - **Section headers are render only.** The cursor steps field to field and
   never lands on a header; the code bridges the two by the header's rendered
   line index, so a row that wraps instead of clipping would throw the scroll

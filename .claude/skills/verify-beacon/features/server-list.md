@@ -25,11 +25,16 @@ every action lives.
   without the picker.
 - **Columns** drop as the terminal narrows (`columnsFor`): below 55 columns the
   row is one loose line, then name+status, then +port, then +health-dot+detail.
-- **Notice banner** above the table when the selected server needs attention: an
-  unknown status, a start script that does not `exec` java, or an unaccepted
-  EULA. For an unknown status the warning quotes the last line of the server's
-  captured log (`vanishedWarning` in `internal/reconcile`), so a start that died
-  on a Java gate or a missing jar says why instead of reading as a mystery.
+- **Notice banner** above the table when the selected server needs attention
+  (`noticeText`). A session that ended without Beacon stopping it gives one of
+  two warnings, both quoting the last line of the captured log: with its port
+  free it reads as **stopped** with `<id> stopped on its own. Its log ends: ...
+  Press s in its console to start it again.` (`crashedWarning`); with something
+  still holding the port it is **unknown** with `Beacon did not stop <id>, but
+  its session is gone ...` and points at `s` to mark it stopped
+  (`vanishedWarning`). The other notices: a start script that does not `exec`
+  java (or, when the folder has a Forge/NeoForge installer, `Press a, open
+  Launch settings and choose <installer option>`), and an unaccepted EULA.
 - **The empty state**: a centred landing panel when no server is configured,
   with its own command bar `a add server · esc quit`.
 
@@ -68,5 +73,12 @@ populated case.
   check the body does not jump.
 - The list takes the whole body width now; the console screen is the one with
   the rail. A narrow-terminal regression shows in the console, not here.
-- `ctrl+r` re-scans every path in `config.toml` `scan_roots`. A fixture whose
-  scan roots point at real directories will re-import from them on every tick.
+- Import runs only on launch with a folder argument (`beacon <dir>`), on
+  `ctrl+r`, and after an add from the picker; never on a tick. It adds folders
+  no spec claims yet and never rewrites an existing spec. A fixture whose
+  `scan_roots` point at real directories imports from them on `ctrl+r`.
+- A drive that has deleted a server's folder and pressed `ctrl+r` sees the
+  server dropped, then `import: reading scan root ...: no such file` on the
+  status line: the picker adds a server's own folder as a scan root, and the
+  prune leaves that root in `config.toml`. Expect that line; it is not a drive
+  error.

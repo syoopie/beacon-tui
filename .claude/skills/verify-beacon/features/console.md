@@ -34,12 +34,17 @@ arbitrary text from outside the program.
   keeps the filter, `esc` clears it.
 - **Scrolling** with the arrow keys, `logScrollStep` lines per press. `end` (or
   `G`) jumps to the newest line, `home` (or `g`) to the oldest. The view opens
-  at the newest line; when it has been scrolled off the tail while new lines
-  keep arriving, a centred `↓ new lines below   end jump down` nudge shows on
-  its own row under the log (`newLinesRow`, a blank row when at the bottom, so
-  the log height never shifts).
+  at the newest line; whenever it is scrolled off the tail, a centred `↓ new
+  lines below   end jump down` nudge shows on its own row under the log
+  (`newLinesRow`, a blank row when at the bottom, so the log height never
+  shifts). It keys on `vp.AtBottom()` alone, so it shows the moment the view
+  leaves the bottom, whether or not any new line has arrived.
 - **The rail**: player list over RCON, then memory and CPU from `ps`. It only
-  appears above 64 inner columns.
+  appears above 64 inner columns. The port line (and the header's) adds
+  `starting` while a live session has not opened its port, `stopping` once a
+  shutdown has closed it, `ready` when it accepts connections
+  (`portHealthLabel`). Until the port opens, the Players section reads
+  `starting up…` instead of an RCON error.
 - **The input**, only open while the server is running, sends whatever is typed
   straight to the server's stdin on `enter` and then closes, the same as `esc`
   (the sent line shows on the status line). It works like Minecraft's own chat
@@ -81,23 +86,25 @@ clears the search and the second leaves.
 ## Driving it with drive.py
 
 ```sh
-key:right snap:console                    # -> the console, opened at the tail
-key:f snap:full                           # toggle the noise filter
-'key:up*8' snap:scrolled                  # into the stack trace
+key:right snap:console                    # -> the console, opened at the tail in "full log"
+'key:up*8' snap:scrolled                  # scroll up; the new-lines nudge appears
+key:end key:f snap:important              # f switches to "important only"
 key:tab snap:chat                         # chat tab
 'key:ctrl+f' key:y key:o key:o snap:search  # search for "yoo"
 key:esc key:esc snap:back
 ```
 
 Command completion needs a running server (start a throwaway tmux session
-`beacon-<id>` running `sleep`) and a `[commands] mc_version` line in the
-fixture spec:
+`beacon-<id>` running `sleep`, for an id only the fixture has, see
+[lifecycle.md](lifecycle.md)) and a `[commands] mc_version` line in the
+fixture spec. With `mc_version = ""` the panel shows the "could not detect"
+note instead:
 
 ```sh
 key:right 'key:/'               # open in command mode, holding "/"
 key:g key:a key:m snap:typed              # "/gam" -> gamemode|gamerule
 key:down key:down snap:cycle              # down cycles the token in place
-'key:bs*9' key:g key:i key:v key:e key:space snap:hint   # "/give " -> usage hint
+'key:bs*8' key:g key:i key:v key:e key:space snap:hint   # "/give " -> usage hint
 key:enter                                 # sends "/give"; the line is added to history
 key:t key:up snap:recall                  # t opens a plain line; up recalls the last command
 ```
@@ -138,7 +145,10 @@ column throughout.
   that straight to the viewport. Passing it through a lipgloss `Width` style
   re-wraps the already-wrapped rows and leaves short ragged fragments.
 - The `f` and `tab` keys both jump the view back to the bottom, so a scroll
-  position does not survive them.
+  position does not survive them. Scroll in `full log`: the important-only view
+  of a short log can fit on screen with nothing to scroll.
+- `bs` counts matter in command mode. Deleting the leading `/` drops the line
+  into plain mode, so `/gamerule` (9 characters) takes `bs*8` to leave `/`.
 - Fixture logs need a `logs/` line count in the thousands to scroll far enough
   to reach interesting content; `BMC4_ServerPack_v61/logs/latest.log` has ~6000.
 - The rail says "RCON is off" unless the spec has `[rcon] enabled = true`. Edit

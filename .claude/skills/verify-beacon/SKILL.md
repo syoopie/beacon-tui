@@ -46,8 +46,16 @@ sed -i '' "s#log_file = \".*\"#log_file = \"$W/state/logs/bmc4_serverpack_v61.lo
 ```
 
 There is no server to keep alive. Every drive forks its own PTY, and
-`Session.close()` kills it. Copy `$W` to a scratch directory per run if the
-drive will write config, so the fixture stays pristine.
+`Session.close()` kills it.
+
+The fixture copies the user's real specs, and tmux is machine-wide. If one of
+the user's servers is running (`tmux ls` shows `beacon-<id>`), the fixture
+derives it as running too: its console input goes to the real server's stdin
+and `s` would stop it. Check `tmux ls` first and keep drives on such a server
+read-only.
+
+Copy `$W` to a scratch directory per run if the drive will write config, so
+the fixture stays pristine.
 
 ## Doctor
 

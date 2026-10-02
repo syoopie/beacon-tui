@@ -12,14 +12,20 @@ deliberately, and tear it down.
 - **`s`** is the primary action, labelled for the derived status
   (`primaryAction`): `s start` while stopped, `s stop` while running, `s mark
   stopped` for a status Beacon has lost. It shows in the console command bar.
+  While a server is starting or stopping `s` is disabled and drops out of the
+  bar, so a second start or stop cannot be stacked on one in flight.
 - **Start** refuses when the start script does not hand off with `exec`, when the
   server's Java setting points at a file that is not a runnable executable, when
-  something already listens on the port, or when the Minecraft EULA has not been
-  accepted (`internal/lifecycle/lifecycle.go`); the reason lands on the status
-  line. Another stopped server configured for the same port is named but does
-  not block.
+  something already listens on the port, when the Minecraft EULA has not been
+  accepted, or when no Java is set and no installed JDK is new enough for the
+  server's Minecraft version (`<id> needs Java N or newer ...`)
+  (`internal/lifecycle/lifecycle.go`); the reason lands on the status line.
+  Another stopped server configured for the same port is named but does not
+  block.
 - **Java runtime** per server, set in Launch settings (`a` → Launch settings, the
-  row under MC version, `←→` to cycle). Empty means the `java` on `PATH`. A pick
+  row under MC version, `←→` to cycle). The first choice, **Automatic**, stores
+  an empty `java`: Start then runs the oldest installed JDK the spec's
+  `mc_version` accepts (`javadetect.RequiredMajor` and `Pick`). A pick
   is stored as the spec's `java`, and `internal/tmux` prepends its directory to
   `PATH` for the launch, so a bare `java` in the command or a `run.sh` resolves
   to it. `internal/javadetect` finds the host's JDKs for the picker.
@@ -30,7 +36,10 @@ deliberately, and tear it down.
 - **Force kill** is **`K`**, and it only appears in the command bar once a stop
   has timed out (`m.timedOut[id]`, set by the `opDoneMsg` a slow stop returns).
 - **Mark stopped** is what `s` does for an unknown status: it clears the status
-  once the operator has checked by hand.
+  once the operator has checked by hand. Unknown now means the session is gone
+  and something still holds the port. A session gone with its port free derives
+  as stopped, with a `stopped on its own` notice, and `s` starts it again; a
+  session gone after a recorded Stopping is plain stopped.
 
 ## How to get to it (user POV)
 
@@ -68,12 +77,25 @@ and prefer watching the console log for the "Done (" line over guessing.
   (`Stop <id>?`), not a stopped server. To verify the modal without a real JVM,
   fake the session with `tmux new-session -d -s beacon-<id> 'sleep 900'` so
   reconcile derives running, then drive `key:right key:s snap:` and `key:esc`.
+  tmux is machine-wide, so any Beacon the user has open sees that session too.
+  Fake it for an id that only the fixture has (an imported sandbox pack), not
+  one of the user's real servers.
+- To see both lost-session notices, set the fixture spec's `[state] last_known
+  = "running"` with no session: a free port gives `stopped on its own`, a held
+  port gives unknown and `s mark stopped`.
 - `tmux kill-session` is the teardown; killing the JVM by name can hit an
   unrelated Minecraft server.
 - The status shown is derived from tmux each tick, not from what the action
   returned, so assert on the screen after a `wait:`, not immediately.
-- Port collision detection only fires on a live listener; `nc -l <port>` in
-  another shell is enough. Two stopped specs sharing a port is allowed, so a
-  drive that wants the refusal has to bind the port for real.
+- Port collision detection only fires on a live listener. `nc -l <port>` is
+  not enough: Beacon's port probe connects, and `nc` exits after that first
+  connection. Hold the port with a listener that keeps accepting:
+
+  ```sh
+  python3 -c "import socket; s=socket.socket(); s.bind(('',25565)); s.listen(); [s.accept()[0].close() for _ in iter(int, 1)]" &
+  ```
+
+  Two stopped specs sharing a port is allowed, so a drive that wants the
+  refusal has to bind the port for real.
 - `K` does nothing until `m.timedOut[id]` is set, which only happens after a
   real stop overruns `StopTimeout`. You cannot shortcut to the force-kill path.
