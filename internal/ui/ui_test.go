@@ -1511,3 +1511,18 @@ func TestStartStatusFollowsTheLaunch(t *testing.T) {
 		t.Fatalf("status = %q, want ready", m.status)
 	}
 }
+
+func TestNoticeNamesTheKeyForTheCurrentScreen(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+	m.eula[spec.ID] = false
+
+	if got := m.noticeText(); !strings.Contains(got, "open its console and press a and choose Accept the Minecraft EULA") {
+		t.Fatalf("list notice = %q, want it to say how to get to the key", got)
+	}
+	openConsole(t, m, tm)
+	if got := m.noticeText(); !strings.Contains(got, ", press a and choose Accept the Minecraft EULA") || strings.Contains(got, "its console") {
+		t.Fatalf("console notice = %q, want the key alone", got)
+	}
+}

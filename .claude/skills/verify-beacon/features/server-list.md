@@ -29,12 +29,15 @@ every action lives.
   (`noticeText`). A session that ended without Beacon stopping it gives one of
   two warnings, both quoting the last line of the captured log: with its port
   free it reads as **stopped** with `<id> stopped on its own. Its log ends: ...
-  Press s in its console to start it again.` (`crashedWarning`); with something
-  still holding the port it is **unknown** with `Beacon did not stop <id>, but
-  its session is gone ...` and points at `s` to mark it stopped
+  Open its console and press s to start it again.` (`crashedWarning`); with
+  something still holding the port it is **unknown** with `Beacon did not stop
+  <id>, but its session is gone ...` and points at `s` to mark it stopped
   (`vanishedWarning`). The other notices: a start script that does not `exec`
-  java (or, when the folder has a Forge/NeoForge installer, `Press a, open
-  Launch settings and choose <installer option>`), and an unaccepted EULA.
+  java (or, when the folder has a Forge/NeoForge installer, `... press a,
+  choose Launch settings and pick <installer option>`), and an unaccepted EULA
+  (`... press a and choose Accept the Minecraft EULA`). Every key is named for
+  the screen it shows on (`pressIn`): `open its console and press a` on the
+  list, `press a` on the console, which shows the same banner.
 - **The empty state**: a centred landing panel when no server is configured,
   with its own command bar `a add server · esc quit`.
 

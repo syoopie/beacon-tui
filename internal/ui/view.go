@@ -485,20 +485,37 @@ func (m *model) noticeText() string {
 		return ""
 	}
 	r := m.reports[spec.ID]
+	press := m.pressIn
 	switch {
 	case r.Derived == server.StatusUnknown && r.Warning != "":
-		return "⚠  " + r.Warning + "  Once you have checked, press s in its console to mark it stopped."
+		return "⚠  " + r.Warning + "  Once you have checked, " + press("s") + " to mark it stopped."
 	case r.Derived == server.StatusStopped && r.Warning != "":
-		return "⚠  " + r.Warning + "  Press s in its console to start it again."
+		return "⚠  " + r.Warning + "  " + capitalize(press("s")) + " to start it again."
 	case !spec.Exec.Launchable():
 		if l := m.installerFix[spec.ID]; l != "" {
-			return "⚠  " + string(spec.ID) + "'s start script can't be run by Beacon. Press a, open Launch settings and choose " + l + "."
+			return "⚠  " + string(spec.ID) + "'s start script can't be run by Beacon. " + capitalize(press("a")) + ", choose Launch settings and pick " + l + "."
 		}
-		return "⚠  " + string(spec.ID) + "'s start script does not hand off to Java with exec, so Beacon can't start it. Choose Fix start script, or Launch settings to point it at another one."
+		return "⚠  " + string(spec.ID) + "'s start script does not hand off to Java with exec, so Beacon can't start it. " + capitalize(press("a")) + " and choose Fix start script, or Launch settings to point it at another one."
 	case !m.eula[spec.ID]:
-		return "⚠  " + string(spec.ID) + " has not accepted the Minecraft EULA, so Beacon can't start it. Choose Accept the Minecraft EULA once you agree to https://aka.ms/MinecraftEULA."
+		return "⚠  " + string(spec.ID) + " has not accepted the Minecraft EULA, so Beacon can't start it. Once you agree to https://aka.ms/MinecraftEULA, " + press("a") + " and choose Accept the Minecraft EULA."
 	}
 	return ""
+}
+
+// pressIn names how to reach a console key from the current screen: the key
+// alone on the console, and the way into the console first from the list.
+func (m *model) pressIn(key string) string {
+	if m.screen == screenConsole {
+		return "press " + key
+	}
+	return "open its console and press " + key
+}
+
+func capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func (m *model) noticeView() string {
