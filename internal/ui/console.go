@@ -417,31 +417,48 @@ func (m *model) railStrip(w int) string {
 // railView is the console's right column: the server's fixed details always, and
 // its players and live resource use while it is running.
 func (m *model) railView() string {
-	// Graphs shrink, then go, before the rail runs off the bottom.
+	// Graphs shrink, then go, before they push the live sections off the
+	// bottom. The details below those may still be clipped.
 	var v string
 	for graphH := 2; graphH >= 0; graphH-- {
-		if v = m.railContent(graphH); lipgloss.Height(v) <= m.bodyH {
+		var liveH int
+		if v, liveH = m.railContent(graphH); liveH <= m.bodyH {
 			break
 		}
 	}
-	return v
+	// Clip what still overflows here rather than in the style, so a section
+	// heading is not left at the bottom with none of its rows.
+	lines := strings.Split(v, "\n")
+	if len(lines) > m.bodyH {
+		lines = lines[:max(m.bodyH, 0)]
+		for len(lines) > 0 {
+			last := strings.TrimSpace(ansi.Strip(lines[len(lines)-1]))
+			if last != "" && last != "Details" {
+				break
+			}
+			lines = lines[:len(lines)-1]
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
-// railContent is the rail with each graph graphH rows tall, or none at 0.
-func (m *model) railContent(graphH int) string {
+// railContent is the rail with each graph graphH rows tall, or none at 0, and
+// the height of its live sections: Resources and Players on a running server,
+// the whole rail otherwise.
+func (m *model) railContent(graphH int) (string, int) {
 	spec, ok := m.selected()
 	if !ok {
-		return ""
+		return "", 0
 	}
 	r := m.reports[spec.ID]
 	running := r.Derived == server.StatusRunning
 
-	rows := []string{sectionStyle.Render("Details")}
+	details := []string{sectionStyle.Render("Details")}
 	port := mutedStyle.Render(fmt.Sprintf("port  %d", spec.Port))
 	if word, color := portHealthLabel(r.PortHealth, r.Derived); word != "" {
 		port += " " + lipgloss.NewStyle().Foreground(color).Render(word)
 	}
-	rows = append(rows,
+	details = append(details,
 		port,
 		mutedStyle.Render("rcon  "+rconRailLabel(spec)),
 		mutedStyle.Render("eula  "+eulaRailLabel(m.eula[spec.ID])),
@@ -450,38 +467,53 @@ func (m *model) railContent(graphH int) string {
 		mutedStyle.Render(filepath.Base(spec.Dir)),
 	)
 
-	rows = append(rows, "", sectionStyle.Render("Players"))
+	players := []string{sectionStyle.Render("Players")}
 	switch {
 	case !spec.RCON.Enabled || spec.RCON.Port == 0:
-		rows = append(rows, mutedStyle.Render("RCON is off"))
+		players = append(players, mutedStyle.Render("RCON is off"))
 	case !running:
-		rows = append(rows, mutedStyle.Render("server not running"))
+		players = append(players, mutedStyle.Render("server not running"))
 	case r.PortHealth != reconcile.PortOpen:
 		// RCON opens only once the world has loaded; until then a failed poll
 		// is expected, not an error.
-		rows = append(rows, mutedStyle.Render("starting up…"))
+		players = append(players, mutedStyle.Render("starting up…"))
 	case m.rconErr != "":
-		rows = append(rows, mutedStyle.Render(m.rconErr))
+		players = append(players, mutedStyle.Render(m.rconErr))
 	default:
-		rows = append(rows, mutedStyle.Render(fmt.Sprintf("%d / %d online", m.rconSnap.Online, m.rconSnap.Max)))
+		players = append(players, mutedStyle.Render(fmt.Sprintf("%d / %d online", m.rconSnap.Online, m.rconSnap.Max)))
 		if len(m.rconSnap.Players) == 0 {
-			rows = append(rows, mutedStyle.Render("nobody yet"))
+			players = append(players, mutedStyle.Render("nobody yet"))
 		}
 		for _, p := range m.rconSnap.Players {
-			rows = append(rows, "• "+p)
+			players = append(players, "• "+p)
 		}
 	}
 
+	// A running server leads with what changes, so a short terminal clips the
+	// fixed details at the bottom rather than the live numbers.
+	sections := [][]string{details, players}
 	if running {
-		rows = append(rows, "", sectionStyle.Render("Resources"))
+		resources := []string{sectionStyle.Render("Resources")}
 		if e := m.procErrByID[spec.ID]; e != "" {
-			rows = append(rows, mutedStyle.Render(e))
+			resources = append(resources, mutedStyle.Render(e))
 		} else if p, ok := m.procByID[spec.ID]; ok {
-			rows = append(rows, m.resourceRows(p, m.procHist[spec.ID], m.tickHist, m.railTextW(), graphH)...)
+			resources = append(resources, m.resourceRows(p, m.procHist[spec.ID], m.tickHist, m.railTextW(), graphH)...)
+		}
+		sections = [][]string{resources, players, details}
+	}
+	var rows []string
+	liveH := 0
+	for i, sec := range sections {
+		if i > 0 {
+			rows = append(rows, "")
+		}
+		rows = append(rows, sec...)
+		if i < 2 {
+			liveH = lipgloss.Height(lipgloss.JoinVertical(lipgloss.Left, rows...))
 		}
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+	return lipgloss.JoinVertical(lipgloss.Left, rows...), liveH
 }
 
 // resourceRows are the rail's live numbers for a running server: uptime, then

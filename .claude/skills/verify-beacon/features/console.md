@@ -39,8 +39,9 @@ arbitrary text from outside the program.
   the log (`newLinesRow`, a blank row otherwise, so the log height never
   shifts). Scrolling up alone does not show it; `model.newBelow` is set by an
   arriving line and cleared whenever the view is back at the bottom.
-- **The rail**: details, the player list over RCON, then Resources while the
-  server runs: uptime, tick speed (`tps 20.0   2.7 ms/tick`) over a graph of
+- **The rail**: Details then Players while the server is stopped; while it
+  runs, Resources first, then Players, then Details, so a short terminal clips
+  the fixed details rather than the live numbers. Resources holds uptime, tick speed (`tps 20.0   2.7 ms/tick`) over a graph of
   tick time against the 50 ms budget, then CPU and memory, each a value line
   over a graph (`ntcharts` sparkline, newest sample on the right), and the
   share of host RAM. CPU is the rate between two `ps` samples, drawn against
@@ -50,8 +51,9 @@ arbitrary text from outside the program.
   poll (`rcon.Client.tick`): the first poll tries `neoforge tps`, `forge tps`,
   `tick query`, `tps` and the client keeps the first that parses, so the TPS
   line is missing with RCON off or on a server none of them answers. Graphs
-  are two rows, drop to one and then to none when the rail would outgrow the
-  body (`railView`), and the rail is clipped at the body height. A tick time
+  are two rows, drop to one and then to none when Resources and Players would
+  outgrow the body (`railView`); Details below them is clipped, and a heading
+  left with none of its rows is dropped. A tick time
   far under 50 ms draws as a blank graph row, not a missing one. It only
   appears above 64 inner columns. The port line (and the header's) adds
   `starting` while a live session has not opened its port, `stopping` once a
@@ -176,6 +178,6 @@ column throughout.
   (`pgrep -fl beacon`) adds its own.
 - The Resources graphs need samples: the process graphs fill one column per
   3 s poll, tick time one per 10 s RCON poll. `wait:25` after opening the
-  console shows a few columns of each. A one-row rail graph needs `--rows` in
-  the low 30s; at 24 rows Details and Players fill the rail and Resources is
-  clipped, which is the current behaviour, not a harness fault.
+  console shows a few columns of each. At 90x24 the graphs are one row and
+  Details is clipped off entirely; at 123x40 everything fits with two-row
+  graphs.
