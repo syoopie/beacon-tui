@@ -30,6 +30,11 @@ arbitrary text from outside the program.
   The tab bar's right word names the current view (`full log` / `important
   only`); the hint row below leads with `f` named for the other one, so
   `full log` up top and `f important only` below reads as "press f to switch".
+- **Empty log**: a server with no log lines yet shows `No log yet. Press s to
+  start the server.` centred in the pane (a waiting line instead while it
+  runs).
+- **The header** (`logHeaderView`) is name, status, port, launch method. Facts
+  that do not fit drop whole from the right; name and status always stay.
 - **Search**, opened with `ctrl+f`, narrowing the active tab as you type. `enter`
   keeps the filter, `esc` clears it.
 - **Scrolling** with the arrow keys, `logScrollStep` lines per press. `end` (or
@@ -60,9 +65,11 @@ arbitrary text from outside the program.
   shutdown has closed it, `ready` when it accepts connections
   (`portHealthLabel`). Until the port opens, the Players section reads
   `starting up…` instead of an RCON error.
-- **The input**, only open while the server is running, sends whatever is typed
-  straight to the server's stdin on `enter` and then closes, the same as `esc`
-  (the sent line shows on the status line). It works like Minecraft's own chat
+- **The input**, only open while the server is running, sends the line to the
+  server's stdin on `enter` and then closes, the same as `esc` (the sent line
+  shows on the status line). A slash line goes as typed; a plain line is chat
+  and goes as `say <text>` (`serverLine`), since the console runs anything it
+  reads as a command. It works like Minecraft's own chat
   box: `t` opens it empty, `/` opens it already holding a slash. A line that starts with `/` is **command mode** (`model.commandMode`) -
   the completion panel shows and `↑` / `↓` cycle it; any other line is plain and
   `↑` / `↓` walk the per-server command history (`internal/mccmd`, persisted to
