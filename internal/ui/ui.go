@@ -109,9 +109,12 @@ type model struct {
 
 	logTab           consoleTab
 	logImportantOnly bool
-	logQuery         string
-	logSearch        *textinput.Model
-	railW            int
+	// newBelow is set when log lines arrive while the view is scrolled off the
+	// tail, and cleared once it is back at the bottom. It drives the nudge.
+	newBelow  bool
+	logQuery  string
+	logSearch *textinput.Model
+	railW     int
 
 	// Console command completion, live while the command input is open.
 	// completer is nil when the selected server has completion turned off or
@@ -272,6 +275,16 @@ func (m *model) Init() tea.Cmd {
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.dispatch(msg)
+	// Whatever brought the log back to its newest line, there is nothing
+	// unseen below it any more.
+	if m.ready && m.vp.AtBottom() {
+		m.newBelow = false
+	}
+	return next, cmd
+}
+
+func (m *model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -372,10 +385,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case logMsg:
 		if msg.id == m.selID && len(msg.lines) > 0 {
-			atBottom := m.vp.AtBottom()
+			atBottom, before := m.vp.AtBottom(), m.vp.TotalLineCount()
 			m.appendLogs(msg.lines)
 			if atBottom {
 				m.vp.GotoBottom()
+			} else if m.vp.TotalLineCount() > before {
+				m.newBelow = true
 			}
 		}
 		return m, nil

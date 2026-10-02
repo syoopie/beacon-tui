@@ -353,11 +353,11 @@ func (m *model) logKeysView(w int) string {
 }
 
 // newLinesRow is the centred nudge on its own line under the log: the tail has
-// been scrolled out of view while new lines keep arriving below the fold, and
-// end jumps back down to them. It stays a blank row when the view is already at
-// the bottom, so the log height never shifts.
+// been scrolled out of view and new lines have arrived below the fold since,
+// and end jumps back down to them. It stays a blank row otherwise, so the log
+// height never shifts.
 func (m *model) newLinesRow(w int) string {
-	if m.vp.AtBottom() {
+	if !m.newBelow || m.vp.AtBottom() {
 		return ""
 	}
 	pill := lipgloss.NewStyle().Foreground(accentColor).Render("↓ new lines below") +

@@ -102,8 +102,16 @@ func TestEndKeyJumpsToTheNewestLine(t *testing.T) {
 	if m.vp.AtBottom() {
 		t.Fatal("setup: scrolling up should have left the newest line")
 	}
+	if strings.Contains(tm.View(), "↓ new") {
+		t.Fatalf("scrolling up with nothing new arriving should not claim new lines:\n%s", tm.View())
+	}
+
+	tm, _ = drive(t, tm, logMsg{id: "survival", lines: []string{"[12:00:01] [Server thread/INFO]: fresh"}})
+	if m.vp.AtBottom() {
+		t.Fatal("a new line should not pull a scrolled-up view down")
+	}
 	if !strings.Contains(tm.View(), "↓ new") {
-		t.Fatalf("scrolled-up tail should flag the new lines below:\n%s", tm.View())
+		t.Fatalf("a line arriving below a scrolled-up view should flag it:\n%s", tm.View())
 	}
 
 	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyEnd})
@@ -112,6 +120,11 @@ func TestEndKeyJumpsToTheNewestLine(t *testing.T) {
 	}
 	if strings.Contains(tm.View(), "↓ new") {
 		t.Error("the new-lines flag should clear once back at the bottom")
+	}
+
+	tm, _ = drive(t, tm, tea.KeyMsg{Type: tea.KeyUp})
+	if strings.Contains(tm.View(), "↓ new") {
+		t.Error("lines already seen should not flag again after scrolling back up")
 	}
 }
 
