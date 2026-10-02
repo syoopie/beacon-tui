@@ -69,6 +69,10 @@ var classRules = []classRule{
 	{kindNoise, regexp.MustCompile(`\[minecraft/(?:RecipeManager|TagLoader|SimpleJsonResourceReloadListener|ServerAdvancementManager)\]`)},
 	{kindNoise, regexp.MustCompile(`Couldn't parse element loot_tables:|has been registered twice`)},
 	{kindNoise, regexp.MustCompile(`]: Thread RCON Client `)},
+	// FTB Ranks cannot resolve a permission for a source with no player, such as
+	// the console or RCON, and logs that at ERROR. Beacon's /help fetch for
+	// command completion is one such source.
+	{kindNoise, regexp.MustCompile(`\[FTB Ranks/\]: Error getting permission value for node \S+ .*"player" is null`)},
 	{kindNoise, regexp.MustCompile(`moved (?:too quickly!|wrongly!)`)},
 	{kindNoise, regexp.MustCompile(`]: Preparing (?:spawn area:|start region for)`)},
 	{kindNoise, regexp.MustCompile(`]: Time elapsed:`)},

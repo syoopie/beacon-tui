@@ -55,6 +55,7 @@ func TestClassify(t *testing.T) {
 		{"[12:00:00] [main/ERROR] [or.be.wo.to.ut.Logger/]: [bclib] ERROR building loot table", kindNoise},
 		{"[12:00:00] [main/WARN] [mixin/]: Error loading class: betterdays/client/Foo", kindNoise},
 		{"[12:00:00] [RCON Listener #1/INFO] [minecraft/GenericThread]: Thread RCON Client /127.0.0.1 started", kindNoise},
+		{`[02Oct2026 12:12:50.197] [Server thread/ERROR] [FTB Ranks/]: Error getting permission value for node ftbessentials.rtp.custom_max! java.lang.NullPointerException / Cannot read field "server" because "player" is null`, kindNoise},
 		{"[12:00:00] [Server thread/DEBUG]: chunk saved", kindNoise},
 		{"[12:00:00] [Server thread/INFO]: Preparing spawn area: 24%", kindNoise},
 		{"[12:00:00] [Server thread/INFO]: Preparing start region for dimension minecraft:overworld", kindNoise},
