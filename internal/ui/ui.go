@@ -650,7 +650,6 @@ func (m *model) openConsole(spec server.Spec, prefill string) tea.Cmd {
 	ti.CursorEnd()
 	ti.Focus()
 	m.console = &ti
-	m.status = "console open"
 	m.ensureConsoleData()
 	m.resetCompletionState()
 	m.recomputeCompletion()
@@ -676,9 +675,13 @@ func (m *model) commandMode() bool {
 	return m.console != nil && strings.HasPrefix(m.console.Value(), "/")
 }
 
+// closeConsole folds the input away. reason replaces the status line when it
+// says something the screen does not; empty leaves the status as it was.
 func (m *model) closeConsole(reason string) (tea.Model, tea.Cmd) {
 	m.console = nil
-	m.status = reason
+	if reason != "" {
+		m.status = reason
+	}
 	m.resetCompletionState()
 	m.relayout()
 	m.vp.GotoBottom() // the panel folded away; land on the newest line, not mid-scroll
@@ -701,7 +704,7 @@ func (m *model) updateConsole(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *model) updateConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		return m.closeConsole("console closed")
+		return m.closeConsole("")
 	case "up":
 		m.consoleUp(-1)
 		return m, nil
