@@ -1526,3 +1526,12 @@ func TestNoticeNamesTheKeyForTheCurrentScreen(t *testing.T) {
 		t.Fatalf("console notice = %q, want the key alone", got)
 	}
 }
+
+func TestClipPathLeftKeepsTheCurrentFolder(t *testing.T) {
+	if got := clipPathLeft("/a/very/long/path/to/packs", 12); got != "…th/to/packs" {
+		t.Fatalf("clipPathLeft = %q, want the tail with an ellipsis", got)
+	}
+	if got := clipPathLeft("~/packs", 20); got != "~/packs" {
+		t.Fatalf("a path that fits should be unchanged, got %q", got)
+	}
+}

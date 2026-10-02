@@ -59,9 +59,9 @@ key:y wait:0.5 snap:patched                # applies; status line reads "<id> pa
 
 - `beacon <dir>` seeds a scan root and scans it on launch, so its servers are
   listed on boot.
-- The picker header clips the current path on the right, so under a long
-  sandbox `HOME` (a scratchpad path) the folder you are in is cut off. Read the
-  highlighted row instead, or use a short `HOME` such as `/tmp/beacon-sb`.
+- The picker header shows the current folder relative to `HOME` (`~/packs`)
+  and clips a long path from the left with `…` (`clipPathLeft`), so the folder
+  you are in stays in view.
 - A minimal sandbox pack is three files: `server.properties` with a
   `server-port`, `eula.txt` with `eula=false`, and an empty `server.jar`.
   Import finds it as `via server.jar` and the EULA notice shows; `a`, `enter`

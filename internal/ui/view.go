@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -682,8 +683,35 @@ func (m *model) landingView() string {
 }
 
 func (m *model) pickerView() string {
-	head := sectionStyle.Render("Add a server") + mutedStyle.Render("   "+m.pick.CurrentDirectory)
+	title := sectionStyle.Render("Add a server")
+	path := clipPathLeft(homeRelative(m.pick.CurrentDirectory), m.bodyW-lipgloss.Width(title)-3)
+	head := title + mutedStyle.Render("   "+path)
 	return lipgloss.JoinVertical(lipgloss.Left, head, "", m.pick.View())
+}
+
+// homeRelative shortens a path under the home directory to start with ~.
+func homeRelative(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	if rel, err := filepath.Rel(home, path); err == nil && !strings.HasPrefix(rel, "..") {
+		if rel == "." {
+			return "~"
+		}
+		return "~" + string(filepath.Separator) + rel
+	}
+	return path
+}
+
+// clipPathLeft fits a path into w columns by dropping its start, which keeps
+// the folder you are in, the part that matters, in view.
+func clipPathLeft(path string, w int) string {
+	over := ansi.StringWidth(path) - max(w, 1)
+	if over <= 0 {
+		return path
+	}
+	return ansi.TruncateLeft(path, over+1, "…")
 }
 
 func (m *model) patchDialogView() string {
