@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -210,7 +211,7 @@ func (m *model) logBody() string {
 			continue
 		}
 		style := m.logLineStyle(e.kind)
-		for _, seg := range strings.Split(ansi.Wrap(e.display, w, ""), "\n") {
+		for _, seg := range wrapLogLine(e.display, w) {
 			rows = append(rows, style.Render(seg))
 		}
 	}
@@ -219,6 +220,26 @@ func (m *model) logBody() string {
 		return lipgloss.PlaceHorizontal(w, lipgloss.Center, mutedStyle.Render(msg))
 	}
 	return strings.Join(rows, "\n")
+}
+
+// clockPrefix matches the "HH:MM:SS  " formatConsoleLine leads a line with.
+var clockPrefix = regexp.MustCompile(`^\d\d:\d\d:\d\d  `)
+
+// wrapLogLine wraps one display line to w columns. A line that leads with a
+// clock wraps its message in a column of its own, so continuation rows start
+// under the message rather than under the time and the times stay scannable.
+func wrapLogLine(display string, w int) []string {
+	if loc := clockPrefix.FindStringIndex(display); loc != nil && w-loc[1] >= 20 {
+		indent := loc[1]
+		segs := strings.Split(ansi.Wrap(display[indent:], w-indent, ""), "\n")
+		pad := strings.Repeat(" ", indent)
+		segs[0] = display[:indent] + segs[0]
+		for i := 1; i < len(segs); i++ {
+			segs[i] = pad + segs[i]
+		}
+		return segs
+	}
+	return strings.Split(ansi.Wrap(display, w, ""), "\n")
 }
 
 // logLineStyle colours a server-log line by its tier: errors red, warnings

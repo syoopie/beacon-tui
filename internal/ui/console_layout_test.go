@@ -149,3 +149,18 @@ func TestConsoleLogScrollsSeveralLinesPerKey(t *testing.T) {
 		t.Fatalf("one up-press moved %d lines, want %d", moved, logScrollStep)
 	}
 }
+
+func TestWrapLogLineHangsUnderTheMessage(t *testing.T) {
+	got := wrapLogLine("12:00:00  one two three four five six seven eight nine ten", 30)
+	want := []string{
+		"12:00:00  one two three four",
+		"          five six seven eight",
+		"          nine ten",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("wrapLogLine =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if got := wrapLogLine("\tat net.minecraft.Foo.bar(Foo.java:1)", 20); strings.HasPrefix(got[1], "          ") {
+		t.Fatalf("a line without a clock should wrap flush, got %q", got)
+	}
+}
