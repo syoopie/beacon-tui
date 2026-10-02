@@ -1582,3 +1582,14 @@ func TestListFlagsAPortHeldByAnotherServer(t *testing.T) {
 		t.Fatalf("list should say the stopped server's port is taken:\n%s", view)
 	}
 }
+
+func TestEmptyLogSaysHowToStart(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+	tm = openConsole(t, m, tm)
+	m.renderLog()
+	if view := tm.View(); !strings.Contains(view, "No log yet. Press s to start the server.") {
+		t.Fatalf("an empty log should say how to start the server:\n%s", view)
+	}
+}

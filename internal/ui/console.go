@@ -215,6 +215,13 @@ func (m *model) logBody() string {
 			rows = append(rows, style.Render(seg))
 		}
 	}
+	if len(m.tail.entries) == 0 {
+		msg := "Waiting for the server's first log line…"
+		if spec, ok := m.selected(); ok && m.reports[spec.ID].Derived == server.StatusStopped {
+			msg = "No log yet. Press s to start the server."
+		}
+		return lipgloss.PlaceHorizontal(w, lipgloss.Center, mutedStyle.Render(msg))
+	}
 	if len(rows) == 0 && m.logTab == tabServer && m.logImportantOnly && q == "" {
 		msg := fmt.Sprintf("no warnings or errors in the last %d lines", maxLogLines)
 		return lipgloss.PlaceHorizontal(w, lipgloss.Center, mutedStyle.Render(msg))
