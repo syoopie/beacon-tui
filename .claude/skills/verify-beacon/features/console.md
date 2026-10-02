@@ -34,11 +34,11 @@ arbitrary text from outside the program.
   keeps the filter, `esc` clears it.
 - **Scrolling** with the arrow keys, `logScrollStep` lines per press. `end` (or
   `G`) jumps to the newest line, `home` (or `g`) to the oldest. The view opens
-  at the newest line; whenever it is scrolled off the tail, a centred `↓ new
-  lines below   end jump down` nudge shows on its own row under the log
-  (`newLinesRow`, a blank row when at the bottom, so the log height never
-  shifts). It keys on `vp.AtBottom()` alone, so it shows the moment the view
-  leaves the bottom, whether or not any new line has arrived.
+  at the newest line; when lines arrive while it is scrolled off the tail, a
+  centred `↓ new lines below   end jump down` nudge shows on its own row under
+  the log (`newLinesRow`, a blank row otherwise, so the log height never
+  shifts). Scrolling up alone does not show it; `model.newBelow` is set by an
+  arriving line and cleared whenever the view is back at the bottom.
 - **The rail**: player list over RCON, then memory and CPU from `ps`. It only
   appears above 64 inner columns. The port line (and the header's) adds
   `starting` while a live session has not opened its port, `stopping` once a
@@ -87,7 +87,7 @@ clears the search and the second leaves.
 
 ```sh
 key:right snap:console                    # -> the console, opened at the tail in "full log"
-'key:up*8' snap:scrolled                  # scroll up; the new-lines nudge appears
+'key:up*8' snap:scrolled                  # scroll up; no nudge until a line arrives
 key:end key:f snap:important              # f switches to "important only"
 key:tab snap:chat                         # chat tab
 'key:ctrl+f' key:y key:o key:o snap:search  # search for "yoo"

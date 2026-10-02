@@ -46,11 +46,10 @@ highlighted) then `key:enter`.
 To exercise the patch dialog, copy a pack to a scratch dir and rewrite its
 `run.sh` so the java line has no `exec`, then import that copy. The status
 line reads `1 need \`exec\` patching (open its console, then a for Fix start
-script)`. An add from the add row leaves the cursor on the add row, so filter
-to the new server to open it:
+script)`. The add selects the new server, so `→` opens it:
 
 ```sh
-key:n key:o key:e key:x key:right         # type part of its id, then open its console
+key:right                                 # open the just-added server's console
 key:a snap:actions                        # settings overlay: "Fix start script" is the top row
 key:enter snap:patch_dialog                # the diff/backup preview
 key:y wait:0.5 snap:patched                # applies; status line reads "<id> patched (ok)"
@@ -63,8 +62,8 @@ key:y wait:0.5 snap:patched                # applies; status line reads "<id> pa
 - The picker's row count depends on the terminal height, so its snapshot is not
   stable across `--rows` values.
 - The patch writes to the user's real folder. Copy the pack first.
-- After an add from the add row the cursor stays on the add row; nothing
-  selects the new server. Only the first add into an empty list lands on it.
+- After an add the cursor moves onto the server found in the picked folder,
+  off the add row (`opDoneMsg.focus`, `model.focusID`).
 - In the settings overlay "Fix start script" is the top row unless the EULA is
   also unaccepted, in which case "Accept the Minecraft EULA" sits above it.
 - Import writes `servers/<id>.toml` into the config dir. Use a per-run copy of

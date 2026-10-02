@@ -77,8 +77,7 @@ populated case.
   `ctrl+r`, and after an add from the picker; never on a tick. It adds folders
   no spec claims yet and never rewrites an existing spec. A fixture whose
   `scan_roots` point at real directories imports from them on `ctrl+r`.
-- A drive that has deleted a server's folder and pressed `ctrl+r` sees the
-  server dropped, then `import: reading scan root ...: no such file` on the
-  status line: the picker adds a server's own folder as a scan root, and the
-  prune leaves that root in `config.toml`. Expect that line; it is not a drive
-  error.
+- Deleting a server's folder and pressing `ctrl+r` drops the server and also
+  its scan root (the picker adds a server's own folder as one), so the status
+  line reads `removed 1 server(s) whose folder is gone` and `config.toml` no
+  longer lists the folder (`Manager.PruneScanRoots`).
