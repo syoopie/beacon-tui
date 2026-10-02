@@ -73,6 +73,9 @@ type model struct {
 	specs    []server.Spec
 	reports  map[server.ID]reconcile.Report
 	timedOut map[server.ID]bool
+	// starting is the server a start just launched, watched until it accepts
+	// players or dies, so the status line can say which.
+	starting launchWatch
 
 	list  list.Model
 	help  help.Model
@@ -372,6 +375,7 @@ func (m *model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.reports = msg.reports
+		m.followLaunch(msg.at)
 		m.refreshItems()
 		m.relayout() // a new warning adds the notice banner, which resizes the body
 		return m, nil
@@ -416,6 +420,9 @@ func (m *model) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = msg.label + ": " + msg.err.Error()
 		} else {
 			m.status = msg.label
+		}
+		if msg.started {
+			m.starting = launchWatch{id: msg.id, at: time.Now()}
 		}
 		if msg.timedOut {
 			m.timedOut[msg.id] = true
@@ -1123,9 +1130,44 @@ type reloadedMsg struct {
 	err          error
 }
 
+// launchWatch follows one start. Start returns once the session exists; whether
+// the server then comes up is only known from later reconciles.
+type launchWatch struct {
+	id server.ID // empty when nothing is being watched
+	at time.Time
+}
+
+// followLaunch settles the status line for a watched start from a reconcile
+// that read tmux after the launch: ready once the port accepts connections, or
+// a pointer at the notice when the session is already gone.
+func (m *model) followLaunch(at time.Time) {
+	id := m.starting.id
+	if id == "" || at.Before(m.starting.at) {
+		return
+	}
+	r, ok := m.reports[id]
+	if !ok {
+		m.starting = launchWatch{}
+		return
+	}
+	switch r.Derived {
+	case server.StatusStarting, server.StatusStopping:
+		return
+	case server.StatusRunning:
+		if r.PortHealth != reconcile.PortOpen {
+			return
+		}
+		m.status = string(id) + " is ready for players"
+	default:
+		m.status = string(id) + " exited while starting; its last log line is in the notice above"
+	}
+	m.starting = launchWatch{}
+}
+
 type reconciledMsg struct {
 	reports map[server.ID]reconcile.Report
 	err     error
+	at      time.Time // when the reconcile read tmux
 }
 
 type commandsDetectedMsg struct {
@@ -1144,6 +1186,7 @@ type opDoneMsg struct {
 	id       server.ID
 	label    string
 	timedOut bool
+	started  bool // a start that launched its session
 	err      error
 	// cfg is the config a scan left on disk, after dropping scan roots that
 	// are gone; nil for every other operation.
@@ -1249,6 +1292,7 @@ func (m *model) reloadCmd() tea.Cmd {
 func (m *model) reconcileCmd() tea.Cmd {
 	sup, specs := m.app.Sup, m.specs
 	return func() tea.Msg {
+		at := time.Now()
 		reports, err := reconcile.Run(context.Background(), sup, specs)
 		if err != nil {
 			return reconciledMsg{err: err}
@@ -1257,7 +1301,7 @@ func (m *model) reconcileCmd() tea.Cmd {
 		for _, r := range reports {
 			byID[r.ID] = r
 		}
-		return reconciledMsg{reports: byID}
+		return reconciledMsg{reports: byID, at: at}
 	}
 }
 
@@ -1466,11 +1510,10 @@ func (m *model) startCmd(spec server.Spec) tea.Cmd {
 	mgr, all := m.app.Mgr, m.specs
 	return func() tea.Msg {
 		_, err := mgr.Start(context.Background(), spec, all)
-		label := string(spec.ID) + " started"
 		if err != nil {
-			label = "start " + string(spec.ID)
+			return opDoneMsg{id: spec.ID, label: "start " + string(spec.ID), err: err}
 		}
-		return opDoneMsg{id: spec.ID, label: label, err: err}
+		return opDoneMsg{id: spec.ID, label: string(spec.ID) + " starting…", started: true}
 	}
 }
 

@@ -1479,3 +1479,35 @@ func TestRecordProcKeepsHistoryAndResetsOnRestart(t *testing.T) {
 		t.Fatal("a stopped server should drop its history")
 	}
 }
+
+func TestStartStatusFollowsTheLaunch(t *testing.T) {
+	m, tm, _, dirs, _ := bootModel(t)
+	spec := writeSpec(t, dirs, "survival")
+	tm = loadRegistry(t, m, tm)
+	stopped := map[server.ID]reconcile.Report{spec.ID: {ID: spec.ID, Derived: server.StatusStopped}}
+
+	before := time.Now()
+	tm, _ = drive(t, tm, opDoneMsg{id: spec.ID, label: "survival starting…", started: true})
+	tm, _ = drive(t, tm, reconciledMsg{reports: stopped, at: before})
+	if m.status != "survival starting…" {
+		t.Fatalf("a reconcile from before the launch moved the status to %q", m.status)
+	}
+	tm, _ = drive(t, tm, reconciledMsg{reports: map[server.ID]reconcile.Report{
+		spec.ID: {ID: spec.ID, Derived: server.StatusRunning, PortHealth: reconcile.PortClosed},
+	}, at: time.Now()})
+	if m.status != "survival starting…" {
+		t.Fatalf("a running server whose port is not open yet should still read starting, got %q", m.status)
+	}
+	tm, _ = drive(t, tm, reconciledMsg{reports: stopped, at: time.Now()})
+	if !strings.Contains(m.status, "exited while starting") {
+		t.Fatalf("status = %q, want it to say the server exited", m.status)
+	}
+
+	tm, _ = drive(t, tm, opDoneMsg{id: spec.ID, label: "survival starting…", started: true})
+	_, _ = drive(t, tm, reconciledMsg{reports: map[server.ID]reconcile.Report{
+		spec.ID: {ID: spec.ID, Derived: server.StatusRunning, PortHealth: reconcile.PortOpen},
+	}, at: time.Now()})
+	if m.status != "survival is ready for players" {
+		t.Fatalf("status = %q, want ready", m.status)
+	}
+}
