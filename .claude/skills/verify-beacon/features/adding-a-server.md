@@ -45,8 +45,8 @@ highlighted) then `key:enter`.
 
 To exercise the patch dialog, copy a pack to a scratch dir and rewrite its
 `run.sh` so the java line has no `exec`, then import that copy. The status
-line reads `1 need \`exec\` patching (open its console, then a for Fix start
-script)`. The add selects the new server, so `→` opens it:
+line reads `imported 1 server; 1 start script needs the exec fix: open the
+server's console, press a and choose Fix start script`. The add selects the new server, so `→` opens it:
 
 ```sh
 key:right                                 # open the just-added server's console

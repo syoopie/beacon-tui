@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dustin/go-humanize/english"
 
 	"github.com/syoopie/beacon-tui/internal/config"
 	"github.com/syoopie/beacon-tui/internal/importdetect"
@@ -50,7 +51,7 @@ func (m *model) importCmd(focus string) tea.Cmd {
 		}
 		removed := ""
 		if len(pruned) > 0 {
-			removed = fmt.Sprintf("removed %d server(s) whose folder is gone", len(pruned))
+			removed = "removed " + english.Plural(len(pruned), "server", "servers") + " whose folder is gone"
 		}
 
 		// A deleted server folder is usually its own scan root (the picker adds
@@ -116,9 +117,10 @@ func (m *model) importCmd(focus string) tea.Cmd {
 				needPatch++
 			}
 		}
-		label := fmt.Sprintf("imported %d server(s)", len(specs))
+		label := "imported " + english.Plural(len(specs), "server", "servers")
 		if needPatch > 0 {
-			label += fmt.Sprintf("; %d need `exec` patching (open its console, then a for Fix start script)", needPatch)
+			label += "; " + english.Plural(needPatch, "start script needs", "start scripts need") +
+				" the exec fix: open the server's console, press a and choose Fix start script"
 		}
 		if removed != "" {
 			label += "; " + removed

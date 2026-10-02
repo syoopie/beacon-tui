@@ -82,5 +82,5 @@ populated case.
   `scan_roots` point at real directories imports from them on `ctrl+r`.
 - Deleting a server's folder and pressing `ctrl+r` drops the server and also
   its scan root (the picker adds a server's own folder as one), so the status
-  line reads `removed 1 server(s) whose folder is gone` and `config.toml` no
+  line reads `removed 1 server whose folder is gone` and `config.toml` no
   longer lists the folder (`Manager.PruneScanRoots`).
