@@ -328,13 +328,21 @@ func (m *model) logHeaderView(w int) string {
 	if word, color := portHealthLabel(r.PortHealth, r.Derived); word != "" {
 		port += mutedStyle.Render(" ") + lipgloss.NewStyle().Foreground(color).Render(word)
 	}
-	line := strings.Join([]string{
+	parts := []string{
 		sectionStyle.Render(string(spec.ID)),
 		lipgloss.NewStyle().Foreground(statusColor(r.Derived)).Render(r.Derived.String()),
 		port,
 		mutedStyle.Render("via " + launchSummary(spec)),
-	}, mutedStyle.Render("   ·   "))
-	return lipgloss.NewStyle().MaxWidth(max(w, 1)).Render(line)
+	}
+	// Drop whole facts from the right rather than cut one mid-word; the name
+	// and status always stay, with an ellipsis if even they do not fit.
+	sep := mutedStyle.Render("   ·   ")
+	line := strings.Join(parts, sep)
+	for len(parts) > 2 && lipgloss.Width(line) > w {
+		parts = parts[:len(parts)-1]
+		line = strings.Join(parts, sep)
+	}
+	return ansi.Truncate(line, max(w, 1), "…")
 }
 
 // powerHint is the s-key binding, labelled for what it does in the server's
